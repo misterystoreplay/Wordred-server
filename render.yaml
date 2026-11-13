@@ -5,14 +5,22 @@
 # 2. En Render: New + -> Blueprint -> conecta el repositorio.
 #    Render lee este archivo y crea el servicio solo.
 # 3. Copia la URL del servicio (https://wordred-server.onrender.com).
-#    Con WordRed 1.3 la app se conecta sola, sin configurar nada:
+#    Con WordRed 1.4 la app se conecta sola, sin configurar nada:
 #    solo abre la app y sincroniza. No hay que poner la URL ni
 #    vincular el teléfono a mano.
+#
+# Archivos PARA SIEMPRE con Cloudinary (v1.4, plan gratis, 25 GB):
+# sin estas dos variables los archivos quedan solo en el disco del
+# servicio, que en el plan gratis se pierde al reiniciar o al volver
+# a desplegar. Los pasos para crear la cuenta y el preset sin firmar
+# están en server/README.md ("Cloudinary (archivos para siempre)").
+# Cuando las tengas, quita el # de las dos líneas y pon tus datos.
 #
 # Ojo (honesto): en el plan gratis de Render el disco es efímero:
 # los datos (publicaciones, mensajes) se pierden al reiniciar o al
 # volver a desplegar. Para guardarlos de verdad hace falta un disco
-# persistente (plan de pago) o una base de datos externa.
+# persistente (plan de pago) o una base de datos externa. Los
+# ARCHIVOS, con Cloudinary configurado, quedan para siempre.
 
 services:
   - type: web
@@ -24,6 +32,19 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Archivos para siempre con Cloudinary (v1.4): quita el # y pon
+      # tus datos cuando crees la cuenta y el preset sin firmar
+      # (ver server/README.md). Sin estas dos variables, los archivos
+      # quedan solo en el disco efímero del plan gratis.
+      # - key: CLOUDINARY_CLOUD_NAME
+      #   sync: false
+      # - key: CLOUDINARY_UPLOAD_PRESET
+      #   sync: false
+      # Borrar también en Cloudinary (opcional, secretos: nunca en la APK).
+      # - key: CLOUDINARY_API_KEY
+      #   sync: false
+      # - key: CLOUDINARY_API_SECRET
+      #   sync: false
       # SMS reales con Twilio (opcional): sin estas tres variables el
       # servidor muestra el código en su registro ([DEV]) y la app lo
       # muestra en la pantalla de vinculación en modo de prueba.

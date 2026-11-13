@@ -13,6 +13,19 @@
  * (amigos = seguidos), seguidores de la página y miembros del grupo;
  * la app se vincula con el servidor con un token (código de 6 dígitos)
  * y todo lo que se publica se sincroniza en tiempo real por WebSocket.
+ * v1.4: el servidor guarda los archivos (fotos de perfil y portada,
+ * fotos/videos de publicaciones, historias, anuncios, mensajes y
+ * audios) y los sirve por URL pública; los cambios de perfil se
+ * difunden en vivo por WebSocket. Almacenamiento PERMANENTE con
+ * Cloudinary (plan gratis): si CLOUDINARY_CLOUD_NAME y
+ * CLOUDINARY_UPLOAD_PRESET están configurados, el archivo queda
+ * guardado para siempre en Cloudinary y la URL que se guarda es la
+ * de Cloudinary. Sin configurar, el archivo queda en el disco del
+ * servidor como respaldo TEMPORAL: en Render gratis el disco es
+ * efímero y se pierde si el servicio se reinicia o se vuelve a
+ * desplegar. Los secretos (API_KEY/SECRET, solo para borrar en
+ * Cloudinary) nunca van en la APK: solo como variables de entorno
+ * del servidor.
  *
  * Almacenamiento: JSON en disco (carpeta data/). Sin dependencias
  * nativas, para que funcione en cualquier host gratuito.
@@ -56,6 +69,12 @@ const TWILIO = {
 const SMS_ENABLED = !!(TWILIO.sid && TWILIO.token && TWILIO.from);
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
+/* Archivos subidos (v1.4): MEDIA_DIR guarda los archivos ya terminados
+   y MEDIA_TMP_DIR los trozos mientras se suben. */
+const MEDIA_DIR = process.env.MEDIA_DIR || path.join(__dirname, 'uploads');
+const MEDIA_TMP_DIR = path.join(DATA_DIR, 'uploads_tmp');
+fs.mkdirSync(MEDIA_DIR, { recursive: true });
+fs.mkdirSync(MEDIA_TMP_DIR, { recursive: true });
 
 function loadJson(name, fallback) {
   try {
@@ -85,7 +104,10 @@ let notifications = loadJson('notifications.json', []); // [{id, type, from, to,
 let blocked = loadJson('blocked.json', {});              // bloqueos (v1.2, ola 7): bloqueador -> [bloqueados]
 let reports = loadJson('reports.json', []);              // reportes de cuentas (v1.2, ola 7)
 let auth = loadJson('auth.json', {});               // phone -> {codeHash, codeAt, codeAttempts, token, tokenAt, verified}
+let media = loadJson('media.json', {});             // id -> {id, owner, name, type, ext, size, createdAt} (v1.4)
 const codeHits = {};                                // phone -> [timestamps]
+/* Subidas por partes en curso (v1.4): uploadId -> {owner, name, type, ext, received, createdAt} */
+const pendingUploads = {};
 
 function saveAll() {
   saveJson('profiles.json', profiles);
@@ -104,6 +126,7 @@ function saveAll() {
   saveJson('blocked.json', blocked);
   saveJson('reports.json', reports);
   saveJson('auth.json', auth);
+  saveJson('media.json', media);
 }
 
 function normPhone(p) { return String(p || '').replace(/\D/g, ''); }
@@ -119,6 +142,88 @@ function normalizeLinkUrl(raw) {
   return { url, host };
 }
 function uid(prefix) { return (prefix || 'id') + '_' + Date.now().toString(36) + '_' + crypto.randomBytes(4).toString('hex'); }
+/* Archivos en el servidor (v1.4): la app sube en trozos de base64 y el
+   servidor arma el archivo en uploads/ y lo sirve por /media/<id>.<ext>.
+   Solo el dueño puede borrar su archivo. */
+const MEDIA_MIME_TO_EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov', 'video/3gpp': '3gp', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/wav': 'wav', 'audio/ogg': 'ogg', 'audio/webm': 'webm', 'application/pdf': 'pdf' };
+const MEDIA_EXT_TO_CT = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', '3gp': 'video/3gpp', mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', ogg: 'audio/ogg', pdf: 'application/pdf', bin: 'application/octet-stream' };
+function mediaExtFor(mime) { return MEDIA_MIME_TO_EXT[String(mime || '').toLowerCase().split(';')[0].trim()] || 'bin'; }
+function sweepStaleUploads() {
+  try {
+    const now = Date.now();
+    fs.readdirSync(MEDIA_TMP_DIR).forEach(function (f) {
+      const p = path.join(MEDIA_TMP_DIR, f);
+      try {
+        const st = fs.statSync(p);
+        if (now - st.mtimeMs > 24 * 60 * 60 * 1000) { fs.unlinkSync(p); delete pendingUploads[f.replace(/\.part$/, '')]; }
+      } catch (e) {}
+    });
+  } catch (e) {}
+}
+/* ---- almacenamiento permanente con Cloudinary (v1.4) ----
+   El usuario crea una cuenta GRATIS en Cloudinary (25 GB, sin
+   tarjeta) y un preset de subida SIN FIRMAR; el servidor solo lee
+   dos variables de entorno: CLOUDINARY_CLOUD_NAME y
+   CLOUDINARY_UPLOAD_PRESET. La subida a Cloudinary es SIN FIRMAR
+   (solo cloud name + preset, sin secretos), así que ni el servidor
+   ni la app necesitan credenciales para subir. CLOUDINARY_API_KEY y
+   CLOUDINARY_API_SECRET son OPCIONALES y solo sirven para BORRAR el
+   archivo en Cloudinary (borrado firmado); nunca van en la APK.
+   Si Cloudinary no está configurado, el archivo queda en el disco
+   del servidor como respaldo TEMPORAL (en Render gratis se pierde al
+   reiniciar o redesplegar). Si la subida a Cloudinary falla, también
+   se usa el disco local para no perder el archivo.
+   CLOUDINARY_UPLOAD_URL y CLOUDINARY_DESTROY_URL solo existen para
+   las pruebas (apuntan a un servidor falso en local); en producción
+   no se ponen. */
+function cloudinaryConfig() {
+  const cloudName = (process.env.CLOUDINARY_CLOUD_NAME || '').trim();
+  const preset = (process.env.CLOUDINARY_UPLOAD_PRESET || '').trim();
+  return {
+    cloudName,
+    preset,
+    apiKey: (process.env.CLOUDINARY_API_KEY || '').trim(),
+    apiSecret: (process.env.CLOUDINARY_API_SECRET || '').trim(),
+    enabled: !!(cloudName && preset),
+    uploadUrl: (process.env.CLOUDINARY_UPLOAD_URL || '').trim() || (cloudName ? 'https://api.cloudinary.com/v1_1/' + cloudName + '/auto/upload' : ''),
+    destroyUrl: (process.env.CLOUDINARY_DESTROY_URL || '').trim() || (cloudName ? 'https://api.cloudinary.com/v1_1/' + cloudName + '/image/destroy' : '')
+  };
+}
+/* Sube un archivo ya armado a Cloudinary con el preset sin firmar.
+   Devuelve la respuesta de Cloudinary (con secure_url y public_id)
+   o lanza un error si Cloudinary rechaza la subida. */
+async function uploadToCloudinary(cfg, buf, mime, fileName, id) {
+  const form = new FormData();
+  form.append('upload_preset', cfg.preset);
+  form.append('public_id', 'wordred/' + id);
+  form.append('file', new Blob([buf], { type: mime || 'application/octet-stream' }), fileName);
+  const res = await fetch(cfg.uploadUrl, { method: 'POST', body: form });
+  let data = null;
+  try { data = await res.json(); } catch (e) {}
+  if (!res.ok || !data || !data.secure_url) throw new Error((data && data.error && data.error.message) || ('Cloudinary: HTTP ' + res.status));
+  return data;
+}
+/* Borra un archivo de Cloudinary (borrado FIRMADO, solo si están
+   CLOUDINARY_API_KEY y CLOUDINARY_API_SECRET). Devuelve true si
+   Cloudinary confirmó el borrado. Sin secretos devuelve false y el
+   archivo queda huérfano en Cloudinary (se borra el registro y la
+   copia local, pero la copia en la nube sigue existiendo). */
+async function destroyFromCloudinary(cfg, rec) {
+  if (!cfg.apiKey || !cfg.apiSecret || !rec || !rec.publicId) return false;
+  try {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = crypto.createHash('sha1').update('public_id=' + rec.publicId + '&timestamp=' + timestamp + cfg.apiSecret).digest('hex');
+    const body = new URLSearchParams({ public_id: rec.publicId, api_key: cfg.apiKey, timestamp: String(timestamp), signature });
+    let url = cfg.destroyUrl;
+    const mime = String(rec.type || '');
+    if (mime.indexOf('video/') === 0) url = url.replace('/image/destroy', '/video/destroy');
+    else if (mime.indexOf('image/') !== 0) url = url.replace('/image/destroy', '/raw/destroy');
+    const res = await fetch(url, { method: 'POST', body });
+    let data = null;
+    try { data = await res.json(); } catch (e) {}
+    return !!(res.ok && data && data.result === 'ok');
+  } catch (e) { return false; }
+}
 function sha(s) { return crypto.createHash('sha256').update(String(s)).digest('hex'); }
 function genCode() { return String(Math.floor(100000 + Math.random() * 900000)); }
 function genToken() { return crypto.randomBytes(32).toString('hex'); }
@@ -206,7 +311,7 @@ const app = express();
 app.use(express.json({ limit: '1gb' }));
 app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization'); if (req.method === 'OPTIONS') return res.sendStatus(204); next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '1.3', sms: SMS_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '1.4', sms: SMS_ENABLED }));
 
 /* ---- autenticación por teléfono ---- */
 app.post('/api/auth/request-code', async (req, res) => {
@@ -281,12 +386,125 @@ app.post('/api/profile', (req, res) => {
   profiles[phone] = p;
   if (!friends[phone]) friends[phone] = [];
   saveAll();
+  /* v1.4: el cambio de perfil (foto, portada, nombre) se difunde en vivo
+     a todos los teléfonos conectados para que se vea sin reabrir nada. */
+  broadcast({ kind: 'profile', profile: p });
   return res.json({ ok: true, profile: p });
 });
 app.get('/api/profile/:phone', (req, res) => {
   const p = profiles[normPhone(req.params.phone)];
   if (!p) return res.status(404).json({ ok: false, error: 'Perfil no encontrado.' });
   return res.json({ ok: true, profile: p });
+});
+
+/* ---- archivos en el servidor (v1.4) ----
+   La app sube por partes, igual que el puente nativo: abre la subida
+   (start), manda trozos de base64 (chunk, máx. 4 MB por trozo) y la
+   cierra (finish). Al cerrar, el servidor arma el archivo y lo sube
+   a Cloudinary (almacenamiento PERMANENTE, plan gratis) si está
+   configurado; la URL que se guarda y se devuelve es la de
+   Cloudinary. Sin Cloudinary configurado, o si su subida falla, el
+   archivo queda en el disco del servidor (uploads/) y se sirve por
+   URL pública /media/<id>.<ext>, con el tipo de contenido correcto:
+   ese es solo un RESPALDO TEMPORAL (en Render gratis el disco es
+   efímero y se pierde al reiniciar o redesplegar). Sin tope impuesto
+   por la app: el límite real es Cloudinary (25 GB gratis) o el disco
+   del servidor. Solo el dueño puede borrar su archivo y nunca se
+   aceptan rutas fuera de la carpeta de subidas. */
+app.post('/api/media/start', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const name = String((req.body && req.body.name) || 'archivo').slice(0, 200);
+  const type = String((req.body && req.body.type) || 'application/octet-stream').slice(0, 100);
+  sweepStaleUploads();
+  const uploadId = 'up_' + crypto.randomBytes(8).toString('hex');
+  pendingUploads[uploadId] = { owner: phone, name, type, ext: mediaExtFor(type), received: 0, createdAt: Date.now() };
+  try { fs.writeFileSync(path.join(MEDIA_TMP_DIR, uploadId + '.part'), Buffer.alloc(0)); } catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo preparar la subida.' }); }
+  return res.json({ ok: true, uploadId });
+});
+app.post('/api/media/chunk', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const uploadId = String((req.body && req.body.uploadId) || '');
+  const up = pendingUploads[uploadId];
+  if (!up) return res.status(404).json({ ok: false, error: 'Subida no encontrada.' });
+  if (up.owner !== phone) return res.status(403).json({ ok: false, error: 'Sin permiso.' });
+  const data = String((req.body && req.body.data) || '').replace(/\s/g, '');
+  if (!data || data.length > 4 * 1024 * 1024 || !/^[A-Za-z0-9+/=]+$/.test(data)) return res.status(400).json({ ok: false, error: 'Trozo inválido.' });
+  let buf;
+  try { buf = Buffer.from(data, 'base64'); } catch (e) { return res.status(400).json({ ok: false, error: 'Trozo inválido.' }); }
+  if (!buf.length) return res.status(400).json({ ok: false, error: 'Trozo vacío.' });
+  try { fs.appendFileSync(path.join(MEDIA_TMP_DIR, uploadId + '.part'), buf); } catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar el trozo.' }); }
+  up.received += buf.length;
+  return res.json({ ok: true, received: up.received });
+});
+app.post('/api/media/finish', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const uploadId = String((req.body && req.body.uploadId) || '');
+  const up = pendingUploads[uploadId];
+  if (!up) return res.status(404).json({ ok: false, error: 'Subida no encontrada.' });
+  if (up.owner !== phone) return res.status(403).json({ ok: false, error: 'Sin permiso.' });
+  const id = 'm_' + Date.now().toString(36) + '_' + crypto.randomBytes(4).toString('hex');
+  const fileName = id + '.' + up.ext;
+  const tmpPath = path.join(MEDIA_TMP_DIR, uploadId + '.part');
+  let buf;
+  try { buf = fs.readFileSync(tmpPath); } catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar el archivo.' }); }
+  delete pendingUploads[uploadId];
+  /* v1.4: primero se intenta Cloudinary (para siempre). Si no está
+     configurado o su subida falla, se guarda en el disco local como
+     respaldo temporal (en Render gratis se pierde al reiniciar). */
+  const cfg = cloudinaryConfig();
+  if (cfg.enabled) {
+    try {
+      const cloud = await uploadToCloudinary(cfg, buf, up.type, fileName, id);
+      try { fs.unlinkSync(tmpPath); } catch (e) {}
+      media[id] = { id, owner: phone, name: up.name, type: up.type, ext: up.ext, size: up.received, createdAt: Date.now(), url: cloud.secure_url, cloudinaryUrl: cloud.secure_url, publicId: cloud.public_id };
+      saveJson('media.json', media);
+      return res.json({ ok: true, id, url: cloud.secure_url, type: up.type, size: up.received, cloudinary: true });
+    } catch (e) {
+      console.log('[media] Cloudinary falló, se guarda en disco local: ' + (e && e.message ? e.message : e));
+    }
+  }
+  try {
+    fs.renameSync(tmpPath, path.join(MEDIA_DIR, fileName));
+  } catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar el archivo.' }); }
+  media[id] = { id, owner: phone, name: up.name, type: up.type, ext: up.ext, size: up.received, createdAt: Date.now(), url: '/media/' + fileName };
+  saveJson('media.json', media);
+  return res.json({ ok: true, id, url: '/media/' + fileName, type: up.type, size: up.received, cloudinary: false });
+});
+app.get('/media/:file', (req, res) => {
+  const file = String(req.params.file || '');
+  const m = file.match(/^([A-Za-z0-9_-]+)\.([a-z0-9]{2,4})$/);
+  if (!m || !MEDIA_EXT_TO_CT[m[2]]) return res.status(404).json({ ok: false, error: 'Archivo no encontrado.' });
+  /* v1.4: si el archivo vive en Cloudinary (para siempre), se redirige
+     a su URL; si es del respaldo local, se sirve desde el disco. */
+  const rec = media[m[1]];
+  if (rec && rec.cloudinaryUrl) return res.redirect(302, rec.cloudinaryUrl);
+  const filePath = path.join(MEDIA_DIR, path.basename(file));
+  if (!fs.existsSync(filePath)) return res.status(404).json({ ok: false, error: 'Archivo no encontrado.' });
+  res.setHeader('Content-Type', MEDIA_EXT_TO_CT[m[2]]);
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  return res.sendFile(filePath);
+});
+app.delete('/api/media/:id', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const rec = media[req.params.id];
+  if (!rec) return res.status(404).json({ ok: false, error: 'Archivo no encontrado.' });
+  if (rec.owner !== phone) return res.status(403).json({ ok: false, error: 'Sin permiso.' });
+  /* v1.4: si vive en Cloudinary y hay secretos para borrar, se borra
+     también en la nube; sin secretos, la copia en la nube queda
+     huérfana (se borra el registro y la copia local). */
+  if (rec.cloudinaryUrl) {
+    const cfg = cloudinaryConfig();
+    const gone = await destroyFromCloudinary(cfg, rec);
+    if (!gone && cfg.apiKey && cfg.apiSecret) console.log('[media] no se pudo borrar en Cloudinary: ' + rec.publicId);
+  }
+  try { fs.unlinkSync(path.join(MEDIA_DIR, rec.id + '.' + rec.ext)); } catch (e) {}
+  delete media[req.params.id];
+  saveJson('media.json', media);
+  return res.json({ ok: true });
 });
 
 /* ---- feed y publicaciones ---- */
@@ -815,7 +1033,7 @@ app.delete('/api/groups/:id', (req, res) => {
   saveAll();
   return res.json({ ok: true });
 });
-app.delete('/api/account', (req, res) => {
+app.delete('/api/account', async (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
   delete profiles[phone];
@@ -843,6 +1061,16 @@ app.delete('/api/account', (req, res) => {
   pages.forEach(p => { p.followers = p.followers.filter(f => f !== phone); });
   groups.forEach(g => { g.members = g.members.filter(m => m !== phone); });
   listings.forEach(l => { l.savedBy = l.savedBy.filter(s => s !== phone); });
+  /* v1.4: también se borran los archivos que el usuario subió al servidor
+     (en Cloudinary también, si hay secretos para borrar). */
+  const cfgDel = cloudinaryConfig();
+  for (const id of Object.keys(media)) {
+    if (media[id].owner === phone) {
+      if (media[id].cloudinaryUrl) await destroyFromCloudinary(cfgDel, media[id]);
+      try { fs.unlinkSync(path.join(MEDIA_DIR, media[id].id + '.' + media[id].ext)); } catch (e) {}
+      delete media[id];
+    }
+  }
   delete auth[phone];
   saveAll();
   return res.json({ ok: true });
@@ -1385,4 +1613,4 @@ function broadcast(data) {
 if (require.main === module) {
   server.listen(PORT, () => console.log('WordRed server en el puerto ' + PORT + (SMS_ENABLED ? ' (SMS por Twilio)' : ' (sin Twilio: códigos por [DEV])')));
 }
-module.exports = { app, server, _internals: { get profiles() { return profiles; }, get posts() { return posts; }, get auth() { return auth; }, get listings() { return listings; }, get events() { return events; }, get pages() { return pages; }, get salesGroups() { return salesGroups; }, get ratings() { return ratings; }, get stories() { return stories; }, get blocked() { return blocked; }, get reports() { return reports; }, get messages() { return messages; }, saveAll } };
+module.exports = { app, server, _internals: { get profiles() { return profiles; }, get posts() { return posts; }, get auth() { return auth; }, get listings() { return listings; }, get events() { return events; }, get pages() { return pages; }, get salesGroups() { return salesGroups; }, get ratings() { return ratings; }, get stories() { return stories; }, get blocked() { return blocked; }, get reports() { return reports; }, get messages() { return messages; }, get media() { return media; }, cloudinaryConfig, saveAll } };

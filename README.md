@@ -31,6 +31,85 @@ archivos JSON dentro de `data/` y sincroniza la app en tiempo real.
   (`POST /api/call-signal`, tipos offer/answer/ice/hangup/reject/busy).
   El audio/video va punto a punto entre los teléfonos; el servidor solo
   pasa los mensajes de señalización.
+- **Archivos en el servidor, PARA SIEMPRE (v1.4):** la app sube fotos,
+  videos y audios por partes (`POST /api/media/start`,
+  `/api/media/chunk`, `/api/media/finish`). Al cerrar la subida, el
+  servidor guarda el archivo **en Cloudinary (plan gratis, 25 GB)** y
+  la URL que se guarda es la de Cloudinary: fotos de perfil y portada,
+  publicaciones, historias, anuncios, mensajes y audios quedan
+  guardados para siempre y se ven en vivo desde esa URL.
+  `DELETE /api/media/:id` solo lo puede hacer el dueño del archivo.
+  Los cambios de perfil (`POST /api/profile`) se difunden en vivo por
+  WebSocket (`kind: 'profile'`) a todos los teléfonos conectados.
+  **Sin Cloudinary configurado, el archivo queda en el disco del
+  servidor (`uploads/`, servido por `GET /media/<id>.<ext>`) solo como
+  respaldo temporal: en Render gratis el disco es efímero y los
+  archivos se pierden si el servicio se reinicia o se vuelve a
+  desplegar.** Ver «Cloudinary (archivos para siempre)» abajo.
+
+## Cloudinary (archivos para siempre)
+
+Sin esto, los archivos solo viven en el disco del servidor y se
+pierden al reiniciar Render. Con esto, quedan guardados para siempre
+en Cloudinary (plan gratis: 25 GB de almacenamiento, sin tarjeta).
+
+### 1. Crear la cuenta gratis
+
+1. Entra a https://cloudinary.com/users/register/free y crea la
+   cuenta con tu correo (plan Free, no pide tarjeta).
+2. Al entrar al panel (Dashboard), anota el **Cloud name**: aparece
+   arriba, junto a tu nombre de cuenta. Es algo como
+   `mi-cuenta-123` (no es un secreto, pero no lo publiques).
+
+### 2. Crear el preset de subida sin firmar
+
+1. En el panel de Cloudinary, ve a **Settings** (el engrane, abajo a
+   la izquierda) → **Upload**.
+2. Baja hasta **Upload presets** y pulsa **Add upload preset**.
+3. Ponle un nombre, por ejemplo `wordred`.
+4. En **Signing Mode** elige **Unsigned** (sin firmar). Esto deja que
+   el servidor suba archivos solo con el nombre del preset, sin
+   secretos.
+5. En **Folder** escribe `wordred` (así todos los archivos quedan
+   ordenados en esa carpeta).
+6. En **Resource type** (si aparece) elige **Auto**, para que acepte
+   fotos, videos y audios.
+7. Pulsa **Save**. Anota el nombre del preset (`wordred`).
+
+### 3. Poner los datos en Render
+
+1. En Render, abre el servicio `wordred-server` → **Environment**.
+2. Agrega estas dos variables (con tus datos, sin comillas):
+   - `CLOUDINARY_CLOUD_NAME` = tu Cloud name (ejemplo:
+     `mi-cuenta-123`)
+   - `CLOUDINARY_UPLOAD_PRESET` = tu preset (ejemplo: `wordred`)
+3. Guarda y **redepliega** el servicio (Manual Deploy → Deploy
+   latest commit). Desde ese momento, todo lo que se suba queda
+   guardado para siempre en Cloudinary.
+4. Para comprobarlo: sube una foto de perfil en la app y abre la
+   URL de la foto (empieza por `https://res.cloudinary.com/...`).
+
+### 4. Borrar en Cloudinary también (opcional)
+
+Sin esto, al borrar un archivo se borra el registro y la copia
+local, pero la copia en Cloudinary queda huérfana. Para borrarla
+también, agrega en Render (Environment) estas dos variables, que
+están en el Dashboard de Cloudinary → **API Keys** (son secretos:
+nunca van en la APK ni en el repositorio):
+- `CLOUDINARY_API_KEY` = tu API Key
+- `CLOUDINARY_API_SECRET` = tu API Secret
+
+### Límites honestos
+
+- El plan gratis de Cloudinary son 25 GB de almacenamiento y 25 GB
+  de ancho de banda al mes: suficiente para fotos y videos de una
+  comunidad normal. Si se llena, Cloudinary avisa y se puede pasar
+  a un plan de pago o borrar archivos viejos desde su panel (Media
+  Library).
+- Los archivos subidos ANTES de configurar Cloudinary siguen en el
+  disco local y se pierden al reiniciar Render: para que queden para
+  siempre, vuelve a subirlos (foto de perfil, portada) después de
+  configurar Cloudinary.
 - **Bloqueos y reportes** (`POST /api/block`, `/api/unblock`,
   `/api/reports`).
 - **Edición de publicaciones** con tope de 5 (`PUT /api/posts/:id`).
