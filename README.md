@@ -46,6 +46,21 @@ archivos JSON dentro de `data/` y sincroniza la app en tiempo real.
   respaldo temporal: en Render gratis el disco es efímero y los
   archivos se pierden si el servicio se reinicia o se vuelve a
   desplegar.** Ver «Cloudinary (archivos para siempre)» abajo.
+- **Novedades v1.5:** confirmación de lectura (`POST /api/messages/read`,
+  difunde `kind: 'read'` con `readBy`/`readAt`) y «Escribiendo…» por
+  WebSocket (`kind: 'typing'`); los comentarios se difunden en vivo con
+  su contador (`kind: 'comment'`, incluye respuestas, y `commentCount`
+  en la respuesta); los mensajes pueden llevar el anuncio sobre el que
+  preguntan (`listing: {id, title}`); **transmisiones en vivo**
+  (`GET /api/lives`, `POST /api/lives`, `/end`, `/join`, `/leave`,
+  `/chat`, `/like`, señalización WebRTC por `POST /api/live-signal`):
+  el video va en malla WebRTC directo entre transmisor y espectadores
+  (pocos espectadores a la vez; sin TURN puede fallar con NAT
+  estricto; el video no se guarda); **portada y personalización de
+  grupos** (`PUT /api/groups/:id`, `PUT /api/sales-groups/:id`): solo
+  el creador y los administradores (en ventas, solo el creador) pueden
+  poner la portada (foto o video, por URL) y el color/degradado, y el
+  cambio se difunde en vivo (`kind: 'group'` / `kind: 'sales-group'`).
 
 ## Cloudinary (archivos para siempre)
 

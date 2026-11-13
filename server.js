@@ -26,6 +26,12 @@
  * desplegar. Los secretos (API_KEY/SECRET, solo para borrar en
  * Cloudinary) nunca van en la APK: solo como variables de entorno
  * del servidor.
+ * v1.5: recibos de lectura con hora (POST /api/messages/read marca
+ * readAt y difunde {kind:'read'} al remitente), indicador de
+ * escritura por WebSocket (el cliente manda {kind:'typing'} y el
+ * servidor lo retransmite al destinatario), y difusión en vivo de
+ * comentarios ({kind:'comment'} con el contador total, que incluye
+ * las respuestas) al comentar, responder o borrar.
  *
  * Almacenamiento: JSON en disco (carpeta data/). Sin dependencias
  * nativas, para que funcione en cualquier host gratuito.
@@ -105,6 +111,11 @@ let blocked = loadJson('blocked.json', {});              // bloqueos (v1.2, ola 
 let reports = loadJson('reports.json', []);              // reportes de cuentas (v1.2, ola 7)
 let auth = loadJson('auth.json', {});               // phone -> {codeHash, codeAt, codeAttempts, token, tokenAt, verified}
 let media = loadJson('media.json', {});             // id -> {id, owner, name, type, ext, size, createdAt} (v1.4)
+let lives = loadJson('lives.json', []);              // [{id, host, title, createdAt, endedAt, viewers:[], chat:[], reactions:{}}] (v1.5)
+/* Un live no sobrevive a un reinicio del servidor: al arrancar, los
+   que quedaron abiertos se marcan como terminados. */
+lives.forEach(l => { if (!l.endedAt) l.endedAt = Date.now(); });
+saveJson('lives.json', lives);
 const codeHits = {};                                // phone -> [timestamps]
 /* Subidas por partes en curso (v1.4): uploadId -> {owner, name, type, ext, received, createdAt} */
 const pendingUploads = {};
@@ -270,6 +281,9 @@ function isGroupManagerSrv(g, phone) {
   if (!g) return false;
   return g.creator === phone || (g.admins || []).includes(phone);
 }
+/* Colores y degradados de los grupos (v1.5): los mismos de los perfiles. */
+const GROUP_ACCENTS = ['rojo', 'azul', 'verde', 'morado', 'naranja', 'turquesa', 'amarillo', 'dorado', 'coral', 'celeste', 'lima', 'vino'];
+const GROUP_GRADIENTS = ['none', 'rojo', 'atardecer', 'mar', 'bosque', 'violeta', 'dorado', 'noche'];
 function authPhone(req) {
   const token = String((req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.query.token || '');
   if (!token) return null;
@@ -311,7 +325,7 @@ const app = express();
 app.use(express.json({ limit: '1gb' }));
 app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization'); if (req.method === 'OPTIONS') return res.sendStatus(204); next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '1.4', sms: SMS_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '1.5', sms: SMS_ENABLED }));
 
 /* ---- autenticación por teléfono ---- */
 app.post('/api/auth/request-code', async (req, res) => {
@@ -609,6 +623,7 @@ app.post('/api/posts', (req, res) => {
     song: validateSongSrv(body.song), videoEdits: validateVideoEditsSrv(body.videoEdits), isAd: !!body.isAd, adTitle: String(body.adTitle || '').slice(0, 100), adLink: String(body.adLink || '').slice(0, 500),
     privacy: body.groupId || body.pageId ? 'Público' : (['Público', 'Amigos', 'Solo yo'].includes(body.privacy) ? body.privacy : 'Público'),
     groupId: body.groupId || null, sharedFrom: body.sharedFrom || null,
+    liveId: body.liveId || null, // aviso de un live (v1.5): tocarlo entra al live
     createdAt: body.createdAt || Date.now(), likes: {}, comments: [], shares: [], savedBy: [], isDemo: false,
     editCount: 0, editedAt: null, edited: false
   };
@@ -691,6 +706,15 @@ app.post('/api/posts/:id/like', (req, res) => {
   saveJson('posts.json', posts);
   return res.json({ ok: true, likes: post.likes });
 });
+/* Cantidad total de comentarios de una publicación, incluyendo las
+   respuestas (v1.5): es el número que se ve junto al botón de
+   comentarios y el que se difunde en vivo. */
+function countComments(post) {
+  if (!post || !Array.isArray(post.comments)) return 0;
+  let n = post.comments.length;
+  post.comments.forEach(c => { n += (c.replies || []).length; });
+  return n;
+}
 app.post('/api/posts/:id/comment', (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
@@ -707,7 +731,9 @@ app.post('/api/posts/:id/comment', (req, res) => {
   } else post.comments.push(comment);
   if (post.author !== phone) notify('comment', phone, post.author, 'comentó tu publicación', post.id);
   saveJson('posts.json', posts);
-  return res.json({ ok: true, comment });
+  // v1.5: el contador de comentarios se actualiza en vivo para todos.
+  broadcast({ kind: 'comment', postId: post.id, commentCount: countComments(post), comment, parentId: parentId || null });
+  return res.json({ ok: true, comment, commentCount: countComments(post) });
 });
 app.post('/api/posts/:id/share', (req, res) => {
   const phone = authPhone(req);
@@ -759,6 +785,7 @@ app.delete('/api/posts/:id/comment/:commentId', (req, res) => {
       if (c.author !== phone && post.author !== phone) return res.status(403).json({ ok: false, error: 'Sin permiso.' });
       post.comments.splice(j, 1);
       saveJson('posts.json', posts);
+      broadcast({ kind: 'comment', postId: post.id, commentCount: countComments(post), deletedId: cid });
       return res.json({ ok: true });
     }
     for (let k = 0; k < (c.replies || []).length; k++) {
@@ -766,6 +793,7 @@ app.delete('/api/posts/:id/comment/:commentId', (req, res) => {
         if (c.replies[k].author !== phone && post.author !== phone) return res.status(403).json({ ok: false, error: 'Sin permiso.' });
         c.replies.splice(k, 1);
         saveJson('posts.json', posts);
+        broadcast({ kind: 'comment', postId: post.id, commentCount: countComments(post), deletedId: cid });
         return res.json({ ok: true });
       }
     }
@@ -1185,7 +1213,7 @@ app.post('/api/groups', (req, res) => {
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
   const name = String((req.body && req.body.name) || '').trim();
   if (name.length < 3) return res.status(400).json({ ok: false, error: 'El grupo necesita un nombre.' });
-  const g = { id: uid('grp'), name: name.slice(0, 80), desc: String((req.body && req.body.desc) || '').slice(0, 300), creator: phone, members: [phone], admins: [], cover: String((req.body && req.body.cover) || ''), rules: String((req.body && req.body.rules) || '').slice(0, 500), approval: !!(req.body && req.body.approval), joinRequests: [], pinnedPosts: [], createdAt: Date.now() };
+  const g = { id: uid('grp'), name: name.slice(0, 80), desc: String((req.body && req.body.desc) || '').slice(0, 300), creator: phone, members: [phone], admins: [], cover: String((req.body && req.body.cover) || ''), coverType: (req.body && req.body.coverType) === 'video' ? 'video' : 'image', accent: GROUP_ACCENTS.includes(req.body && req.body.accent) ? req.body.accent : 'rojo', headerGradient: GROUP_GRADIENTS.includes(req.body && req.body.headerGradient) ? req.body.headerGradient : 'none', rules: String((req.body && req.body.rules) || '').slice(0, 500), approval: !!(req.body && req.body.approval), joinRequests: [], pinnedPosts: [], createdAt: Date.now() };
   groups.push(g);
   saveJson('groups.json', groups);
   return res.json({ ok: true, group: g });
@@ -1233,9 +1261,21 @@ app.put('/api/groups/:id', (req, res) => {
   }
   if (body.desc !== undefined) g.desc = String(body.desc || '').slice(0, 300);
   if (body.cover !== undefined) g.cover = String(body.cover || '');
+  if (body.coverType !== undefined) g.coverType = body.coverType === 'video' ? 'video' : 'image';
+  if (!g.cover) g.coverType = 'image';
+  if (body.accent !== undefined) {
+    if (!GROUP_ACCENTS.includes(body.accent)) return res.status(400).json({ ok: false, error: 'Ese color no existe.' });
+    g.accent = body.accent;
+  }
+  if (body.headerGradient !== undefined) {
+    if (!GROUP_GRADIENTS.includes(body.headerGradient)) return res.status(400).json({ ok: false, error: 'Ese degradado no existe.' });
+    g.headerGradient = body.headerGradient;
+  }
   if (body.rules !== undefined) g.rules = String(body.rules || '').slice(0, 500);
   if (body.approval !== undefined) g.approval = !!body.approval;
   saveJson('groups.json', groups);
+  /* v1.5: la portada y la personalización se ven en vivo para todos. */
+  broadcast({ kind: 'group', groupId: g.id, group: g });
   return res.json({ ok: true, group: g });
 });
 app.post('/api/groups/:id/admins', (req, res) => {
@@ -1404,6 +1444,10 @@ app.post('/api/sales-groups', (req, res) => {
     photo: (body && body.photo) || '',
     category: String((body && body.category) || 'Otros'),
     rules: String((body && body.rules) || '').slice(0, 500),
+    cover: String((body && body.cover) || ''),
+    coverType: (body && body.coverType) === 'video' ? 'video' : 'image',
+    accent: GROUP_ACCENTS.includes(body && body.accent) ? body.accent : 'rojo',
+    headerGradient: GROUP_GRADIENTS.includes(body && body.headerGradient) ? body.headerGradient : 'none',
     creator: phone, members: (body && body.members) || [phone],
     createdAt: (body && body.createdAt) || Date.now()
   };
@@ -1411,6 +1455,38 @@ app.post('/api/sales-groups', (req, res) => {
   if (existing) { Object.assign(existing, g); saveJson('sales-groups.json', salesGroups); return res.json({ ok: true, group: existing }); }
   salesGroups.push(g);
   saveJson('sales-groups.json', salesGroups);
+  return res.json({ ok: true, group: g });
+});
+/* Personalizar un grupo de ventas (v1.5): solo quien lo creó (no tienen
+   administradores). La foto del grupo se mantiene; la portada y los
+   colores son aparte y se ven en vivo para todos. */
+app.put('/api/sales-groups/:id', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const g = salesGroups.find(x => x.id === req.params.id);
+  if (!g) return res.status(404).json({ ok: false, error: 'Grupo de ventas no encontrado.' });
+  if (!isGroupManagerSrv(g, phone)) return res.status(403).json({ ok: false, error: 'Solo quien creó el grupo puede personalizarlo.' });
+  const body = (req.body && req.body.group) || req.body;
+  if (body.name !== undefined) {
+    const name = String(body.name || '').trim();
+    if (name.length < 3) return res.status(400).json({ ok: false, error: 'El grupo necesita un nombre.' });
+    g.name = name.slice(0, 80);
+  }
+  if (body.desc !== undefined) g.desc = String(body.desc || '').slice(0, 300);
+  if (body.cover !== undefined) g.cover = String(body.cover || '');
+  if (body.coverType !== undefined) g.coverType = body.coverType === 'video' ? 'video' : 'image';
+  if (!g.cover) g.coverType = 'image';
+  if (body.accent !== undefined) {
+    if (!GROUP_ACCENTS.includes(body.accent)) return res.status(400).json({ ok: false, error: 'Ese color no existe.' });
+    g.accent = body.accent;
+  }
+  if (body.headerGradient !== undefined) {
+    if (!GROUP_GRADIENTS.includes(body.headerGradient)) return res.status(400).json({ ok: false, error: 'Ese degradado no existe.' });
+    g.headerGradient = body.headerGradient;
+  }
+  if (body.rules !== undefined) g.rules = String(body.rules || '').slice(0, 500);
+  saveJson('sales-groups.json', salesGroups);
+  broadcast({ kind: 'sales-group', groupId: g.id, group: g });
   return res.json({ ok: true, group: g });
 });
 app.post('/api/sales-groups/:id/join', (req, res) => {
@@ -1507,6 +1583,110 @@ app.post('/api/call-signal', (req, res) => {
   return res.json({ ok: true });
 });
 
+/* ---- transmisiones en vivo (v1.5) ----
+   Malla WebRTC: el transmisor se conecta directo con cada espectador.
+   El servidor solo guarda el live, difunde sus eventos (inicio, fin,
+   espectadores, chat, reacciones) y pasa la señalización
+   (oferta/respuesta/ICE). El video del live no queda guardado. */
+function activeLives() { return lives.filter(l => !l.endedAt); }
+function livePublic(l) {
+  return { id: l.id, host: l.host, title: l.title || '', createdAt: l.createdAt, viewers: (l.viewers || []).slice(), viewerCount: (l.viewers || []).length, chat: (l.chat || []).slice(-50), reactions: l.reactions || {}, likes: l.likes || 0 };
+}
+app.get('/api/lives', (req, res) => {
+  return res.json({ ok: true, lives: activeLives().map(livePublic) });
+});
+app.post('/api/lives', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  if (!profiles[phone]) return res.status(404).json({ ok: false, error: 'Perfil no encontrado.' });
+  if (activeLives().some(l => l.host === phone)) return res.status(400).json({ ok: false, error: 'Ya tienes un live en curso.' });
+  const title = String((req.body && req.body.title) || '').trim().slice(0, 100);
+  const live = { id: uid('live'), host: phone, title, createdAt: Date.now(), endedAt: null, viewers: [], chat: [], reactions: {}, likes: 0 };
+  lives.push(live);
+  saveJson('lives.json', lives);
+  broadcast({ kind: 'live', event: 'started', live: livePublic(live) });
+  /* A los seguidores les llega el aviso de que estás en vivo. */
+  const hostName = profiles[phone].name || phone;
+  (friends[phone] || []).forEach(f => {
+    if (f !== phone) notify('live', phone, f, hostName + ' está en vivo' + (title ? ': ' + title : ''), live.id);
+  });
+  return res.json({ ok: true, live: livePublic(live) });
+});
+app.post('/api/lives/:id/end', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const live = lives.find(l => l.id === req.params.id);
+  if (!live) return res.status(404).json({ ok: false, error: 'Live no encontrado.' });
+  if (live.host !== phone) return res.status(403).json({ ok: false, error: 'Solo el transmisor puede terminar el live.' });
+  if (live.endedAt) return res.json({ ok: true, live: livePublic(live) });
+  live.endedAt = Date.now();
+  saveJson('lives.json', lives);
+  broadcast({ kind: 'live', event: 'ended', liveId: live.id });
+  return res.json({ ok: true, live: livePublic(live) });
+});
+app.post('/api/lives/:id/join', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const live = lives.find(l => l.id === req.params.id);
+  if (!live || live.endedAt) return res.status(404).json({ ok: false, error: 'Ese live ya terminó.' });
+  if (live.host !== phone && !live.viewers.includes(phone)) live.viewers.push(phone);
+  saveJson('lives.json', lives);
+  broadcast({ kind: 'live', event: 'viewers', liveId: live.id, viewerCount: live.viewers.length, viewers: live.viewers.slice() });
+  return res.json({ ok: true, live: livePublic(live) });
+});
+app.post('/api/lives/:id/leave', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const live = lives.find(l => l.id === req.params.id);
+  if (!live) return res.status(404).json({ ok: false, error: 'Live no encontrado.' });
+  live.viewers = (live.viewers || []).filter(v => v !== phone);
+  saveJson('lives.json', lives);
+  broadcast({ kind: 'live', event: 'viewers', liveId: live.id, viewerCount: live.viewers.length, viewers: live.viewers.slice() });
+  return res.json({ ok: true });
+});
+app.post('/api/lives/:id/chat', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const live = lives.find(l => l.id === req.params.id);
+  if (!live || live.endedAt) return res.status(404).json({ ok: false, error: 'Ese live ya terminó.' });
+  const text = String((req.body && req.body.text) || '').trim();
+  if (!text) return res.status(400).json({ ok: false, error: 'Escribe el mensaje.' });
+  if (live.host !== phone && !(live.viewers || []).includes(phone)) return res.status(403).json({ ok: false, error: 'Primero entra al live.' });
+  const msg = { id: uid('lmsg'), author: phone, text: text.slice(0, 500), createdAt: Date.now() };
+  live.chat.push(msg);
+  if (live.chat.length > 200) live.chat = live.chat.slice(-200);
+  saveJson('lives.json', lives);
+  broadcast({ kind: 'live', event: 'chat', liveId: live.id, message: msg });
+  return res.json({ ok: true, message: msg });
+});
+/* Like en vivo (v1.5): cada toque manda un corazón y suma al contador,
+   que se difunde en vivo a todos. */
+app.post('/api/lives/:id/like', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const live = lives.find(l => l.id === req.params.id);
+  if (!live || live.endedAt) return res.status(404).json({ ok: false, error: 'Ese live ya terminó.' });
+  live.likes = (live.likes || 0) + 1;
+  saveJson('lives.json', lives);
+  broadcast({ kind: 'live', event: 'like', liveId: live.id, likes: live.likes, from: phone });
+  return res.json({ ok: true, likes: live.likes });
+});
+/* Señalización WebRTC de los lives (oferta/respuesta/ICE por WebSocket). */
+app.post('/api/live-signal', (req, res) => {
+  const from = authPhone(req);
+  if (!from) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const to = normPhone(req.body && req.body.to);
+  const type = String((req.body && req.body.type) || '');
+  const payload = (req.body && req.body.payload) || null;
+  const liveId = String((req.body && req.body.liveId) || '');
+  if (!profiles[to]) return res.status(404).json({ ok: false, error: 'Esa persona no existe.' });
+  if (!['offer', 'answer', 'ice'].includes(type)) return res.status(400).json({ ok: false, error: 'Señal inválida.' });
+  const set = sockets.get(to);
+  if (!set || !set.size) return res.status(404).json({ ok: false, error: 'La otra persona no está en línea.' });
+  sendTo(to, { kind: 'live-signal', from, type, payload, liveId });
+  return res.json({ ok: true });
+});
+
 /* ---- mensajes ---- */
 app.post('/api/messages', (req, res) => {
   const from = authPhone(req);
@@ -1521,11 +1701,13 @@ app.post('/api/messages', (req, res) => {
     id: (body && body.id) || uid('msg'), from, to, text: text.slice(0, 2000),
     media: (body && body.media) || '', mediaType: (body && body.mediaType) || '',
     file: (body && body.file) || null, voice: (body && body.voice) || null,
-    createdAt: (body && body.createdAt) || Date.now(), readBy: [from]
+    /* v1.5: pregunta por un anuncio de Marketplace (id y título). */
+    listing: (body && body.listing) || null,
+    createdAt: (body && body.createdAt) || Date.now(), readBy: [from], readAt: null
   };
   if (messages.some(m => m.id === msg.id)) return res.json({ ok: true, message: msg });
   messages.push(msg);
-  notify('message', from, to, msg.voice ? 'te envió un mensaje de voz' : (text ? 'te envió un mensaje' : (msg.file ? 'te envió un archivo' : 'te envió una foto')), msg.id);
+  notify('message', from, to, msg.listing && msg.listing.title ? ('te preguntó por tu anuncio: ' + msg.listing.title) : (msg.voice ? 'te envió un mensaje de voz' : (text ? 'te envió un mensaje' : (msg.file ? 'te envió un archivo' : 'te envió una foto'))), msg.id);
   saveAll();
   sendTo(to, { kind: 'message', message: msg });
   return res.json({ ok: true, message: msg });
@@ -1545,12 +1727,21 @@ app.get('/api/messages', (req, res) => {
 app.post('/api/messages/read', (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
-  const other = normPhone(req.body && req.body.other);
+  const other = normPhone((req.body && req.body.other) || (req.body && req.body.to));
+  /* v1.5: al abrir la conversación se marca como leída con la hora, y
+     se avisa en vivo al que escribió para que vea "Visto" con la hora. */
+  const at = Date.now();
+  const readIds = [];
   messages.forEach(m => {
-    if (m.to === phone && m.from === other && !m.readBy.includes(phone)) m.readBy.push(phone);
+    if (m.to === phone && m.from === other && !m.readBy.includes(phone)) {
+      m.readBy.push(phone);
+      m.readAt = at;
+      readIds.push(m.id);
+    }
   });
   saveJson('messages.json', messages);
-  return res.json({ ok: true });
+  if (readIds.length) sendTo(other, { kind: 'read', from: phone, to: other, at, messageIds: readIds });
+  return res.json({ ok: true, readAt: at, read: readIds.length });
 });
 
 /* ---- notificaciones y búsqueda ---- */
@@ -1594,6 +1785,17 @@ wss.on('connection', (ws, req) => {
   if (!phone) { ws.close(); return; }
   if (!sockets.has(phone)) sockets.set(phone, new Set());
   sockets.get(phone).add(ws);
+  /* v1.5: el cliente avisa cuando está escribiendo; el servidor solo
+     retransmite el aviso al destinatario, sin guardarlo. El aviso se
+     apaga solo en el cliente a los pocos segundos sin escribir. */
+  ws.on('message', (raw) => {
+    try {
+      const data = JSON.parse(String(raw || ''));
+      if (data && data.kind === 'typing' && data.to && profiles[normPhone(data.to)]) {
+        sendTo(normPhone(data.to), { kind: 'typing', from: phone, typing: !!data.typing });
+      }
+    } catch (e) {}
+  });
   ws.on('close', () => {
     const set = sockets.get(phone);
     if (set) { set.delete(ws); if (!set.size) sockets.delete(phone); }
