@@ -61,6 +61,11 @@ archivos JSON dentro de `data/` y sincroniza la app en tiempo real.
   el creador y los administradores (en ventas, solo el creador) pueden
   poner la portada (foto o video, por URL) y el color/degradado, y el
   cambio se difunde en vivo (`kind: 'group'` / `kind: 'sales-group'`).
+- **Novedades v1.6:** latido WebSocket (ping/pong cada 30 s, configurable
+  con `WORDRED_HEARTBEAT_MS`): el servidor detecta y cierra las
+  conexiones muertas, así un teléfono que perdió la red ya no queda
+  como «en línea» y la señal de llamada (`POST /api/call-signal`) le
+  responde 404 al que llama en vez de perderse en el vacío.
 
 ## Cloudinary (archivos para siempre)
 

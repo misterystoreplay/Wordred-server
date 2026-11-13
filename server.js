@@ -325,7 +325,7 @@ const app = express();
 app.use(express.json({ limit: '1gb' }));
 app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization'); if (req.method === 'OPTIONS') return res.sendStatus(204); next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '1.5', sms: SMS_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '1.6', sms: SMS_ENABLED }));
 
 /* ---- autenticación por teléfono ---- */
 app.post('/api/auth/request-code', async (req, res) => {
@@ -1779,10 +1779,25 @@ app.get('/api/search', (req, res) => {
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 const sockets = new Map(); // phone -> Set<ws>
+/* v1.6: latido (ping/pong) para detectar conexiones muertas. Sin él, un
+   teléfono que perdía la red sin cerrar el socket quedaba como "en
+   línea" y la oferta de llamada se enviaba al vacío: el que llamaba se
+   quedaba en "Llamando" para siempre. */
+const HEARTBEAT_MS = parseInt(process.env.WORDRED_HEARTBEAT_MS || '30000', 10) || 30000;
+const heartbeat = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) { try { ws.terminate(); } catch (e) {} return; }
+    ws.isAlive = false;
+    try { ws.ping(); } catch (e) {}
+  });
+}, HEARTBEAT_MS);
+if (typeof heartbeat.unref === 'function') heartbeat.unref();
 wss.on('connection', (ws, req) => {
   let phone = '';
   try { phone = normPhone(new URL(req.url, 'http://x').searchParams.get('phone')); } catch (e) {}
   if (!phone) { ws.close(); return; }
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
   if (!sockets.has(phone)) sockets.set(phone, new Set());
   sockets.get(phone).add(ws);
   /* v1.5: el cliente avisa cuando está escribiendo; el servidor solo
