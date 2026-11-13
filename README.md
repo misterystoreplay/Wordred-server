@@ -66,6 +66,16 @@ archivos JSON dentro de `data/` y sincroniza la app en tiempo real.
   conexiones muertas, así un teléfono que perdió la red ya no queda
   como «en línea» y la señal de llamada (`POST /api/call-signal`) le
   responde 404 al que llama en vez de perderse en el vacío.
+- **Novedades v1.8:** tienda de juegos con estadísticas reales
+  (`GET /api/games/stats`, `POST /api/games/:id/play`,
+  `POST /api/games/:id/rate`, `GET /api/games/:id/ratings`): cuántas
+  personas jugaron cada juego y el promedio de estrellas que dio la
+  gente de WordRed, contados por teléfono; y partidas online en tiempo
+  real (`POST /api/games/quickmatch`, `POST /api/games/rooms` y sus
+  rutas `/:id/join|score|finish|leave`, más el relevo por WebSocket con
+  `kind: 'game'`): salas en memoria, emparejamiento rápido o por
+  invitación, marcador en vivo y resultado con ganador. Sin internet,
+  los juegos siguen en local en el teléfono.
 
 ## Cloudinary (archivos para siempre)
 

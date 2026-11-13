@@ -26,6 +26,12 @@
  * desplegar. Los secretos (API_KEY/SECRET, solo para borrar en
  * Cloudinary) nunca van en la APK: solo como variables de entorno
  * del servidor.
+ * v1.8: tienda de juegos con estadísticas reales (cuántas personas
+ * jugaron cada juego y el promedio de estrellas que dio la gente de
+ * WordRed, contados por teléfono) y partidas online en tiempo real
+ * (salas en memoria, emparejamiento rápido o por invitación, marcador
+ * y movimientos por WebSocket; si un jugador se desconecta, el rival
+ * gana por abandono).
  * v1.5: recibos de lectura con hora (POST /api/messages/read marca
  * readAt y difunde {kind:'read'} al remitente), indicador de
  * escritura por WebSocket (el cliente manda {kind:'typing'} y el
@@ -111,7 +117,9 @@ let blocked = loadJson('blocked.json', {});              // bloqueos (v1.2, ola 
 let reports = loadJson('reports.json', []);              // reportes de cuentas (v1.2, ola 7)
 let auth = loadJson('auth.json', {});               // phone -> {codeHash, codeAt, codeAttempts, token, tokenAt, verified}
 let media = loadJson('media.json', {});             // id -> {id, owner, name, type, ext, size, createdAt} (v1.4)
-let lives = loadJson('lives.json', []);              // [{id, host, title, createdAt, endedAt, viewers:[], chat:[], reactions:{}}] (v1.5)
+let lives = loadJson('lives.json', []);
+let gameStats = loadJson('games.json', { plays: {}, players: {} }); // {plays:{gameId:n}, players:{gameId:{phone:true}}} (v1.8)
+let gameRatings = loadJson('game-ratings.json', []); // [{gameId, phone, stars, comment, createdAt}] (v1.8)              // [{id, host, title, createdAt, endedAt, viewers:[], chat:[], reactions:{}}] (v1.5)
 /* Un live no sobrevive a un reinicio del servidor: al arrancar, los
    que quedaron abiertos se marcan como terminados. */
 lives.forEach(l => { if (!l.endedAt) l.endedAt = Date.now(); });
@@ -138,6 +146,8 @@ function saveAll() {
   saveJson('reports.json', reports);
   saveJson('auth.json', auth);
   saveJson('media.json', media);
+  saveJson('games.json', gameStats);
+  saveJson('game-ratings.json', gameRatings);
 }
 
 function normPhone(p) { return String(p || '').replace(/\D/g, ''); }
@@ -325,7 +335,7 @@ const app = express();
 app.use(express.json({ limit: '1gb' }));
 app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization'); if (req.method === 'OPTIONS') return res.sendStatus(204); next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '1.6', sms: SMS_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '1.8', sms: SMS_ENABLED }));
 
 /* ---- autenticación por teléfono ---- */
 app.post('/api/auth/request-code', async (req, res) => {
@@ -1671,6 +1681,205 @@ app.post('/api/lives/:id/like', (req, res) => {
   broadcast({ kind: 'live', event: 'like', liveId: live.id, likes: live.likes, from: phone });
   return res.json({ ok: true, likes: live.likes });
 });
+/* ============ JUEGOS ONLINE Y ESTADÍSTICAS (v1.8) ============
+   La tienda de juegos muestra cuántas personas jugaron cada juego y el
+   promedio de estrellas que dio la gente de WordRed (nada inventado:
+   todo se cuenta aquí, por teléfono). Las partidas online son salas en
+   memoria con emparejamiento rápido (quickmatch) o por invitación; el
+   marcador y los movimientos viajan por WebSocket en tiempo real. Los
+   datos de juegos se guardan en games.json y game-ratings.json (en
+   Render gratis el disco es efímero: se pierden si el servicio se
+   reinicia, igual que el resto de los datos JSON). Las salas son solo
+   en memoria: una partida no sobrevive a un reinicio del servidor. */
+const gameRooms = new Map(); // roomId -> {id, gameId, mode, players:[{phone,name}], status, scores:{}, winner, createdAt}
+const gameRoomByPhone = new Map(); // phone -> roomId
+const TURN_GAMES = ['tres-raya']; // juegos por turnos (Gato); los demás son duelos por puntos
+function gameStatsFor(id) {
+  const plays = (gameStats.plays && gameStats.plays[id]) || 0;
+  const playersObj = (gameStats.players && gameStats.players[id]) || {};
+  const players = Object.keys(playersObj).length;
+  const rs = gameRatings.filter(r => r.gameId === id);
+  const ratingCount = rs.length;
+  const ratingAvg = ratingCount ? rs.reduce((a, r) => a + r.stars, 0) / ratingCount : 0;
+  return { plays, players, ratingAvg: Math.round(ratingAvg * 10) / 10, ratingCount };
+}
+function gameAllStats() {
+  const ids = {};
+  Object.keys(gameStats.plays || {}).forEach(id => { ids[id] = true; });
+  Object.keys(gameStats.players || {}).forEach(id => { ids[id] = true; });
+  gameRatings.forEach(r => { ids[r.gameId] = true; });
+  const out = {};
+  Object.keys(ids).forEach(id => { out[id] = gameStatsFor(id); });
+  return out;
+}
+function gameRoomPublic(room) {
+  return { id: room.id, gameId: room.gameId, mode: room.mode, status: room.status, players: room.players.map(p => ({ phone: p.phone, name: p.name })), scores: room.scores, winner: room.winner || null, createdAt: room.createdAt };
+}
+function gameRoomOther(room, phone) {
+  return room.players.find(p => p.phone !== phone) || null;
+}
+function gameNotifyRoom(room, data, exceptPhone) {
+  room.players.forEach(p => { if (p.phone !== exceptPhone) sendTo(p.phone, data); });
+}
+function gameFinishRoom(room, winnerPhone) {
+  room.status = 'finished';
+  room.winner = winnerPhone || null;
+  room.players.forEach(p => gameRoomByPhone.delete(p.phone));
+  gameNotifyRoom(room, { kind: 'game', type: 'result', roomId: room.id, winner: room.winner });
+}
+function gameLeaveRoom(room, phone) {
+  const i = room.players.findIndex(p => p.phone === phone);
+  if (i < 0) return;
+  room.players.splice(i, 1);
+  gameRoomByPhone.delete(phone);
+  if (room.status === 'playing' && room.players.length === 1) {
+    const winner = room.players[0].phone;
+    gameNotifyRoom(room, { kind: 'game', type: 'opponent-left', roomId: room.id, winner });
+    gameFinishRoom(room, winner);
+  } else if (!room.players.length) {
+    gameRooms.delete(room.id);
+  } else {
+    gameNotifyRoom(room, { kind: 'game', type: 'player-left', roomId: room.id, phone });
+  }
+}
+function gameMatchPair(room) {
+  const first = room.players[0];
+  const second = room.players[1];
+  sendTo(first.phone, { kind: 'game', type: 'matched', roomId: room.id, gameId: room.gameId, mode: room.mode, opponent: { phone: second.phone, name: second.name }, myMark: room.mode === 'turn' ? 'X' : undefined, duration: 60 });
+  sendTo(second.phone, { kind: 'game', type: 'matched', roomId: room.id, gameId: room.gameId, mode: room.mode, opponent: { phone: first.phone, name: first.name }, myMark: room.mode === 'turn' ? 'O' : undefined, duration: 60 });
+}
+app.get('/api/games/stats', (req, res) => {
+  return res.json({ ok: true, stats: gameAllStats() });
+});
+app.post('/api/games/:id/play', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const id = String(req.params.id || '').slice(0, 120);
+  if (!id) return res.status(400).json({ ok: false, error: 'Juego inválido.' });
+  if (!gameStats.plays) gameStats.plays = {};
+  if (!gameStats.players) gameStats.players = {};
+  gameStats.plays[id] = (gameStats.plays[id] || 0) + 1;
+  if (!gameStats.players[id]) gameStats.players[id] = {};
+  gameStats.players[id][phone] = true;
+  saveJson('games.json', gameStats);
+  return res.json({ ok: true, stats: gameStatsFor(id) });
+});
+app.post('/api/games/:id/rate', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const id = String(req.params.id || '').slice(0, 120);
+  const stars = Number(req.body && req.body.stars);
+  const comment = String((req.body && req.body.comment) || '').slice(0, 140);
+  if (!id || !(stars >= 1 && stars <= 5)) return res.status(400).json({ ok: false, error: 'Calificación inválida (1 a 5 estrellas).' });
+  const ex = gameRatings.find(r => r.gameId === id && r.phone === phone);
+  if (ex) { ex.stars = stars; ex.comment = comment; ex.createdAt = Date.now(); }
+  else gameRatings.push({ gameId: id, phone, stars, comment, createdAt: Date.now() });
+  saveJson('game-ratings.json', gameRatings);
+  return res.json({ ok: true, stats: gameStatsFor(id) });
+});
+app.get('/api/games/:id/ratings', (req, res) => {
+  const id = String(req.params.id || '').slice(0, 120);
+  const rs = gameRatings.filter(r => r.gameId === id).slice(-20).reverse().map(r => ({ phone: r.phone, name: (profiles[r.phone] && profiles[r.phone].name) || r.phone, stars: r.stars, comment: r.comment, createdAt: r.createdAt }));
+  return res.json({ ok: true, stats: gameStatsFor(id), ratings: rs });
+});
+app.post('/api/games/quickmatch', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const gameId = String((req.body && req.body.gameId) || '').slice(0, 120);
+  if (!gameId) return res.status(400).json({ ok: false, error: 'Juego inválido.' });
+  let room = null;
+  for (const r of gameRooms.values()) {
+    if (r.gameId === gameId && r.status === 'waiting' && r.players.length === 1 && r.players[0].phone !== phone) { room = r; break; }
+  }
+  const name = (profiles[phone] && profiles[phone].name) || phone;
+  if (!room) {
+    const id = 'room_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    room = { id, gameId, mode: TURN_GAMES.includes(gameId) ? 'turn' : 'duel', players: [{ phone, name }], status: 'waiting', scores: {}, winner: null, createdAt: Date.now() };
+    gameRooms.set(id, room);
+    gameRoomByPhone.set(phone, id);
+    return res.json({ ok: true, status: 'waiting', roomId: id, mode: room.mode });
+  }
+  room.players.push({ phone, name });
+  room.status = 'playing';
+  gameRoomByPhone.set(phone, room.id);
+  gameMatchPair(room);
+  return res.json({ ok: true, status: 'matched', roomId: room.id, mode: room.mode, opponent: { phone: room.players[0].phone, name: room.players[0].name }, myMark: room.mode === 'turn' ? 'O' : undefined, duration: 60 });
+});
+app.post('/api/games/rooms', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const gameId = String((req.body && req.body.gameId) || '').slice(0, 120);
+  if (!gameId) return res.status(400).json({ ok: false, error: 'Juego inválido.' });
+  const id = 'room_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const name = (profiles[phone] && profiles[phone].name) || phone;
+  const room = { id, gameId, mode: TURN_GAMES.includes(gameId) ? 'turn' : 'duel', players: [{ phone, name }], status: 'waiting', scores: {}, winner: null, createdAt: Date.now() };
+  gameRooms.set(id, room);
+  gameRoomByPhone.set(phone, id);
+  return res.json({ ok: true, room: gameRoomPublic(room) });
+});
+app.post('/api/games/rooms/:id/join', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const room = gameRooms.get(req.params.id);
+  if (!room) return res.status(404).json({ ok: false, error: 'Esa partida no existe.' });
+  if (room.status !== 'waiting' || room.players.length >= 2) return res.status(409).json({ ok: false, error: 'Esa partida ya está llena.' });
+  if (room.players.some(p => p.phone === phone)) return res.json({ ok: true, room: gameRoomPublic(room) });
+  const name = (profiles[phone] && profiles[phone].name) || phone;
+  room.players.push({ phone, name });
+  room.status = 'playing';
+  gameRoomByPhone.set(phone, room.id);
+  gameMatchPair(room);
+  return res.json({ ok: true, status: 'matched', roomId: room.id, mode: room.mode, opponent: { phone: room.players[0].phone, name: room.players[0].name }, myMark: room.mode === 'turn' ? 'O' : undefined, duration: 60 });
+});
+app.get('/api/games/rooms/:id', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const room = gameRooms.get(req.params.id);
+  if (!room) return res.status(404).json({ ok: false, error: 'Esa partida no existe.' });
+  if (!room.players.some(p => p.phone === phone)) return res.status(403).json({ ok: false, error: 'No estás en esa partida.' });
+  return res.json({ ok: true, room: gameRoomPublic(room) });
+});
+app.post('/api/games/rooms/:id/score', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const room = gameRooms.get(req.params.id);
+  if (!room) return res.status(404).json({ ok: false, error: 'Esa partida no existe.' });
+  if (!room.players.some(p => p.phone === phone)) return res.status(403).json({ ok: false, error: 'No estás en esa partida.' });
+  const score = Number(req.body && req.body.score) || 0;
+  room.scores[phone] = score;
+  gameNotifyRoom(room, { kind: 'game', type: 'score', roomId: room.id, score, from: phone }, phone);
+  return res.json({ ok: true, scores: room.scores });
+});
+app.post('/api/games/rooms/:id/finish', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const room = gameRooms.get(req.params.id);
+  if (!room) return res.status(404).json({ ok: false, error: 'Esa partida no existe.' });
+  if (!room.players.some(p => p.phone === phone)) return res.status(403).json({ ok: false, error: 'No estás en esa partida.' });
+  if (room.status === 'finished') return res.json({ ok: true, room: gameRoomPublic(room) });
+  const score = Number(req.body && req.body.score) || 0;
+  room.scores[phone] = score;
+  const winnerField = String((req.body && req.body.winner) || '');
+  let winner = null;
+  if (winnerField === 'me') winner = phone;
+  else if (winnerField === 'opponent') { const o = gameRoomOther(room, phone); winner = o ? o.phone : null; }
+  else if (winnerField === 'draw') winner = null;
+  else {
+    const ps = room.players.map(p => ({ phone: p.phone, score: room.scores[p.phone] || 0 }));
+    if (ps.length === 2) winner = ps[0].score === ps[1].score ? null : (ps[0].score > ps[1].score ? ps[0].phone : ps[1].phone);
+  }
+  gameFinishRoom(room, winner);
+  return res.json({ ok: true, room: gameRoomPublic(room) });
+});
+app.post('/api/games/rooms/:id/leave', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const room = gameRooms.get(req.params.id);
+  if (!room) return res.json({ ok: true });
+  gameLeaveRoom(room, phone);
+  return res.json({ ok: true });
+});
+
 /* Señalización WebRTC de los lives (oferta/respuesta/ICE por WebSocket). */
 app.post('/api/live-signal', (req, res) => {
   const from = authPhone(req);
@@ -1809,11 +2018,32 @@ wss.on('connection', (ws, req) => {
       if (data && data.kind === 'typing' && data.to && profiles[normPhone(data.to)]) {
         sendTo(normPhone(data.to), { kind: 'typing', from: phone, typing: !!data.typing });
       }
+      if (data && data.kind === 'game' && data.roomId) {
+        const room = gameRooms.get(data.roomId);
+        if (room && room.players.some(p => p.phone === phone)) {
+          if (data.type === 'score' && typeof data.score === 'number') {
+            room.scores[phone] = data.score;
+            gameNotifyRoom(room, { kind: 'game', type: 'score', roomId: room.id, score: data.score, from: phone }, phone);
+          } else if (data.type === 'move' && typeof data.index === 'number') {
+            gameNotifyRoom(room, { kind: 'game', type: 'move', roomId: room.id, index: data.index, from: phone }, phone);
+          }
+        }
+      }
     } catch (e) {}
   });
   ws.on('close', () => {
     const set = sockets.get(phone);
     if (set) { set.delete(ws); if (!set.size) sockets.delete(phone); }
+    /* v1.8: si el teléfono se desconecta en plena partida online, el
+       rival gana por abandono (solo si no queda ningún socket de ese
+       teléfono). */
+    if (!sockets.get(phone)) {
+      const roomId = gameRoomByPhone.get(phone);
+      if (roomId) {
+        const room = gameRooms.get(roomId);
+        if (room) gameLeaveRoom(room, phone);
+      }
+    }
   });
 });
 function sendTo(phone, data) {
@@ -1830,4 +2060,4 @@ function broadcast(data) {
 if (require.main === module) {
   server.listen(PORT, () => console.log('WordRed server en el puerto ' + PORT + (SMS_ENABLED ? ' (SMS por Twilio)' : ' (sin Twilio: códigos por [DEV])')));
 }
-module.exports = { app, server, _internals: { get profiles() { return profiles; }, get posts() { return posts; }, get auth() { return auth; }, get listings() { return listings; }, get events() { return events; }, get pages() { return pages; }, get salesGroups() { return salesGroups; }, get ratings() { return ratings; }, get stories() { return stories; }, get blocked() { return blocked; }, get reports() { return reports; }, get messages() { return messages; }, get media() { return media; }, cloudinaryConfig, saveAll } };
+module.exports = { app, server, _internals: { get profiles() { return profiles; }, get posts() { return posts; }, get auth() { return auth; }, get listings() { return listings; }, get events() { return events; }, get pages() { return pages; }, get salesGroups() { return salesGroups; }, get ratings() { return ratings; }, get stories() { return stories; }, get blocked() { return blocked; }, get reports() { return reports; }, get messages() { return messages; }, get media() { return media; }, get gameStats() { return gameStats; }, get gameRatings() { return gameRatings; }, get gameRooms() { return gameRooms; }, cloudinaryConfig, saveAll } };
