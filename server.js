@@ -335,7 +335,7 @@ const app = express();
 app.use(express.json({ limit: '1gb' }));
 app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization'); if (req.method === 'OPTIONS') return res.sendStatus(204); next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '1.8', sms: SMS_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '2.0', sms: SMS_ENABLED }));
 
 /* ---- autenticación por teléfono ---- */
 app.post('/api/auth/request-code', async (req, res) => {

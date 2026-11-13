@@ -76,6 +76,8 @@ archivos JSON dentro de `data/` y sincroniza la app en tiempo real.
   `kind: 'game'`): salas en memoria, emparejamiento rápido o por
   invitación, marcador en vivo y resultado con ganador. Sin internet,
   los juegos siguen en local en el teléfono.
+- **Novedades v2.0:** sin cambios funcionales frente a la v1.8 — solo
+  la versión, para que el servidor vaya parejo con la app v2.0.
 
 ## Cloudinary (archivos para siempre)
 
