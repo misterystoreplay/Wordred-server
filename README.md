@@ -78,6 +78,10 @@ archivos JSON dentro de `data/` y sincroniza la app en tiempo real.
   los juegos siguen en local en el teléfono.
 - **Novedades v2.0:** sin cambios funcionales frente a la v1.8 — solo
   la versión, para que el servidor vaya parejo con la app v2.0.
+- **Novedades v2.1:** las publicaciones de lives grabados conservan su
+  marca en el servidor (`isLiveRecording`, `liveRecordingId` y
+  `liveRecDurationMs` en `POST /api/posts`), para que en todos los
+  teléfonos se vean como "Live grabado" en el inicio.
 
 ## Cloudinary (archivos para siempre)
 
