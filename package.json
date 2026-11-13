@@ -1,0 +1,15 @@
+{
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.17.0"
+  },
+  "description": "Servidor propio de WordRed: registro por tel\u00e9fono, publicaciones, amistades, grupos, mensajes en tiempo real (WebSocket) y notificaciones.",
+  "license": "MIT",
+  "main": "server.js",
+  "name": "wordred-server",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "version": "1.2.0"
+}

@@ -1,0 +1,35 @@
+# Render Blueprint para el servidor de WordRed
+# ---------------------------------------------------------------
+# Cómo usarlo:
+# 1. Sube estos archivos sueltos a la raíz de un repositorio en GitHub.
+# 2. En Render: New + -> Blueprint -> conecta el repositorio.
+#    Render lee este archivo y crea el servicio solo.
+# 3. Copia la URL del servicio (https://wordred-server.onrender.com).
+#    Con WordRed 1.3 la app se conecta sola, sin configurar nada:
+#    solo abre la app y sincroniza. No hay que poner la URL ni
+#    vincular el teléfono a mano.
+#
+# Ojo (honesto): en el plan gratis de Render el disco es efímero:
+# los datos (publicaciones, mensajes) se pierden al reiniciar o al
+# volver a desplegar. Para guardarlos de verdad hace falta un disco
+# persistente (plan de pago) o una base de datos externa.
+
+services:
+  - type: web
+    name: wordred-server
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # SMS reales con Twilio (opcional): sin estas tres variables el
+      # servidor muestra el código en su registro ([DEV]) y la app lo
+      # muestra en la pantalla de vinculación en modo de prueba.
+      # - key: TWILIO_SID
+      #   sync: false
+      # - key: TWILIO_TOKEN
+      #   sync: false
+      # - key: TWILIO_FROM
+      #   sync: false
