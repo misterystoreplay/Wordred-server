@@ -85,6 +85,12 @@
  * 'groupMessage' y 'groupChatUpdated' por WebSocket a los
  * integrantes. Escrituras estrictas (saveJsonStrict), como el DELETE.
  *
+ * v3.4: borrar un mensaje de un chat grupal. Nuevo endpoint DELETE
+ * /api/group-chats/:id/messages/:messageId (solo quien lo escribió;
+ * escritura estricta y aviso 'groupMessageDeleted' por WebSocket).
+ * Antes no existía: la app solo borraba el mensaje de grupo en su
+ * propio teléfono y para los demás seguía ahí. Nada más cambia.
+ *
  * Almacenamiento: MongoDB con MONGODB_URI; sin ella, JSON en disco
  * (carpeta data/).
  *
@@ -654,7 +660,7 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.3', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.4', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v1.5.8 (servidor 3.0): página de inicio con Google en el navegador
    (como en YouTube). La app abre esta página; Google muestra su propia
@@ -2472,6 +2478,31 @@ app.post('/api/group-chats/:id/messages', async (req, res) => {
     sendTo(p, { kind: 'groupMessage', groupId: g.id, message: msg });
   });
   return res.json({ ok: true, message: msg });
+});
+/* v3.4: borrar UN mensaje de un chat grupal. Antes no existía este
+   endpoint: la app solo podía borrar el mensaje en su propio teléfono y
+   para los demás seguía ahí (y volvía al sincronizar). Solo quien
+   escribió el mensaje puede borrarlo; escritura estricta (saveJsonStrict)
+   como el resto de borrados, y aviso 'groupMessageDeleted' por WebSocket
+   para que los demás teléfonos lo quiten en vivo. Un 404 (grupo o
+   mensaje ya no existen) es un borrado ya hecho, no un error. */
+app.delete('/api/group-chats/:id/messages/:messageId', async (req, res) => {
+  const me = authPhone(req);
+  if (!me) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const g = groupChats.find(x => x.id === req.params.id);
+  if (!g) return res.status(404).json({ ok: false, error: 'Ese grupo no existe.' });
+  const i = g.messages.findIndex(m => m.id === req.params.messageId);
+  if (i < 0) return res.status(404).json({ ok: false, error: 'Mensaje no encontrado.' });
+  if (g.messages[i].from !== me) return res.status(403).json({ ok: false, error: 'Sin permiso.' });
+  const removed = g.messages.splice(i, 1)[0];
+  g.updatedAt = Date.now();
+  try { await saveJsonStrict('group-chats.json', groupChats); }
+  catch (e) {
+    g.messages.splice(i, 0, removed);
+    return res.status(500).json({ ok: false, error: 'No se pudo borrar el mensaje en el servidor. Inténtalo de nuevo.' });
+  }
+  g.participants.forEach(p => { if (p !== me) sendTo(p, { kind: 'groupMessageDeleted', groupId: g.id, messageId: removed.id }); });
+  return res.json({ ok: true });
 });
 app.post('/api/group-chats/:id/members', async (req, res) => {
   const me = authPhone(req);
