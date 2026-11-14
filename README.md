@@ -200,6 +200,13 @@ WordRed). Resumen: subir `wordred/` a GitHub y en Render crear el
 servicio desde `render.yaml` (Blueprint) o a mano como Web Service
 (Root Directory `server`, Build `npm install`, Start `npm start`).
 
+**Borrar publicaciones de verdad (v3.2):** `DELETE /api/posts/:id`
+borra la publicación en el servidor (antes no existía ese endpoint y
+la app solo la quitaba en su copia local, así que reaparecía al
+reabrir la cuenta). Solo el autor o un administrador del grupo; la
+escritura espera a MongoDB y se avisa por WebSocket (`postDeleted`)
+para que los demás teléfonos la quiten en vivo.
+
 **Datos para siempre (v3.1):** con `MONGODB_URI` puesta, las
 publicaciones, mensajes, perfiles y todo lo demás se guardan en
 MongoDB Atlas (plan gratis M0, 512 MB, sin tarjeta) y ya NO se borran

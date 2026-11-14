@@ -59,6 +59,12 @@
  * datos). Sin MONGODB_URI, el servidor sigue con los JSON en disco
  * (carpeta data/) como antes, solo para pruebas locales.
  *
+ * v3.2: DELETE /api/posts/:id borra una publicación de verdad en el
+ * servidor (antes no existía y la app solo la quitaba en local, así
+ * que reaparecía al reabrir). Solo el autor o un administrador del
+ * grupo; escritura crítica en MongoDB y aviso 'postDeleted' por
+ * WebSocket para que los demás teléfonos la quiten en vivo.
+ *
  * Almacenamiento: MongoDB con MONGODB_URI; sin ella, JSON en disco
  * (carpeta data/).
  *
@@ -603,7 +609,7 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.1', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.2', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v1.5.8 (servidor 3.0): página de inicio con Google en el navegador
    (como en YouTube). La app abre esta página; Google muestra su propia
@@ -1167,6 +1173,32 @@ app.delete('/api/posts/:id/comment/:commentId', (req, res) => {
     }
   }
   return res.status(404).json({ ok: false, error: 'Comentario no encontrado.' });
+});
+
+// Borrar una publicación entera (v3.2): antes la app solo la quitaba de
+// su copia local y el servidor no tenía cómo borrarla, así que al
+// reabrir la cuenta la publicación reaparecía (el inicio se carga
+// desde el servidor). Solo el autor puede borrarla, o un administrador
+// del grupo si es de un grupo (misma regla que la app). La escritura es
+// crítica: se espera a MongoDB antes de responder, y se avisa por
+// WebSocket para que los demás teléfonos la quiten en vivo.
+app.delete('/api/posts/:id', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const idx = posts.findIndex(p => p.id === req.params.id);
+  if (idx < 0) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
+  const post = posts[idx];
+  let allowed = post.author === phone;
+  if (!allowed && post.groupId) {
+    const g = groups.find(x => x.id === post.groupId);
+    allowed = isGroupManagerSrv(g, phone);
+  }
+  if (!allowed) return res.status(403).json({ ok: false, error: 'Solo la persona que publicó puede borrarla.' });
+  posts.splice(idx, 1);
+  saveJson('posts.json', posts);
+  await flushPendingWrites();
+  broadcast({ kind: 'postDeleted', postId: post.id });
+  return res.json({ ok: true });
 });
 
 /* ---- marketplace (v1.1) ---- */
