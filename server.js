@@ -65,6 +65,26 @@
  * grupo; escritura crítica en MongoDB y aviso 'postDeleted' por
  * WebSocket para que los demás teléfonos la quiten en vivo.
  *
+ * v3.3: el DELETE ya no miente. Antes, si la escritura en MongoDB
+ * fallaba, saveJson se tragaba el error (.catch que resolvía) y el
+ * DELETE respondía {ok:true} con la publicación todavía en MongoDB:
+ * la app la borraba en local y decía "Publicación borrada.", pero al
+ * reiniciar el servidor la publicación volvía (initStore la leía de
+ * MongoDB) y reaparecía al reabrir la cuenta. Ahora el DELETE espera
+ * la escritura DE VERDAD (saveJsonStrict) y si falla devuelve 500 y
+ * deja la publicación en su sitio, para que la app la restaure y avise
+ * el error real. También se corrige que saveMongoDataset resolviera
+ * en silencio cuando mongoDb era null.
+ *
+ * v3.3 (también): mensajes grupales. Nueva colección groupChats y
+ * endpoints POST /api/group-chats (crear), GET /api/group-chats
+ * (los míos), POST /api/group-chats/:id/messages (escribir a todos),
+ * POST /api/group-chats/:id/members (agregar/quitar por lista
+ * completa), POST /api/group-chats/:id/leave (salir; si queda vacío
+ * se borra) y POST /api/group-chats/:id/read (marcar leído). Avisos
+ * 'groupMessage' y 'groupChatUpdated' por WebSocket a los
+ * integrantes. Escrituras estrictas (saveJsonStrict), como el DELETE.
+ *
  * Almacenamiento: MongoDB con MONGODB_URI; sin ella, JSON en disco
  * (carpeta data/).
  *
@@ -239,6 +259,7 @@ let ratings = loadJson('ratings.json', []);         // [{id, seller, rater, star
 let events = loadJson('events.json', []);           // [{id, creator, name, desc, date, time, place, cover, attendees:{}, status, createdAt}]
 let pages = loadJson('pages.json', []);             // [{id, name, category, desc, photo, creator, followers:[], createdAt}]
 let messages = loadJson('messages.json', []);       // [{id, from, to, text, media, mediaType, createdAt, readBy:[]}]
+let groupChats = loadJson('group-chats.json', []); // v3.3: chats grupales [{id, name, participants:[phone], messages:[], unread:{}, createdAt, createdBy, updatedAt}]
 let notifications = loadJson('notifications.json', []); // [{id, type, from, to, text, refId, createdAt, read}]
 let blocked = loadJson('blocked.json', {});              // bloqueos (v1.2, ola 7): bloqueador -> [bloqueados]
 let reports = loadJson('reports.json', []);              // reportes de cuentas (v1.2, ola 7)
@@ -315,7 +336,7 @@ const FILE_TO_COLL = {
   'friends.json': 'friends', 'requests.json': 'requests', 'groups.json': 'groups',
   'listings.json': 'listings', 'sales-groups.json': 'salesGroups', 'ratings.json': 'ratings',
   'events.json': 'events', 'pages.json': 'pages', 'messages.json': 'messages',
-  'notifications.json': 'notifications', 'blocked.json': 'blocked', 'reports.json': 'reports',
+  'group-chats.json': 'groupChats', 'notifications.json': 'notifications', 'blocked.json': 'blocked', 'reports.json': 'reports',
   'auth.json': 'auth', 'media.json': 'media', 'lives.json': 'lives',
   'games.json': 'gameStats', 'game-ratings.json': 'gameRatings'
 };
@@ -332,6 +353,7 @@ const DATASETS = [
   { file: 'events.json', get: () => events, set: v => { events = v; }, fallback: [] },
   { file: 'pages.json', get: () => pages, set: v => { pages = v; }, fallback: [] },
   { file: 'messages.json', get: () => messages, set: v => { messages = v; }, fallback: [] },
+  { file: 'group-chats.json', get: () => groupChats, set: v => { groupChats = v; }, fallback: [] },
   { file: 'notifications.json', get: () => notifications, set: v => { notifications = v; }, fallback: [] },
   { file: 'blocked.json', get: () => blocked, set: v => { blocked = v; }, fallback: {} },
   { file: 'reports.json', get: () => reports, set: v => { reports = v; }, fallback: [] },
@@ -353,8 +375,31 @@ function flushPendingWrites(timeoutMs) {
 }
 async function saveMongoDataset(name, data) {
   const coll = FILE_TO_COLL[name];
-  if (!coll || !mongoDb) return;
+  if (!coll) return;
+  /* v3.3: si no hay conexión a MongoDB, FALLAR (antes se resolvía en
+     silencio y el que llamaba creía que se había guardado). Los que
+     llaman por saveJson lo tragan y lo registran; los críticos usan
+     saveJsonStrict y devuelven 500. */
+  if (!mongoDb) throw new Error('MongoDB no conectado');
+  /* Solo para pruebas (tests/test-server.js): simula que la escritura
+     en MongoDB falla. Nunca se activa en Render (la variable no está). */
+  if (process.env.WORDRED_TEST_FAIL_WRITES === '1') throw new Error('fallo simulado de escritura en MongoDB (prueba)');
   await mongoDb.collection(coll).updateOne({ _id: 'data' }, { $set: { value: data } }, { upsert: true });
+}
+/* v3.3: escritura estricta para los caminos críticos (borrar): devuelve
+   la promesa REAL de MongoDB (rechaza si falla) para que el endpoint
+   pueda devolver 500 en vez de un éxito falso. saveJson sigue
+   devolviendo la promesa con .catch para los que no esperan. */
+function saveJsonStrict(name, data) {
+  if (mongoReady) {
+    const p = saveMongoDataset(name, data);
+    pendingWrites.add(p);
+    p.then(() => pendingWrites.delete(p), () => pendingWrites.delete(p));
+    return p;
+  }
+  try { fs.writeFileSync(path.join(DATA_DIR, name), JSON.stringify(data, null, 2)); }
+  catch (e) { return Promise.reject(e); }
+  return Promise.resolve();
 }
 function loadJsonIfExists(name) {
   try {
@@ -609,7 +654,7 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.2', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.3', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v1.5.8 (servidor 3.0): página de inicio con Google en el navegador
    (como en YouTube). La app abre esta página; Google muestra su propia
@@ -1182,6 +1227,10 @@ app.delete('/api/posts/:id/comment/:commentId', (req, res) => {
 // del grupo si es de un grupo (misma regla que la app). La escritura es
 // crítica: se espera a MongoDB antes de responder, y se avisa por
 // WebSocket para que los demás teléfonos la quiten en vivo.
+// v3.3: la espera es DE VERDAD (saveJsonStrict): si la escritura en
+// MongoDB falla, la publicación vuelve a su sitio en memoria y se
+// devuelve 500, para que la app la restaure y avise el error real en
+// vez de un "Publicación borrada." falso que resucitaba al reiniciar.
 app.delete('/api/posts/:id', async (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
@@ -1195,8 +1244,13 @@ app.delete('/api/posts/:id', async (req, res) => {
   }
   if (!allowed) return res.status(403).json({ ok: false, error: 'Solo la persona que publicó puede borrarla.' });
   posts.splice(idx, 1);
-  saveJson('posts.json', posts);
-  await flushPendingWrites();
+  try {
+    await saveJsonStrict('posts.json', posts);
+  } catch (e) {
+    posts.splice(idx, 0, post);
+    console.error('[store] no se pudo guardar el borrado en MongoDB:', e.message);
+    return res.status(500).json({ ok: false, error: 'No se pudo guardar el borrado en el servidor. Inténtalo de nuevo.' });
+  }
   broadcast({ kind: 'postDeleted', postId: post.id });
   return res.json({ ok: true });
 });
@@ -1509,9 +1563,13 @@ app.get('/api/stories', (req, res) => res.json({ ok: true, stories: liveStories(
 app.post('/api/stories', (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
-  const text = String((req.body && req.body.text) || '').trim();
-  if (!text && !(req.body && req.body.media)) return res.status(400).json({ ok: false, error: 'Historia vacía.' });
-  const s = { id: uid('story'), author: phone, text: text.slice(0, 300), media: (req.body && req.body.media) || '', mediaType: (req.body && req.body.mediaType) || '', edits: validateStoryEdits(req.body && req.body.edits), song: validateSongSrv(req.body && req.body.song), videoEdits: validateVideoEditsSrv(req.body && req.body.videoEdits), createdAt: Date.now(), views: [], likes: {}, comments: [], shares: [] };
+  /* v3.3: la app manda { story: {...} } (igual que { post: {...} } en
+     /api/posts); antes se leía req.body.text directo y TODAS las historias
+     se rechazaban con 400 "Historia vacía." — nunca llegaban al servidor. */
+  const body = req.body && req.body.story ? req.body.story : req.body;
+  const text = String((body && body.text) || '').trim();
+  if (!text && !(body && body.media)) return res.status(400).json({ ok: false, error: 'Historia vacía.' });
+  const s = { id: uid('story'), author: phone, text: text.slice(0, 300), media: (body && body.media) || '', mediaType: (body && body.mediaType) || '', edits: validateStoryEdits(body && body.edits), song: validateSongSrv(body && body.song), videoEdits: validateVideoEditsSrv(body && body.videoEdits), createdAt: Date.now(), views: [], likes: {}, comments: [], shares: [] };
   stories.unshift(s);
   saveJson('stories.json', stories);
   return res.json({ ok: true, story: s });
@@ -2343,6 +2401,139 @@ app.post('/api/messages/read', (req, res) => {
   saveJson('messages.json', messages);
   if (readIds.length) sendTo(other, { kind: 'read', from: phone, to: other, at, messageIds: readIds });
   return res.json({ ok: true, readAt: at, read: readIds.length });
+});
+
+/* ---- mensajes grupales (v1.5.14, servidor 3.3) ----
+   Distintos de los grupos-comunidad y de los mensajes 1 a 1: un chat
+   con varias personas, con id propio que no cambia al agregar o
+   quitar integrantes. Las escrituras son estrictas (saveJsonStrict):
+   si MongoDB falla, se responde 500 y no se miente el éxito. */
+function groupChatVisible(g, phone) { return g && Array.isArray(g.participants) && g.participants.includes(phone); }
+app.post('/api/group-chats', async (req, res) => {
+  const me = authPhone(req);
+  if (!me) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const name = String((req.body && req.body.name) || '').trim().slice(0, 60);
+  const others = [];
+  ((req.body && req.body.participants) || []).forEach(p => {
+    p = normPhone(p);
+    if (p && p !== me && !others.includes(p)) others.push(p);
+  });
+  if (others.length < 2) return res.status(400).json({ ok: false, error: 'Elige al menos 2 personas para crear el grupo.' });
+  for (const p of others) {
+    if (!profiles[p]) return res.status(404).json({ ok: false, error: 'Esa persona no existe.' });
+    if (isBlockedSrv(me, p)) return res.status(403).json({ ok: false, error: 'No puedes agregar a esa persona al grupo.' });
+  }
+  const g = {
+    id: (req.body && req.body.id) || uid('gchat'),
+    name: name || ('Grupo de ' + others.slice(0, 2).map(p => (profiles[p] && profiles[p].name) || p).join(', ')),
+    participants: [me].concat(others),
+    messages: [], unread: {},
+    createdAt: (req.body && req.body.createdAt) || Date.now(),
+    createdBy: me, updatedAt: Date.now()
+  };
+  if (groupChats.some(x => x.id === g.id)) return res.json({ ok: true, group: groupChats.find(x => x.id === g.id) });
+  groupChats.push(g);
+  try { await saveJsonStrict('group-chats.json', groupChats); }
+  catch (e) { groupChats = groupChats.filter(x => x.id !== g.id); return res.status(500).json({ ok: false, error: 'No se pudo guardar el grupo en el servidor. Inténtalo de nuevo.' }); }
+  others.forEach(p => { notify('message', me, p, 'te agregó al grupo ' + g.name, g.id); sendTo(p, { kind: 'groupChatUpdated', group: g }); });
+  return res.json({ ok: true, group: g });
+});
+app.get('/api/group-chats', (req, res) => {
+  const phone = normPhone(req.query.phone);
+  return res.json({ ok: true, groupChats: groupChats.filter(g => groupChatVisible(g, phone)) });
+});
+app.post('/api/group-chats/:id/messages', async (req, res) => {
+  const me = authPhone(req);
+  if (!me) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const g = groupChats.find(x => x.id === req.params.id);
+  if (!g) return res.status(404).json({ ok: false, error: 'Ese grupo no existe.' });
+  if (!g.participants.includes(me)) return res.status(403).json({ ok: false, error: 'Ya no eres parte de ese grupo.' });
+  const body = (req.body && req.body.message) || req.body;
+  const text = String((body && body.text) || '').trim();
+  if (!text && !(body && body.media)) return res.status(400).json({ ok: false, error: 'Mensaje vacío.' });
+  const msg = {
+    id: (body && body.id) || uid('msg'), from: me, text: text.slice(0, 2000),
+    media: (body && body.media) || '', mediaType: (body && body.mediaType) || '',
+    file: (body && body.file) || null, voice: (body && body.voice) || null,
+    createdAt: (body && body.createdAt) || Date.now(), readBy: [me], readAt: null
+  };
+  if (g.messages.some(m => m.id === msg.id)) return res.json({ ok: true, message: msg });
+  g.messages.push(msg);
+  g.updatedAt = Date.now();
+  g.participants.forEach(p => { if (p !== me) g.unread[p] = (g.unread[p] || 0) + 1; });
+  try { await saveJsonStrict('group-chats.json', groupChats); }
+  catch (e) {
+    g.messages = g.messages.filter(m => m.id !== msg.id);
+    return res.status(500).json({ ok: false, error: 'No se pudo guardar el mensaje en el servidor. Inténtalo de nuevo.' });
+  }
+  g.participants.forEach(p => {
+    if (p === me) return;
+    notify('message', me, p, 'te escribió en el grupo ' + g.name, g.id);
+    sendTo(p, { kind: 'groupMessage', groupId: g.id, message: msg });
+  });
+  return res.json({ ok: true, message: msg });
+});
+app.post('/api/group-chats/:id/members', async (req, res) => {
+  const me = authPhone(req);
+  if (!me) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const g = groupChats.find(x => x.id === req.params.id);
+  if (!g) return res.status(404).json({ ok: false, error: 'Ese grupo no existe.' });
+  if (!g.participants.includes(me)) return res.status(403).json({ ok: false, error: 'Ya no eres parte de ese grupo.' });
+  const wanted = [];
+  ((req.body && req.body.participants) || []).forEach(p => {
+    p = normPhone(p);
+    if (p && !wanted.includes(p)) wanted.push(p);
+  });
+  if (!wanted.includes(me)) return res.status(400).json({ ok: false, error: 'No puedes sacarte del grupo así: usa "Salir del grupo".' });
+  for (const p of wanted) {
+    if (!profiles[p]) return res.status(404).json({ ok: false, error: 'Esa persona no existe.' });
+  }
+  const before = g.participants.slice();
+  const added = wanted.filter(p => !before.includes(p));
+  const removed = before.filter(p => !wanted.includes(p));
+  g.participants = wanted;
+  g.updatedAt = Date.now();
+  try { await saveJsonStrict('group-chats.json', groupChats); }
+  catch (e) { g.participants = before; return res.status(500).json({ ok: false, error: 'No se pudo guardar el grupo en el servidor. Inténtalo de nuevo.' }); }
+  added.forEach(p => { notify('message', me, p, 'te agregó al grupo ' + g.name, g.id); });
+  g.participants.concat(removed).forEach(p => sendTo(p, { kind: 'groupChatUpdated', group: g }));
+  return res.json({ ok: true, group: g });
+});
+app.post('/api/group-chats/:id/leave', async (req, res) => {
+  const me = authPhone(req);
+  if (!me) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const gi = groupChats.findIndex(x => x.id === req.params.id);
+  if (gi < 0) return res.status(404).json({ ok: false, error: 'Ese grupo no existe.' });
+  const g = groupChats[gi];
+  if (!g.participants.includes(me)) return res.status(403).json({ ok: false, error: 'Ya no eres parte de ese grupo.' });
+  const before = g.participants.slice();
+  g.participants = g.participants.filter(p => p !== me);
+  if (!g.participants.length) {
+    groupChats.splice(gi, 1);
+    try { await saveJsonStrict('group-chats.json', groupChats); }
+    catch (e) { groupChats.splice(gi, 0, g); return res.status(500).json({ ok: false, error: 'No se pudo guardar el cambio en el servidor. Inténtalo de nuevo.' }); }
+    return res.json({ ok: true, group: null, deleted: true });
+  }
+  g.updatedAt = Date.now();
+  try { await saveJsonStrict('group-chats.json', groupChats); }
+  catch (e) { g.participants = before; return res.status(500).json({ ok: false, error: 'No se pudo guardar el cambio en el servidor. Inténtalo de nuevo.' }); }
+  before.forEach(p => sendTo(p, { kind: 'groupChatUpdated', group: g }));
+  return res.json({ ok: true, group: g, deleted: false });
+});
+app.post('/api/group-chats/:id/read', async (req, res) => {
+  const me = authPhone(req);
+  if (!me) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const g = groupChats.find(x => x.id === req.params.id);
+  if (!g) return res.status(404).json({ ok: false, error: 'Ese grupo no existe.' });
+  if (!g.participants.includes(me)) return res.status(403).json({ ok: false, error: 'Ya no eres parte de ese grupo.' });
+  const at = Date.now();
+  const readIds = [];
+  g.messages.forEach(m => {
+    if (m.from !== me && !m.readBy.includes(me)) { m.readBy.push(me); m.readAt = at; readIds.push(m.id); }
+  });
+  if (g.unread) g.unread[me] = 0;
+  try { await saveJsonStrict('group-chats.json', groupChats); } catch (e) { /* leer no bloquea: se reintenta al abrir de nuevo */ }
+  return res.json({ ok: true, read: readIds.length });
 });
 
 /* ---- notificaciones y búsqueda ---- */
