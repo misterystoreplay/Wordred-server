@@ -225,6 +225,14 @@ leído). Avisos `groupMessage` y `groupChatUpdated` por WebSocket a
 los integrantes. Escrituras estrictas (`saveJsonStrict`), como el
 DELETE: si MongoDB falla, se responde 500 y no se miente el éxito.
 
+**Borrar un mensaje de grupo (v3.4):** `DELETE
+/api/group-chats/:id/messages/:messageId` borra un mensaje de un chat
+grupal en el servidor (solo quien lo escribió). Antes no existía ese
+endpoint: la app solo borraba el mensaje en su propio teléfono y para
+los demás seguía ahí. Escritura estricta (`saveJsonStrict`) y aviso
+`groupMessageDeleted` por WebSocket para que los demás teléfonos lo
+quiten en vivo. Nada más cambia en la 3.4.
+
 **Datos para siempre (v3.1):** con `MONGODB_URI` puesta, las
 publicaciones, mensajes, perfiles y todo lo demás se guardan en
 MongoDB Atlas (plan gratis M0, 512 MB, sin tarjeta) y ya NO se borran
