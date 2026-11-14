@@ -233,6 +233,26 @@ los demás seguía ahí. Escritura estricta (`saveJsonStrict`) y aviso
 `groupMessageDeleted` por WebSocket para que los demás teléfonos lo
 quiten en vivo. Nada más cambia en la 3.4.
 
+**Actualización de la aplicación (v3.5):** `GET /api/app/latest`
+devuelve la última versión de WordRed (`versionName`, `versionCode`,
+`url` de descarga y `notes`) y `GET /app/WordRed.apk` sirve el APK
+real. La versión vive en dos archivos del repo, junto al servidor:
+`app-version.json` (con el nombre y el número de la versión) y
+`WordRed.apk` (el instalador). Sin esos archivos el endpoint responde
+`ok:false` y la descarga 404: la app no inventa actualizaciones.
+
+**Cómo publicar una actualización nueva de la app (cada versión):**
+1. Construye la APK nueva (su `versionCode` y `versionName` están en
+   el `AndroidManifest.xml` de la app).
+2. Reemplaza el archivo `WordRed.apk` de este repo por la APK nueva
+   (mismo nombre, `WordRed.apk`).
+3. Actualiza `app-version.json` con el `versionName` y el
+   `versionCode` nuevos (y las `notes` con lo nuevo de la versión).
+4. Haz commit y push a `main`: Render redespliega solo y la app ya
+   ofrece la actualización (en Ajustes → Buscar actualización y sola
+   en la campana y en el celular). No hace falta tocar variables de
+   entorno ni cambiar el código del servidor.
+
 **Datos para siempre (v3.1):** con `MONGODB_URI` puesta, las
 publicaciones, mensajes, perfiles y todo lo demás se guardan en
 MongoDB Atlas (plan gratis M0, 512 MB, sin tarjeta) y ya NO se borran
