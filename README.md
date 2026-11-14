@@ -233,10 +233,13 @@ los demás seguía ahí. Escritura estricta (`saveJsonStrict`) y aviso
 `groupMessageDeleted` por WebSocket para que los demás teléfonos lo
 quiten en vivo. Nada más cambia en la 3.4.
 
-**Actualización de la aplicación (v3.5):** `GET /api/app/latest`
+**Actualización de la aplicación (v3.5, URL con https en la v3.6):** `GET /api/app/latest`
 devuelve la última versión de WordRed (`versionName`, `versionCode`,
 `url` de descarga y `notes`) y `GET /app/WordRed.apk` sirve el APK
-real. La versión vive en dos archivos del repo, junto al servidor:
+real. La URL de descarga es `https` (desde la 3.6 se usa el protocolo
+real detrás del proxy y para el host de Render siempre https; antes
+salía con http y la descarga fallaba porque el descargador de la app
+no sigue la redirección a https). La versión vive en dos archivos del repo, junto al servidor:
 `app-version.json` (con el nombre y el número de la versión) y
 `WordRed.apk` (el instalador). Sin esos archivos el endpoint responde
 `ok:false` y la descarga 404: la app no inventa actualizaciones.

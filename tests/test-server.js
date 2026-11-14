@@ -1,5 +1,5 @@
 'use strict';
-/* Pruebas del servidor WordRed 3.5 — los datos quedan PARA SIEMPRE en
+/* Pruebas del servidor WordRed 3.6 — los datos quedan PARA SIEMPRE en
    MongoDB (y el respaldo JSON sigue funcionando sin MONGODB_URI).
    Se arranca el servidor de verdad como proceso hijo (node server.js)
    contra un MongoDB en memoria (mongodb-memory-server) y se comprueba
@@ -38,6 +38,19 @@ function api(port, method, p, body, token) {
     });
     req.on('error', (e) => resolve({ status: 0, json: null, raw: String(e && e.message) }));
     req.end(data);
+  });
+}
+/* v3.6: petición con encabezados propios (para simular el proxy de
+   Render: Host de wordred-server.onrender.com y X-Forwarded-Proto). */
+function apiHeaders(port, method, p, headers) {
+  return new Promise((resolve) => {
+    const req = http.request({ hostname: '127.0.0.1', port, path: p, method, headers: headers || {} }, (res) => {
+      let raw = '';
+      res.on('data', c => { raw += c; });
+      res.on('end', () => { let json = null; try { json = JSON.parse(raw); } catch (e) {} resolve({ status: res.statusCode, json, raw }); });
+    });
+    req.on('error', (e) => resolve({ status: 0, json: null, raw: String(e && e.message) }));
+    req.end();
   });
 }
 /* v3.5: descargar el APK (binario) contando los bytes recibidos. */
@@ -115,16 +128,30 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   /* ---- modo MongoDB ---- */
   let proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   let health = await waitHealth(PORT);
-  check('3.5 MongoDB: /api/health dice version 3.5', !!(health && health.version === '3.5'), health);
-  check('3.5 MongoDB: /api/health dice storage mongodb y mongo true', !!(health && health.storage === 'mongodb' && health.mongo === true), health);
+  check('3.6 MongoDB: /api/health dice version 3.6', !!(health && health.version === '3.6'), health);
+  check('3.6 MongoDB: /api/health dice storage mongodb y mongo true', !!(health && health.storage === 'mongodb' && health.mongo === true), health);
 
   /* ---- actualización de la app (v3.5): GET /api/app/latest y
-     GET /app/WordRed.apk sirven la versión real y el APK real. */
+     GET /app/WordRed.apk sirven la versión real y el APK real. La versión
+     esperada se lee de app-version.json (no se fija en el test, para que
+     no se quede vieja al publicar una versión nueva). */
+  const appVersion = JSON.parse(fs.readFileSync(path.join(SERVER_DIR, 'app-version.json'), 'utf8'));
   const latest = await api(PORT, 'GET', '/api/app/latest');
-  check('3.5 MongoDB: GET /api/app/latest dice la última versión con su URL de descarga', !!(latest.json && latest.json.ok && latest.json.versionName === '1.5.17' && latest.json.versionCode === 32 && /\/app\/WordRed\.apk$/.test(latest.json.url || '')), latest.json);
+  check('3.6 MongoDB: GET /api/app/latest dice la última versión con su URL de descarga', !!(latest.json && latest.json.ok && latest.json.versionName === appVersion.versionName && latest.json.versionCode === appVersion.versionCode && /\/app\/WordRed\.apk$/.test(latest.json.url || '')), latest.json);
   const apkDl = await downloadApk(PORT, '/app/WordRed.apk');
   const apkSize = fs.existsSync(path.join(SERVER_DIR, 'WordRed.apk')) ? fs.statSync(path.join(SERVER_DIR, 'WordRed.apk')).size : 0;
-  check('3.5 MongoDB: GET /app/WordRed.apk descarga el APK real (más de 1 MB, tipo APK)', apkDl.status === 200 && /application\/vnd\.android\.package-archive/.test(apkDl.contentType || '') && apkDl.bytes === apkSize && apkSize > 1000000, { status: apkDl.status, contentType: apkDl.contentType, bytes: apkDl.bytes, size: apkSize });
+  check('3.6 MongoDB: GET /app/WordRed.apk descarga el APK real (más de 1 MB, tipo APK)', apkDl.status === 200 && /application\/vnd\.android\.package-archive/.test(apkDl.contentType || '') && apkDl.bytes === apkSize && apkSize > 1000000, { status: apkDl.status, contentType: apkDl.contentType, bytes: apkDl.bytes, size: apkSize });
+
+  /* ---- v3.6: la URL de descarga ya es https. La 3.5 la construía con
+     req.protocol (http detrás del proxy de Render) y Render redirige a
+     https con 301, que el descargador de la app no sigue: al presionar
+     Instalar la descarga fallaba con "No se pudo descargar la
+     actualización.". Se simula el proxy con los encabezados Host y
+     X-Forwarded-Proto. */
+  const latestProxy = await apiHeaders(PORT, 'GET', '/api/app/latest', { Host: 'wordred-server.onrender.com', 'X-Forwarded-Proto': 'https' });
+  check('3.6 MongoDB: detrás del proxy (X-Forwarded-Proto https) /api/app/latest devuelve la URL con https', !!(latestProxy.json && latestProxy.json.ok && latestProxy.json.url === 'https://wordred-server.onrender.com/app/WordRed.apk'), latestProxy.json);
+  const latestNoProto = await apiHeaders(PORT, 'GET', '/api/app/latest', { Host: 'wordred-server.onrender.com' });
+  check('3.6 MongoDB: sin X-Forwarded-Proto, para el host de Render /api/app/latest también devuelve https', !!(latestNoProto.json && latestNoProto.json.ok && latestNoProto.json.url === 'https://wordred-server.onrender.com/app/WordRed.apk'), latestNoProto.json);
 
   const regA = await register(PORT, PHONE_A);
   check('3.3 MongoDB: el usuario A se registra (código + verificación)', regA.ok, regA);
@@ -318,7 +345,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir, WORDRED_TEST_FAIL_WRITES: '1' });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 3.5', !!(health && health.version === '3.5' && health.storage === 'mongodb'), health);
+  check('3.3 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 3.6', !!(health && health.version === '3.6' && health.storage === 'mongodb'), health);
   const delFail = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con MongoDB roto, DELETE devuelve 500 (no un éxito falso)', delFail.status === 500 && !!(delFail.json && delFail.json.ok === false), delFail);
   check('3.3 MongoDB: con MongoDB roto, DELETE explica el error real', !!(delFail.json && delFail.json.error && delFail.json.error.indexOf('No se pudo guardar el borrado') >= 0), delFail.json && delFail.json.error);
@@ -329,7 +356,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '3.5'), health);
+  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '3.6'), health);
   const delFailOk = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con las escrituras sanas, el borrado sí funciona (DELETE ok)', !!(delFailOk.json && delFailOk.json.ok), delFailOk);
   const feedFailOk = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
@@ -348,7 +375,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 3.5 y storage mongodb', !!(health && health.version === '3.5' && health.storage === 'mongodb'), health);
+  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 3.6 y storage mongodb', !!(health && health.version === '3.6' && health.storage === 'mongodb'), health);
 
   const feedB2 = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, la publicación de A sigue ahí y B la sigue viendo', !!(feedB2.json && feedB2.json.ok && feedB2.json.posts.some(p => p.id === postId)), feedB2.json && feedB2.json.posts.length);
@@ -381,7 +408,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT2 = 34532;
   const proc2 = startServer(PORT2, { DATA_DIR: jsonDir });
   const health2 = await waitHealth(PORT2);
-  check('3.5 JSON: sin MONGODB_URI, /api/health dice version 3.5, storage json y mongo false', !!(health2 && health2.version === '3.5' && health2.storage === 'json' && health2.mongo === false), health2);
+  check('3.5 JSON: sin MONGODB_URI, /api/health dice version 3.6, storage json y mongo false', !!(health2 && health2.version === '3.6' && health2.storage === 'json' && health2.mongo === false), health2);
   const regJ = await register(PORT2, '524444444444');
   check('3.3 JSON: el registro sigue funcionando sin MongoDB', regJ.ok, regJ);
   const postJ = await api(PORT2, 'POST', '/api/posts', { text: 'Publicación en modo JSON' }, regJ.token);
@@ -393,7 +420,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
 
   await mongod.stop();
   console.log('\n==============================');
-  console.log('Servidor WordRed 3.5 — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('Servidor WordRed 3.6 — ' + pass + ' PASS, ' + fail + ' FAIL');
   if (fail) { console.log('Fallos: ' + failures.join(' | ')); process.exit(1); }
 })().catch((e) => {
   console.error('ERROR en las pruebas: ' + (e && e.stack ? e.stack : e));

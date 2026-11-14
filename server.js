@@ -100,6 +100,16 @@
  * endpoint responde que no hay información: la app no inventa
  * actualizaciones. Nada más cambia en la 3.5.
  *
+ * v3.6: la URL de descarga de GET /api/app/latest ya es https. La 3.5
+ * la construía con req.protocol, que detrás del proxy de Render es
+ * http; Render redirige a https con 301 y el descargador de la app
+ * (HttpURLConnection) no sigue redirecciones con cambio de protocolo,
+ * así que al presionar Instalar la descarga fallaba con "No se pudo
+ * descargar la actualización.". Ahora se usa el protocolo real detrás
+ * del proxy (X-Forwarded-Proto) y para el host de Render siempre https.
+ * La app 1.5.19 también normaliza la URL a https y sigue las
+ * redirecciones a mano. Nada más cambia en la 3.6.
+ *
  * Almacenamiento: MongoDB con MONGODB_URI; sin ella, JSON en disco
  * (carpeta data/).
  *
@@ -669,14 +679,18 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.5', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.6', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v3.5: actualización de la aplicación. La última versión vive en
    app-version.json junto al APK (WordRed.apk) en el repo: al publicar
    una versión nueva se reemplazan los dos archivos (ver README).
    GET /api/app/latest dice cuál es la última versión y de dónde se
    descarga; GET /app/WordRed.apk sirve el APK real. Sin esos archivos
-   no se inventa nada: el endpoint responde ok:false y la descarga 404. */
+   no se inventa nada: el endpoint responde ok:false y la descarga 404.
+   v3.6: la URL de descarga ya es https (antes salía con http y Render
+   la redirigía a https con 301, que el descargador de la app no sigue:
+   la descarga fallaba). Se usa el protocolo real detrás del proxy
+   (X-Forwarded-Proto) y para el host de Render siempre https. */
 function readAppVersion() {
   try {
     var raw = fs.readFileSync(path.join(__dirname, 'app-version.json'), 'utf8');
@@ -690,7 +704,18 @@ app.get('/api/app/latest', (req, res) => {
   if (!v || !v.versionCode) return res.status(404).json({ ok: false, error: 'Sin información de actualización.' });
   var apkPath = path.join(__dirname, 'WordRed.apk');
   if (!fs.existsSync(apkPath)) return res.status(404).json({ ok: false, error: 'Sin información de actualización.' });
-  var base = req.protocol + '://' + req.get('host');
+  /* v3.6: la URL de descarga es https. Detrás del proxy de Render,
+     req.protocol es http aunque el cliente use https; si se devuelve
+     http, Render redirige a https con 301 y el descargador de la app no
+     sigue redirecciones con cambio de protocolo (la descarga fallaba).
+     Se toma el protocolo real del encabezado X-Forwarded-Proto y para
+     el host de Render siempre https; en local (sin proxy) se queda el
+     protocolo de la petición. */
+  var proto = (req.get('x-forwarded-proto') || '').split(',')[0].trim().toLowerCase();
+  var host = req.get('host') || '';
+  if (proto !== 'http' && proto !== 'https') proto = req.protocol;
+  if (host.indexOf('onrender.com') >= 0) proto = 'https';
+  var base = proto + '://' + host;
   return res.json({ ok: true, versionName: v.versionName, versionCode: v.versionCode, url: base + '/app/WordRed.apk', notes: v.notes });
 });
 app.get('/app/WordRed.apk', (req, res) => {
