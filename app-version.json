@@ -1,1 +1,1 @@
-{"notes":"El cajón de aplicaciones se abre mucho más fluido al presionar el botón del centro.","versionCode":33,"versionName":"1.5.18"}
+{"notes":"Se arregló la descarga de la actualización: la app ya descarga por https y sigue la redirección del servidor.","versionCode":34,"versionName":"1.5.19"}
