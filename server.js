@@ -455,7 +455,23 @@ const app = express();
 app.use(express.json({ limit: '1gb' }));
 app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization'); if (req.method === 'OPTIONS') return res.sendStatus(204); next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '2.9', sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.0', sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+
+/* v1.5.8 (servidor 3.0): página de inicio con Google en el navegador
+   (como en YouTube). La app abre esta página; Google muestra su propia
+   pantalla para poner el correo y la contraseña, y devuelve el token de
+   ID (GIS) a la página, que vuelve a la app con wordred://oauth/google.
+   El token se verifica en POST /api/auth/google como antes (aud =
+   GOOGLE_CLIENT_ID); aquí no hay secreto ni intercambio de código.
+   En Google Cloud, el origen de esta página debe estar en "Orígenes de
+   JavaScript autorizados" del cliente web de WordRed. */
+app.get('/oauth/google', (req, res) => {
+  let html = '';
+  try { html = fs.readFileSync(path.join(__dirname, 'oauth-google.html'), 'utf8'); } catch (e) {}
+  if (!html) return res.status(500).send('La página de inicio con Google no está disponible.');
+  const cid = GOOGLE_CLIENT_ID.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  res.type('html').send(html.split('__GOOGLE_CLIENT_ID__').join(cid));
+});
 
 /* ---- comprobación de un código (v2.9: la misma regla para el código
    por teléfono y por correo) ----
