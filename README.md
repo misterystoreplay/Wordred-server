@@ -186,7 +186,8 @@ la app muestra (modo de prueba sin Twilio).
 | Variable | Para qué | Obligatoria |
 | --- | --- | --- |
 | `PORT` | Puerto (Render lo pone solo) | No (3000) |
-| `DATA_DIR` | Carpeta de los archivos JSON | No (`server/data`) |
+| `MONGODB_URI` | Cadena de conexión de MongoDB Atlas (base de datos `wordred`): con ella, los datos quedan PARA SIEMPRE y sobreviven a reinicios y despliegues | No (sin ella, JSON en disco, solo para pruebas) |
+| `DATA_DIR` | Carpeta de los archivos JSON (respaldo sin MongoDB) | No (`server/data`) |
 | `TWILIO_SID`, `TWILIO_TOKEN`, `TWILIO_FROM` | SMS reales con Twilio | No (sin ellas, modo de prueba) |
 | `GOOGLE_CLIENT_ID` | ID de cliente de OAuth (aplicación web) para verificar el inicio con Google | No (sin él, Google deshabilitado) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Correo para mandar los códigos de verificación (ej. Gmail con contraseña de aplicación) | No (sin ellas, modo de prueba con `devCode`) |
@@ -199,16 +200,31 @@ WordRed). Resumen: subir `wordred/` a GitHub y en Render crear el
 servicio desde `render.yaml` (Blueprint) o a mano como Web Service
 (Root Directory `server`, Build `npm install`, Start `npm start`).
 
-**Límite honesto:** en el plan gratis de Render el disco es efímero y
-los datos se pierden al reiniciar o volver a desplegar. Para guardarlos
-de verdad hace falta un disco persistente (plan de pago) o una base de
-datos externa. Además el plan gratis se duerme tras 15 minutos sin uso
-y tarda ~30–60 s en despertar.
+**Datos para siempre (v3.1):** con `MONGODB_URI` puesta, las
+publicaciones, mensajes, perfiles y todo lo demás se guardan en
+MongoDB Atlas (plan gratis M0, 512 MB, sin tarjeta) y ya NO se borran
+al reiniciar o volver a desplegar: aparecen en otro dispositivo y
+entre usuarios. Sin `MONGODB_URI`, el servidor sigue con los JSON en
+disco, que en el plan gratis de Render se pierden al reiniciar o
+volver a desplegar (solo para pruebas locales). Además el plan gratis
+se duerme tras 15 minutos sin uso y tarda ~30–60 s en despertar.
 
 ## Datos
 
-Todo se guarda en archivos JSON en `data/` (o en `$DATA_DIR`):
-`auth.json`, `profiles.json`, `posts.json`, `stories.json`,
+Con `MONGODB_URI`, todo se guarda en MongoDB, base de datos
+`wordred`, una colección por conjunto de datos (un documento
+`{_id:'data', value}` por colección): `profiles`, `posts`, `stories`,
+`friends`, `requests`, `groups`, `listings`, `salesGroups`, `ratings`,
+`events`, `pages`, `messages`, `notifications`, `blocked`, `reports`,
+`auth`, `media`, `lives`, `gameStats`, `gameRatings`. La primera vez
+que se arranca con MongoDB, si el JSON en disco tiene datos, se
+importan solos a MongoDB. `/api/health` dice qué almacenamiento está
+usando (`storage: "mongodb"` o `"json"`, y `mongo: true/false`).
+Límite honesto: un documento de MongoDB no pasa de 16 MB por conjunto
+(a ~1 KB por publicación, unas 16.000 publicaciones).
+
+Sin `MONGODB_URI`, todo se guarda en archivos JSON en `data/` (o en
+`$DATA_DIR`): `auth.json`, `profiles.json`, `posts.json`, `stories.json`,
 `listings.json`, `sales-groups.json`, `ratings.json`, `groups.json`,
 `pages.json`, `events.json`, `messages.json`, `notifications.json`,
 `blocked.json`, `reports.json`, `friends.json`.

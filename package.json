@@ -1,8 +1,12 @@
 {
   "dependencies": {
     "express": "^4.19.2",
+    "mongodb": "^7.9.0",
     "nodemailer": "^10.5.0",
     "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^11.3.0"
   },
   "description": "Servidor propio de WordRed: registro por teléfono, publicaciones, amistades, grupos, mensajes en tiempo real (WebSocket) y notificaciones.",
   "license": "MIT",
@@ -10,7 +14,8 @@
   "name": "wordred-server",
   "scripts": {
     "dev": "node server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node tests/test-server.js"
   },
   "version": "1.2.0"
 }

@@ -32,6 +32,17 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Datos PARA SIEMPRE con MongoDB Atlas (v3.1, plan gratis M0,
+      # 512 MB, sin tarjeta): sin esta variable, los datos quedan en
+      # archivos JSON en el disco del servicio, que en el plan gratis
+      # se pierde al reiniciar o al volver a desplegar (las
+      # publicaciones se borran y no aparecen en otro dispositivo).
+      # La cadena se crea en MongoDB Atlas (cuenta gratis con Google,
+      # cluster M0, usuario de base de datos y acceso de red
+      # 0.0.0.0/0) y va aquí como secreto, nunca en el código ni en la
+      # APK. Pasos en Despliegue-servidor-WordRed.md, Paso 5r.
+      # - key: MONGODB_URI
+      #   sync: false
       # Archivos para siempre con Cloudinary (v1.4): quita el # y pon
       # tus datos cuando crees la cuenta y el preset sin firmar
       # (ver server/README.md). Sin estas dos variables, los archivos

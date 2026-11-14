@@ -54,8 +54,13 @@
  * deja pasar los correos sin tocarlos para que todo lo demás (feed,
  * amigos, mensajes, WebSocket) funcione igual con ambas.
  *
- * Almacenamiento: JSON en disco (carpeta data/). Sin dependencias
- * nativas, para que funcione en cualquier host gratuito.
+ * v3.1: los datos quedan PARA SIEMPRE en MongoDB (variable
+ * MONGODB_URI, base de datos "wordred", una colección por conjunto de
+ * datos). Sin MONGODB_URI, el servidor sigue con los JSON en disco
+ * (carpeta data/) como antes, solo para pruebas locales.
+ *
+ * Almacenamiento: MongoDB con MONGODB_URI; sin ella, JSON en disco
+ * (carpeta data/).
  *
  * SMS: si existen TWILIO_SID, TWILIO_TOKEN y TWILIO_FROM, el código se
  * manda por SMS real con Twilio. Si no, el servidor devuelve el código
@@ -200,8 +205,20 @@ function loadJson(name, fallback) {
   return fallback;
 }
 function saveJson(name, data) {
+  /* v3.1: con MongoDB listo, el conjunto se escribe en su colección
+     (un documento {_id:'data', value}); sin MongoDB, en el JSON de
+     antes. La escritura a MongoDB es asíncrona: se sigue sin esperar
+     (igual que antes) y la promesa queda en pendingWrites para poder
+     esperarla en los caminos críticos y al apagar el servidor. */
+  if (mongoReady) {
+    const p = saveMongoDataset(name, data).catch(e => console.error('[store] no se pudo guardar en MongoDB ' + name + ':', e.message));
+    pendingWrites.add(p);
+    p.then(() => pendingWrites.delete(p), () => pendingWrites.delete(p));
+    return p;
+  }
   try { fs.writeFileSync(path.join(DATA_DIR, name), JSON.stringify(data, null, 2)); }
   catch (e) { console.error('[store] no se pudo guardar ' + name + ':', e.message); }
+  return undefined;
 }
 
 let profiles = loadJson('profiles.json', {});       // phone -> {phone, name, bio, photo, cover, createdAt, isDemo}
@@ -224,10 +241,8 @@ let media = loadJson('media.json', {});             // id -> {id, owner, name, t
 let lives = loadJson('lives.json', []);
 let gameStats = loadJson('games.json', { plays: {}, players: {} }); // {plays:{gameId:n}, players:{gameId:{phone:true}}} (v1.8)
 let gameRatings = loadJson('game-ratings.json', []); // [{gameId, phone, stars, comment, createdAt}] (v1.8)              // [{id, host, title, createdAt, endedAt, viewers:[], chat:[], reactions:{}}] (v1.5)
-/* Un live no sobrevive a un reinicio del servidor: al arrancar, los
-   que quedaron abiertos se marcan como terminados. */
-lives.forEach(l => { if (!l.endedAt) l.endedAt = Date.now(); });
-saveJson('lives.json', lives);
+/* (v3.1: al arrancar, los lives que quedaron abiertos se marcan como
+   terminados dentro de initStore, después de cargar los datos.) */
 const codeHits = {};                                // phone -> [timestamps]
 const emailCodeHits = {};                           // email -> [timestamps] (v2.9)
 /* Subidas por partes en curso (v1.4): uploadId -> {owner, name, type, ext, received, createdAt} */
@@ -253,7 +268,137 @@ function saveAll() {
   saveJson('media.json', media);
   saveJson('games.json', gameStats);
   saveJson('game-ratings.json', gameRatings);
+  if (mongoReady) return flushPendingWrites();
+  return undefined;
 }
+
+/* ---- almacenamiento PARA SIEMPRE con MongoDB (v3.1) ----
+   El disco del plan gratis de Render es efímero: los JSON se borraban
+   en cada reinicio o despliegue y las publicaciones solo vivían en el
+   teléfono, así que no aparecían en otro dispositivo ni entre usuarios.
+   Con MONGODB_URI puesta, los datos viven en MongoDB (base de datos
+   "wordred", una colección por conjunto de datos) y sobreviven a
+   reinicios y despliegues. Sin MONGODB_URI, el servidor sigue con los
+   JSON en disco como antes (respaldo para pruebas locales).
+   El estado en memoria NO cambia: el código sigue mutando las mismas
+   variables y llamando a saveJson/saveAll; lo único que cambia es
+   DÓNDE se escribe (MongoDB o disco). Cada conjunto es un solo
+   documento {_id:'data', value:<todo el conjunto>} en su colección:
+   simple y 1:1 con el JSON de antes. Límite honesto: un documento de
+   MongoDB no pasa de 16 MB por conjunto (a ~1 KB por publicación,
+   unas 16.000 publicaciones); si algún día se llega ahí, habrá que
+   guardar un documento por elemento.
+   Las escrituras a MongoDB son asíncronas (el código las llamaba
+   síncronas): saveJson devuelve la promesa y se sigue sin esperar,
+   igual que antes, salvo en los caminos críticos (verificar el código,
+   crear perfil/publicación/mensaje), donde se espera a que la
+   escritura termine antes de responder. Al recibir SIGTERM/SIGINT
+   (lo que manda Render al redesplegar), se esperan las escrituras
+   pendientes antes de salir, así un despliegue no pierde el último
+   cambio. Si MongoDB no responde al arrancar (10 s), se sigue con
+   los JSON en disco y /api/health lo dice (storage:"json"). */
+const { MongoClient } = require('mongodb');
+const MONGODB_URI = (process.env.MONGODB_URI || '').trim();
+const MONGODB_DB = 'wordred';
+let mongoClient = null;
+let mongoDb = null;
+let mongoReady = false;
+const pendingWrites = new Set();
+const FILE_TO_COLL = {
+  'profiles.json': 'profiles', 'posts.json': 'posts', 'stories.json': 'stories',
+  'friends.json': 'friends', 'requests.json': 'requests', 'groups.json': 'groups',
+  'listings.json': 'listings', 'sales-groups.json': 'salesGroups', 'ratings.json': 'ratings',
+  'events.json': 'events', 'pages.json': 'pages', 'messages.json': 'messages',
+  'notifications.json': 'notifications', 'blocked.json': 'blocked', 'reports.json': 'reports',
+  'auth.json': 'auth', 'media.json': 'media', 'lives.json': 'lives',
+  'games.json': 'gameStats', 'game-ratings.json': 'gameRatings'
+};
+const DATASETS = [
+  { file: 'profiles.json', get: () => profiles, set: v => { profiles = v; }, fallback: {} },
+  { file: 'posts.json', get: () => posts, set: v => { posts = v; }, fallback: [] },
+  { file: 'stories.json', get: () => stories, set: v => { stories = v; }, fallback: [] },
+  { file: 'friends.json', get: () => friends, set: v => { friends = v; }, fallback: {} },
+  { file: 'requests.json', get: () => requests, set: v => { requests = v; }, fallback: [] },
+  { file: 'groups.json', get: () => groups, set: v => { groups = v; }, fallback: [] },
+  { file: 'listings.json', get: () => listings, set: v => { listings = v; }, fallback: [] },
+  { file: 'sales-groups.json', get: () => salesGroups, set: v => { salesGroups = v; }, fallback: [] },
+  { file: 'ratings.json', get: () => ratings, set: v => { ratings = v; }, fallback: [] },
+  { file: 'events.json', get: () => events, set: v => { events = v; }, fallback: [] },
+  { file: 'pages.json', get: () => pages, set: v => { pages = v; }, fallback: [] },
+  { file: 'messages.json', get: () => messages, set: v => { messages = v; }, fallback: [] },
+  { file: 'notifications.json', get: () => notifications, set: v => { notifications = v; }, fallback: [] },
+  { file: 'blocked.json', get: () => blocked, set: v => { blocked = v; }, fallback: {} },
+  { file: 'reports.json', get: () => reports, set: v => { reports = v; }, fallback: [] },
+  { file: 'auth.json', get: () => auth, set: v => { auth = v; }, fallback: {} },
+  { file: 'media.json', get: () => media, set: v => { media = v; }, fallback: {} },
+  { file: 'lives.json', get: () => lives, set: v => { lives = v; }, fallback: [] },
+  { file: 'games.json', get: () => gameStats, set: v => { gameStats = v; }, fallback: { plays: {}, players: {} } },
+  { file: 'game-ratings.json', get: () => gameRatings, set: v => { gameRatings = v; }, fallback: [] }
+];
+/* Espera a que terminen las escrituras pendientes a MongoDB (con tope,
+   para no dejar una petición colgada si MongoDB va lento). Nunca
+   rechaza: si una escritura falló, ya quedó en el registro. */
+function flushPendingWrites(timeoutMs) {
+  const cap = typeof timeoutMs === 'number' ? timeoutMs : 5000;
+  if (!pendingWrites.size) return Promise.resolve();
+  const all = Promise.all(Array.from(pendingWrites)).catch(() => {});
+  const timer = new Promise(resolve => setTimeout(resolve, cap));
+  return Promise.race([all, timer]);
+}
+async function saveMongoDataset(name, data) {
+  const coll = FILE_TO_COLL[name];
+  if (!coll || !mongoDb) return;
+  await mongoDb.collection(coll).updateOne({ _id: 'data' }, { $set: { value: data } }, { upsert: true });
+}
+function loadJsonIfExists(name) {
+  try {
+    const p = path.join(DATA_DIR, name);
+    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch (e) {}
+  return undefined;
+}
+function isEmptyDataset(v, fallback) {
+  if (Array.isArray(fallback)) return !Array.isArray(v) || v.length === 0;
+  return !v || typeof v !== 'object' || Object.keys(v).length === 0;
+}
+async function initStore() {
+  if (MONGODB_URI) {
+    try {
+      mongoClient = new MongoClient(MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+      await mongoClient.connect();
+      mongoDb = mongoClient.db(MONGODB_DB);
+      for (const ds of DATASETS) {
+        const coll = FILE_TO_COLL[ds.file];
+        let doc = null;
+        try { doc = await mongoDb.collection(coll).findOne({ _id: 'data' }); } catch (e) {}
+        if (doc && doc.value !== undefined) {
+          ds.set(doc.value);
+        } else {
+          /* Primera vez con MongoDB: si el JSON en disco tiene datos,
+             se importan una vez para no perder lo que ya había. */
+          const fromJson = loadJsonIfExists(ds.file);
+          if (fromJson !== undefined && !isEmptyDataset(fromJson, ds.fallback)) {
+            ds.set(fromJson);
+            try { await mongoDb.collection(coll).updateOne({ _id: 'data' }, { $set: { value: fromJson } }, { upsert: true }); } catch (e) { console.error('[store] no se pudo importar ' + ds.file + ' a MongoDB:', e.message); }
+          }
+        }
+      }
+      mongoReady = true;
+      console.log('[store] MongoDB conectado (base wordred): los datos quedan para siempre.');
+    } catch (e) {
+      console.error('[store] no se pudo conectar a MongoDB, se sigue con los JSON en disco: ' + e.message);
+      try { if (mongoClient) await mongoClient.close(); } catch (e2) {}
+      mongoClient = null; mongoDb = null; mongoReady = false;
+    }
+  }
+  /* Un live no sobrevive a un reinicio del servidor: al arrancar, los
+     que quedaron abiertos se marcan como terminados. */
+  lives.forEach(l => { if (!l.endedAt) l.endedAt = Date.now(); });
+  saveJson('lives.json', lives);
+}
+/* Se arranca al cargar el módulo; las peticiones esperan a que termine
+   (middleware más abajo) y el proceso principal espera antes de oír. */
+const storeReady = initStore();
 
 /* v2.9: la identidad de una cuenta es su número de teléfono o su
    correo (cuentas de Google/correo). Un correo se deja en minúsculas
@@ -454,8 +599,11 @@ const app = express();
    el disco del servidor. */
 app.use(express.json({ limit: '1gb' }));
 app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization'); if (req.method === 'OPTIONS') return res.sendStatus(204); next(); });
+/* v3.1: ninguna petición se atiende antes de que el almacenamiento esté
+   listo (con MongoDB, la carga inicial es asíncrona). */
+app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.0', sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.1', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v1.5.8 (servidor 3.0): página de inicio con Google en el navegador
    (como en YouTube). La app abre esta página; Google muestra su propia
@@ -518,13 +666,14 @@ app.post('/api/auth/request-code', async (req, res) => {
   return res.json({ ok: true, phone, devCode: code });
 });
 
-app.post('/api/auth/verify', (req, res) => {
+app.post('/api/auth/verify', async (req, res) => {
   const phone = normPhone(req.body && req.body.phone);
   const code = String((req.body && req.body.code) || '').trim();
   const a = auth[phone];
   const chk = checkAuthCode(a, code);
   if (!chk.ok) { saveJson('auth.json', auth); return res.status(chk.status).json({ ok: false, error: chk.error }); }
   const token = issueTokenFor(phone);
+  await flushPendingWrites();
   return res.json({ ok: true, phone, token, hasProfile: !!profiles[phone] });
 });
 
@@ -550,13 +699,14 @@ app.post('/api/auth/email/request-code', async (req, res) => {
   return res.json({ ok: true, email, sentByEmail: false, devCode: code });
 });
 
-app.post('/api/auth/email/verify', (req, res) => {
+app.post('/api/auth/email/verify', async (req, res) => {
   const email = String((req.body && req.body.email) || '').trim().toLowerCase();
   const code = String((req.body && req.body.code) || '').trim();
   const a = auth[email];
   const chk = checkAuthCode(a, code);
   if (!chk.ok) { saveJson('auth.json', auth); return res.status(chk.status).json({ ok: false, error: chk.error }); }
   const token = issueTokenFor(email);
+  await flushPendingWrites();
   return res.json({ ok: true, email, token, hasProfile: !!profiles[email] });
 });
 
@@ -574,11 +724,12 @@ app.post('/api/auth/google', async (req, res) => {
   catch (e) { return res.status(401).json({ ok: false, error: (e && e.message) || 'Token de Google inválido.' }); }
   const email = g.email;
   const token = issueTokenFor(email);
+  await flushPendingWrites();
   return res.json({ ok: true, email, token, hasProfile: !!profiles[email], name: g.name, photo: g.picture });
 });
 
 /* ---- perfiles ---- */
-app.post('/api/profile', (req, res) => {
+app.post('/api/profile', async (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
   const name = String((req.body && req.body.name) || '').trim();
@@ -615,6 +766,7 @@ app.post('/api/profile', (req, res) => {
   /* v1.4: el cambio de perfil (foto, portada, nombre) se difunde en vivo
      a todos los teléfonos conectados para que se vea sin reabrir nada. */
   broadcast({ kind: 'profile', profile: p });
+  await flushPendingWrites();
   return res.json({ ok: true, profile: p });
 });
 app.get('/api/profile/:phone', (req, res) => {
@@ -800,7 +952,7 @@ function validateSongSrv(song) {
     auto: !!song.auto
   };
 }
-app.post('/api/posts', (req, res) => {
+app.post('/api/posts', async (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
   const body = req.body && req.body.post ? req.body.post : req.body;
@@ -865,6 +1017,7 @@ app.post('/api/posts', (req, res) => {
       if (f !== phone && !isBlockedSrv(phone, f)) notify('post', phone, f, authorName + ' publicó algo nuevo.', post.id);
     });
   }
+  await flushPendingWrites();
   return res.json({ ok: true, post });
 });
 /* ---- modificar publicaciones (v1.2, ola 10): máx. 5 ediciones ---- */
@@ -1892,10 +2045,11 @@ app.post('/api/lives/:id/like', (req, res) => {
    todo se cuenta aquí, por teléfono). Las partidas online son salas en
    memoria con emparejamiento rápido (quickmatch) o por invitación; el
    marcador y los movimientos viajan por WebSocket en tiempo real. Los
-   datos de juegos se guardan en games.json y game-ratings.json (en
-   Render gratis el disco es efímero: se pierden si el servicio se
-   reinicia, igual que el resto de los datos JSON). Las salas son solo
-   en memoria: una partida no sobrevive a un reinicio del servidor. */
+   datos de juegos se guardan en MongoDB (colecciones gameStats y
+   gameRatings) con MONGODB_URI, o en games.json y game-ratings.json
+   sin ella (en Render gratis el disco es efímero: se pierden si el
+   servicio se reinicia). Las salas son solo en memoria: una partida
+   no sobrevive a un reinicio del servidor. */
 const gameRooms = new Map(); // roomId -> {id, gameId, mode, players:[{phone,name}], status, scores:{}, winner, createdAt}
 const gameRoomByPhone = new Map(); // phone -> roomId
 const TURN_GAMES = ['tres-raya']; // juegos por turnos (Gato); los demás son duelos por puntos
@@ -2102,7 +2256,7 @@ app.post('/api/live-signal', (req, res) => {
 });
 
 /* ---- mensajes ---- */
-app.post('/api/messages', (req, res) => {
+app.post('/api/messages', async (req, res) => {
   const from = authPhone(req);
   if (!from) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
   const to = normPhone(req.body && req.body.to);
@@ -2124,6 +2278,7 @@ app.post('/api/messages', (req, res) => {
   notify('message', from, to, msg.listing && msg.listing.title ? ('te preguntó por tu anuncio: ' + msg.listing.title) : (msg.voice ? 'te envió un mensaje de voz' : (text ? 'te envió un mensaje' : (msg.file ? 'te envió un archivo' : 'te envió una foto'))), msg.id);
   saveAll();
   sendTo(to, { kind: 'message', message: msg });
+  await flushPendingWrites();
   return res.json({ ok: true, message: msg });
 });
 app.get('/api/messages', (req, res) => {
@@ -2262,7 +2417,20 @@ function broadcast(data) {
   wss.clients.forEach(ws => { try { if (ws.readyState === WebSocket.OPEN) ws.send(text); } catch (e) {} });
 }
 
-if (require.main === module) {
-  server.listen(PORT, () => console.log('WordRed server en el puerto ' + PORT + (SMS_ENABLED ? ' (SMS por Twilio)' : ' (sin Twilio: códigos por [DEV])')));
+/* v3.1: al parar (Render manda SIGTERM al redesplegar), esperar a que
+   las escrituras pendientes a MongoDB terminen antes de salir, así un
+   despliegue no pierde el último cambio. */
+async function gracefulShutdown() {
+  try { await flushPendingWrites(5000); } catch (e) {}
+  try { if (mongoClient) await mongoClient.close(); } catch (e) {}
+  process.exit(0);
 }
-module.exports = { app, server, _internals: { get profiles() { return profiles; }, get posts() { return posts; }, get auth() { return auth; }, get listings() { return listings; }, get events() { return events; }, get pages() { return pages; }, get salesGroups() { return salesGroups; }, get ratings() { return ratings; }, get stories() { return stories; }, get blocked() { return blocked; }, get reports() { return reports; }, get messages() { return messages; }, get media() { return media; }, get gameStats() { return gameStats; }, get gameRatings() { return gameRatings; }, get gameRooms() { return gameRooms; }, cloudinaryConfig, saveAll } };
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
+if (require.main === module) {
+  storeReady.then(() => {
+    server.listen(PORT, () => console.log('WordRed server en el puerto ' + PORT + (mongoReady ? ' (MongoDB: datos para siempre)' : ' (JSON en disco)') + (SMS_ENABLED ? ' (SMS por Twilio)' : ' (sin Twilio: códigos por [DEV])')));
+  });
+}
+module.exports = { app, server, _internals: { get profiles() { return profiles; }, get posts() { return posts; }, get auth() { return auth; }, get listings() { return listings; }, get events() { return events; }, get pages() { return pages; }, get salesGroups() { return salesGroups; }, get ratings() { return ratings; }, get stories() { return stories; }, get blocked() { return blocked; }, get reports() { return reports; }, get messages() { return messages; }, get media() { return media; }, get gameStats() { return gameStats; }, get gameRatings() { return gameRatings; }, get gameRooms() { return gameRooms; }, cloudinaryConfig, saveAll, storeReady, flushPendingWrites, get storage() { return mongoReady ? 'mongodb' : 'json'; }, get mongoReady() { return mongoReady; } } };
