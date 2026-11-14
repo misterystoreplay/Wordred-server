@@ -38,6 +38,21 @@
  * servidor lo retransmite al destinatario), y difusión en vivo de
  * comentarios ({kind:'comment'} con el contador total, que incluye
  * las respuestas) al comentar, responder o borrar.
+ * v2.9: entrar con cuenta de Google y código de verificación por
+ * correo. POST /api/auth/google verifica el token de Google (firma
+ * RS256 con las claves públicas de Google, aud = GOOGLE_CLIENT_ID,
+ * iss y caducidad) y abre la sesión con el correo como identidad; sin
+ * GOOGLE_CLIENT_ID configurado, Google queda deshabilitado y el
+ * servidor NUNCA acepta un token sin verificar. POST
+ * /api/auth/email/request-code manda un código de 6 dígitos al correo
+ * (SMTP por variables SMTP_HOST/SMTP_USER/SMTP_PASS; sin SMTP, modo
+ * de prueba con devCode, igual que los códigos de teléfono) y POST
+ * /api/auth/email/verify lo comprueba con las mismas reglas que el
+ * código por teléfono (hash SHA-256, 10 minutos, 5 intentos, 3 por
+ * hora). Las cuentas de correo usan el correo (en minúsculas) como
+ * identidad, igual que las de teléfono usan el número: normPhone
+ * deja pasar los correos sin tocarlos para que todo lo demás (feed,
+ * amigos, mensajes, WebSocket) funcione igual con ambas.
  *
  * Almacenamiento: JSON en disco (carpeta data/). Sin dependencias
  * nativas, para que funcione en cualquier host gratuito.
@@ -79,6 +94,95 @@ const TWILIO = {
   from: process.env.TWILIO_FROM || ''
 };
 const SMS_ENABLED = !!(TWILIO.sid && TWILIO.token && TWILIO.from);
+
+/* ---- correo (v2.9): códigos de verificación por correo ----
+   SMTP por variables de entorno (SMTP_HOST, SMTP_PORT, SMTP_USER,
+   SMTP_PASS, SMTP_FROM). Sin SMTP configurado, el código se devuelve
+   por el canal de respaldo (campo devCode, solo para pruebas), igual
+   que los códigos de teléfono sin Twilio. La contraseña de correo
+   NUNCA va en la APK ni en el código: solo como variable de entorno
+   del servidor. */
+const SMTP = {
+  host: (process.env.SMTP_HOST || '').trim(),
+  port: parseInt(process.env.SMTP_PORT || '587', 10) || 587,
+  secure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true',
+  user: (process.env.SMTP_USER || '').trim(),
+  pass: process.env.SMTP_PASS || '',
+  from: (process.env.SMTP_FROM || '').trim()
+};
+const EMAIL_ENABLED = !!(SMTP.host && SMTP.user && SMTP.pass);
+let mailer = null;
+function getMailer() {
+  if (mailer) return mailer;
+  if (!EMAIL_ENABLED) return null;
+  try {
+    const nodemailer = require('nodemailer');
+    mailer = nodemailer.createTransport({
+      host: SMTP.host, port: SMTP.port, secure: SMTP.secure,
+      auth: { user: SMTP.user, pass: SMTP.pass }
+    });
+  } catch (e) { console.log('[email] no se pudo cargar el envío de correo: ' + e.message); return null; }
+  return mailer;
+}
+async function sendEmail(to, subject, text) {
+  const m = getMailer();
+  if (!m) return false;
+  try {
+    await m.sendMail({ from: SMTP.from || SMTP.user, to, subject, text });
+    return true;
+  } catch (e) { console.log('[email] no se pudo mandar el correo a ' + to + ': ' + e.message); return false; }
+}
+
+/* ---- inicio con Google (v2.9): verificación del token ----
+   El ID de cliente de OAuth (aplicación web) va en GOOGLE_CLIENT_ID.
+   Sin él, el inicio con Google está deshabilitado y ningún token se
+   acepta. El token se verifica de verdad: firma RS256 con las claves
+   públicas de Google (JWKS), aud = el ID de cliente, iss de Google,
+   caducidad y correo verificado. GOOGLE_JWKS_URL solo existe para
+   las pruebas (apunta a un servidor falso en local); en producción
+   no se pone. */
+const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
+const GOOGLE_ENABLED = !!GOOGLE_CLIENT_ID;
+const GOOGLE_JWKS_URL = (process.env.GOOGLE_JWKS_URL || '').trim() || 'https://www.googleapis.com/oauth2/v3/certs';
+let jwksCache = { keys: null, at: 0 };
+async function fetchJwks() {
+  if (jwksCache.keys && Date.now() - jwksCache.at < 3600000) return jwksCache.keys;
+  const res = await fetch(GOOGLE_JWKS_URL);
+  if (!res.ok) throw new Error('Google JWKS: HTTP ' + res.status);
+  const data = await res.json();
+  if (!data || !Array.isArray(data.keys)) throw new Error('Google JWKS inválido');
+  jwksCache = { keys: data.keys, at: Date.now() };
+  return data.keys;
+}
+function b64urlToBuffer(s) {
+  s = String(s || '').replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  return Buffer.from(s, 'base64');
+}
+/* Verifica un token de ID de Google y devuelve su contenido
+   {email, name, picture, sub} o lanza un error si no es válido. */
+async function verifyGoogleIdToken(idToken) {
+  if (!GOOGLE_ENABLED) throw new Error('El inicio con Google no está configurado en el servidor.');
+  const parts = String(idToken || '').split('.');
+  if (parts.length !== 3) throw new Error('Token de Google inválido.');
+  let header, payload;
+  try {
+    header = JSON.parse(b64urlToBuffer(parts[0]).toString('utf8'));
+    payload = JSON.parse(b64urlToBuffer(parts[1]).toString('utf8'));
+  } catch (e) { throw new Error('Token de Google inválido.'); }
+  if (header.alg !== 'RS256' || !header.kid) throw new Error('Token de Google inválido.');
+  const keys = await fetchJwks();
+  const jwk = keys.find(k => k.kid === header.kid);
+  if (!jwk) throw new Error('Token de Google inválido.');
+  const pub = crypto.createPublicKey({ key: jwk, format: 'jwk' });
+  const okSig = crypto.createVerify('RSA-SHA256').update(parts[0] + '.' + parts[1]).verify(pub, b64urlToBuffer(parts[2]));
+  if (!okSig) throw new Error('Token de Google inválido.');
+  if (payload.iss !== 'https://accounts.google.com' && payload.iss !== 'accounts.google.com') throw new Error('Token de Google inválido.');
+  if (payload.aud !== GOOGLE_CLIENT_ID) throw new Error('Token de Google inválido.');
+  if (!payload.exp || payload.exp * 1000 < Date.now()) throw new Error('El token de Google caducó.');
+  if (!payload.email || payload.email_verified !== true) throw new Error('El correo de Google no está verificado.');
+  return { email: String(payload.email).toLowerCase(), name: String(payload.name || ''), picture: String(payload.picture || ''), sub: String(payload.sub || '') };
+}
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 /* Archivos subidos (v1.4): MEDIA_DIR guarda los archivos ya terminados
@@ -125,6 +229,7 @@ let gameRatings = loadJson('game-ratings.json', []); // [{gameId, phone, stars, 
 lives.forEach(l => { if (!l.endedAt) l.endedAt = Date.now(); });
 saveJson('lives.json', lives);
 const codeHits = {};                                // phone -> [timestamps]
+const emailCodeHits = {};                           // email -> [timestamps] (v2.9)
 /* Subidas por partes en curso (v1.4): uploadId -> {owner, name, type, ext, received, createdAt} */
 const pendingUploads = {};
 
@@ -150,7 +255,22 @@ function saveAll() {
   saveJson('game-ratings.json', gameRatings);
 }
 
-function normPhone(p) { return String(p || '').replace(/\D/g, ''); }
+/* v2.9: la identidad de una cuenta es su número de teléfono o su
+   correo (cuentas de Google/correo). Un correo se deja en minúsculas
+   y se devuelve tal cual; un teléfono se deja solo en dígitos, como
+   siempre. Así todo lo que usa normPhone (feed, amigos, mensajes,
+   WebSocket) funciona igual con ambas clases de cuenta. */
+function normPhone(p) {
+  var s = String(p || '').trim();
+  if (s.indexOf('@') >= 0) return s.toLowerCase();
+  return s.replace(/\D/g, '');
+}
+/* v2.9: un correo válido es texto@texto.texto, sin espacios. */
+function validEmail(e) {
+  var s = String(e || '').trim();
+  if (s.length > 254) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s);
+}
 // Normaliza un enlace como en el cliente: agrega https:// si falta y exige
 // un host con punto. Devuelve {url, host} o null si no es válido.
 function normalizeLinkUrl(raw) {
@@ -335,7 +455,31 @@ const app = express();
 app.use(express.json({ limit: '1gb' }));
 app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization'); if (req.method === 'OPTIONS') return res.sendStatus(204); next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '2.1', sms: SMS_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '2.9', sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+
+/* ---- comprobación de un código (v2.9: la misma regla para el código
+   por teléfono y por correo) ----
+   Devuelve {ok:true} o {ok:false, status, error}. El registro con el
+   código se guarda en `auth` (por teléfono o por correo) y se persiste
+   en auth.json. */
+function checkAuthCode(a, code) {
+  if (!a || !a.codeHash) return { ok: false, status: 400, error: 'No hay un código activo. Pide uno nuevo.' };
+  if (Date.now() - a.codeAt > CODE_TTL_MS) return { ok: false, status: 400, error: 'El código caducó. Pide uno nuevo.' };
+  a.codeAttempts = (a.codeAttempts || 0) + 1;
+  if (a.codeAttempts > CODE_MAX_ATTEMPTS) return { ok: false, status: 400, error: 'Demasiados intentos. Pide un código nuevo.' };
+  if (sha(String(code || '').trim()) !== a.codeHash) return { ok: false, status: 400, error: 'El código no coincide.' };
+  return { ok: true };
+}
+function issueTokenFor(id) {
+  const a = auth[id] || {};
+  a.verified = true;
+  a.codeHash = '';
+  a.token = genToken();
+  a.tokenAt = Date.now();
+  auth[id] = a;
+  saveJson('auth.json', auth);
+  return a.token;
+}
 
 /* ---- autenticación por teléfono ---- */
 app.post('/api/auth/request-code', async (req, res) => {
@@ -362,17 +506,59 @@ app.post('/api/auth/verify', (req, res) => {
   const phone = normPhone(req.body && req.body.phone);
   const code = String((req.body && req.body.code) || '').trim();
   const a = auth[phone];
-  if (!a || !a.codeHash) return res.status(400).json({ ok: false, error: 'No hay un código activo. Pide uno nuevo.' });
-  if (Date.now() - a.codeAt > CODE_TTL_MS) return res.status(400).json({ ok: false, error: 'El código caducó. Pide uno nuevo.' });
-  a.codeAttempts = (a.codeAttempts || 0) + 1;
-  if (a.codeAttempts > CODE_MAX_ATTEMPTS) return res.status(400).json({ ok: false, error: 'Demasiados intentos. Pide un código nuevo.' });
-  if (sha(code) !== a.codeHash) { saveJson('auth.json', auth); return res.status(400).json({ ok: false, error: 'El código no coincide.' }); }
-  a.verified = true;
-  a.codeHash = '';
-  a.token = genToken();
-  a.tokenAt = Date.now();
+  const chk = checkAuthCode(a, code);
+  if (!chk.ok) { saveJson('auth.json', auth); return res.status(chk.status).json({ ok: false, error: chk.error }); }
+  const token = issueTokenFor(phone);
+  return res.json({ ok: true, phone, token, hasProfile: !!profiles[phone] });
+});
+
+/* ---- autenticación por correo (v2.9) ----
+   El código de 6 dígitos se manda al correo con SMTP si está
+   configurado; si no, modo de prueba (devCode), igual que el código
+   por teléfono sin Twilio. Las mismas reglas: hash SHA-256, 10
+   minutos, 5 intentos, 3 códigos por hora y correo. */
+app.post('/api/auth/email/request-code', async (req, res) => {
+  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+  if (!validEmail(email)) return res.status(400).json({ ok: false, error: 'Escribe un correo válido.' });
+  const t = Date.now();
+  const hits = (emailCodeHits[email] || []).filter(x => t - x < 3600000);
+  if (hits.length >= REGISTER_PER_HOUR) return res.status(429).json({ ok: false, error: 'Ya pediste varios códigos. Inténtalo en una hora.' });
+  hits.push(t);
+  emailCodeHits[email] = hits;
+  const code = genCode();
+  auth[email] = Object.assign(auth[email] || {}, { codeHash: sha(code), codeAt: t, codeAttempts: 0 });
   saveJson('auth.json', auth);
-  return res.json({ ok: true, phone, token: a.token, hasProfile: !!profiles[phone] });
+  const sent = await sendEmail(email, 'Tu código de WordRed', 'Tu código de verificación de WordRed es: ' + code + '\n\nTiene 10 minutos de vigencia. Si no pediste este código, ignora este correo.');
+  if (sent) return res.json({ ok: true, email, sentByEmail: true });
+  console.log('[DEV] código por correo para ' + email + ': ' + code);
+  return res.json({ ok: true, email, sentByEmail: false, devCode: code });
+});
+
+app.post('/api/auth/email/verify', (req, res) => {
+  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+  const code = String((req.body && req.body.code) || '').trim();
+  const a = auth[email];
+  const chk = checkAuthCode(a, code);
+  if (!chk.ok) { saveJson('auth.json', auth); return res.status(chk.status).json({ ok: false, error: chk.error }); }
+  const token = issueTokenFor(email);
+  return res.json({ ok: true, email, token, hasProfile: !!profiles[email] });
+});
+
+/* ---- inicio con Google (v2.9) ----
+   La app manda el token de ID que le dio Google y el servidor lo
+   verifica de verdad (firma, cliente, emisor, caducidad y correo
+   verificado). Sin GOOGLE_CLIENT_ID configurado, responde 503 y
+   NUNCA acepta el token. La identidad de la cuenta es el correo. */
+app.post('/api/auth/google', async (req, res) => {
+  if (!GOOGLE_ENABLED) return res.status(503).json({ ok: false, error: 'El inicio con Google no está configurado en el servidor.' });
+  const idToken = String((req.body && req.body.idToken) || '').trim();
+  if (!idToken) return res.status(400).json({ ok: false, error: 'Falta el token de Google.' });
+  let g;
+  try { g = await verifyGoogleIdToken(idToken); }
+  catch (e) { return res.status(401).json({ ok: false, error: (e && e.message) || 'Token de Google inválido.' }); }
+  const email = g.email;
+  const token = issueTokenFor(email);
+  return res.json({ ok: true, email, token, hasProfile: !!profiles[email], name: g.name, photo: g.picture });
 });
 
 /* ---- perfiles ---- */

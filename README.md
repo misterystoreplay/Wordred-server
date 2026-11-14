@@ -82,6 +82,20 @@ archivos JSON dentro de `data/` y sincroniza la app en tiempo real.
   marca en el servidor (`isLiveRecording`, `liveRecordingId` y
   `liveRecDurationMs` en `POST /api/posts`), para que en todos los
   teléfonos se vean como "Live grabado" en el inicio.
+- **Novedades v2.9:** entrar con cuenta de Google y código de
+  verificación por correo. `POST /api/auth/google` verifica el token
+  de Google (firma RS256 con las claves públicas de Google, aud =
+  `GOOGLE_CLIENT_ID`, emisor y caducidad) y abre la sesión con el
+  correo como identidad; sin `GOOGLE_CLIENT_ID` responde 503 y nunca
+  acepta el token. `POST /api/auth/email/request-code` manda un código
+  de 6 dígitos al correo (SMTP por variables `SMTP_HOST`,
+  `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`; sin SMTP, modo
+  de prueba con `devCode`, igual que los códigos de teléfono sin
+  Twilio) y `POST /api/auth/email/verify` lo comprueba con las mismas
+  reglas que el código por teléfono (hash, 10 minutos, 5 intentos, 3
+  por hora). Las cuentas de correo usan el correo en minúsculas como
+  identidad; todo lo demás (feed, amigos, mensajes, WebSocket)
+  funciona igual con cuentas de teléfono y de correo.
 
 ## Cloudinary (archivos para siempre)
 
@@ -174,6 +188,8 @@ la app muestra (modo de prueba sin Twilio).
 | `PORT` | Puerto (Render lo pone solo) | No (3000) |
 | `DATA_DIR` | Carpeta de los archivos JSON | No (`server/data`) |
 | `TWILIO_SID`, `TWILIO_TOKEN`, `TWILIO_FROM` | SMS reales con Twilio | No (sin ellas, modo de prueba) |
+| `GOOGLE_CLIENT_ID` | ID de cliente de OAuth (aplicación web) para verificar el inicio con Google | No (sin él, Google deshabilitado) |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Correo para mandar los códigos de verificación (ej. Gmail con contraseña de aplicación) | No (sin ellas, modo de prueba con `devCode`) |
 
 ## Desplegarlo en Render
 
