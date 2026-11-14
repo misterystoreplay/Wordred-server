@@ -207,6 +207,24 @@ reabrir la cuenta). Solo el autor o un administrador del grupo; la
 escritura espera a MongoDB y se avisa por WebSocket (`postDeleted`)
 para que los demás teléfonos la quiten en vivo.
 
+**Borrado sin éxito falso (v3.3):** el DELETE espera la escritura en
+MongoDB DE VERDAD (`saveJsonStrict`): si falla, la publicación vuelve
+a su sitio en memoria y se devuelve 500, para que la app la restaure y
+avise el error real. Antes el error de escritura se tragaba y el
+DELETE respondía `{ok:true}` con la publicación todavía en MongoDB,
+así que resucitaba al reiniciar el servidor.
+
+**Mensajes grupales (v3.3):** nueva colección `groupChats` y endpoints
+`POST /api/group-chats` (crear, con nombre opcional y al menos 2
+personas), `GET /api/group-chats?phone=` (los grupos míos),
+`POST /api/group-chats/:id/messages` (escribir a todos),
+`POST /api/group-chats/:id/members` (agregar/quitar por lista
+completa de integrantes), `POST /api/group-chats/:id/leave` (salir;
+si queda vacío se borra) y `POST /api/group-chats/:id/read` (marcar
+leído). Avisos `groupMessage` y `groupChatUpdated` por WebSocket a
+los integrantes. Escrituras estrictas (`saveJsonStrict`), como el
+DELETE: si MongoDB falla, se responde 500 y no se miente el éxito.
+
 **Datos para siempre (v3.1):** con `MONGODB_URI` puesta, las
 publicaciones, mensajes, perfiles y todo lo demás se guardan en
 MongoDB Atlas (plan gratis M0, 512 MB, sin tarjeta) y ya NO se borran
