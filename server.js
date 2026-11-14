@@ -91,6 +91,15 @@
  * Antes no existía: la app solo borraba el mensaje de grupo en su
  * propio teléfono y para los demás seguía ahí. Nada más cambia.
  *
+ * v3.5: actualización de la aplicación. Nuevo endpoint GET
+ * /api/app/latest (devuelve la última versión: versionName,
+ * versionCode, url de descarga y notas) y GET /app/WordRed.apk (sirve
+ * el APK real). La versión vive en app-version.json junto al APK en el
+ * repo: al sacar una versión nueva se reemplaza el archivo WordRed.apk
+ * y se actualiza app-version.json (ver README). Sin esos archivos, el
+ * endpoint responde que no hay información: la app no inventa
+ * actualizaciones. Nada más cambia en la 3.5.
+ *
  * Almacenamiento: MongoDB con MONGODB_URI; sin ella, JSON en disco
  * (carpeta data/).
  *
@@ -660,7 +669,37 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.4', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.5', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+
+/* v3.5: actualización de la aplicación. La última versión vive en
+   app-version.json junto al APK (WordRed.apk) en el repo: al publicar
+   una versión nueva se reemplazan los dos archivos (ver README).
+   GET /api/app/latest dice cuál es la última versión y de dónde se
+   descarga; GET /app/WordRed.apk sirve el APK real. Sin esos archivos
+   no se inventa nada: el endpoint responde ok:false y la descarga 404. */
+function readAppVersion() {
+  try {
+    var raw = fs.readFileSync(path.join(__dirname, 'app-version.json'), 'utf8');
+    var v = JSON.parse(raw);
+    if (!v || !v.versionName || !v.versionCode) return null;
+    return { versionName: String(v.versionName), versionCode: parseInt(v.versionCode, 10) || 0, notes: String(v.notes || '') };
+  } catch (e) { return null; }
+}
+app.get('/api/app/latest', (req, res) => {
+  var v = readAppVersion();
+  if (!v || !v.versionCode) return res.status(404).json({ ok: false, error: 'Sin información de actualización.' });
+  var apkPath = path.join(__dirname, 'WordRed.apk');
+  if (!fs.existsSync(apkPath)) return res.status(404).json({ ok: false, error: 'Sin información de actualización.' });
+  var base = req.protocol + '://' + req.get('host');
+  return res.json({ ok: true, versionName: v.versionName, versionCode: v.versionCode, url: base + '/app/WordRed.apk', notes: v.notes });
+});
+app.get('/app/WordRed.apk', (req, res) => {
+  var apkPath = path.join(__dirname, 'WordRed.apk');
+  if (!fs.existsSync(apkPath)) return res.status(404).json({ ok: false, error: 'La actualización no está disponible.' });
+  res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+  res.setHeader('Content-Disposition', 'attachment; filename="WordRed.apk"');
+  return res.sendFile(apkPath);
+});
 
 /* v1.5.8 (servidor 3.0): página de inicio con Google en el navegador
    (como en YouTube). La app abre esta página; Google muestra su propia
