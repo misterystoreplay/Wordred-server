@@ -104,7 +104,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   /* ---- modo MongoDB ---- */
   let proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   let health = await waitHealth(PORT);
-  check('3.3 MongoDB: /api/health dice version 3.3', !!(health && health.version === '3.3'), health);
+  check('3.3 MongoDB: /api/health dice version 3.4', !!(health && health.version === '3.4'), health);
   check('3.3 MongoDB: /api/health dice storage mongodb y mongo true', !!(health && health.storage === 'mongodb' && health.mongo === true), health);
 
   const regA = await register(PORT, PHONE_A);
@@ -251,6 +251,32 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const g2Res = await api(PORT, 'POST', '/api/group-chats', { id: 'gchat-vivo33', name: 'Grupo que sobrevive', participants: [PHONE_B, PHONE_C] }, regA.token);
   check('3.3 MongoDB: A crea un segundo grupo que queda vivo', !!(g2Res.json && g2Res.json.ok && g2Res.json.group && g2Res.json.group.id === 'gchat-vivo33'), g2Res);
 
+  /* ---- borrar un mensaje de un chat grupal (v3.4): DELETE
+     /api/group-chats/:id/messages/:messageId. Antes no existía: la app
+     solo borraba el mensaje de grupo en su teléfono y para los demás
+     seguía ahí. */
+  const gmV1 = await api(PORT, 'POST', '/api/group-chats/gchat-vivo33/messages', { message: { text: 'Mensaje de A que se borrará' } }, regA.token);
+  const gmV1Id = gmV1.json && gmV1.json.message && gmV1.json.message.id;
+  check('3.4 MongoDB: A escribe un mensaje en el grupo vivo', !!(gmV1.json && gmV1.json.ok && gmV1Id), gmV1);
+  const gmV2 = await api(PORT, 'POST', '/api/group-chats/gchat-vivo33/messages', { message: { text: 'Mensaje de B que se queda' } }, regB.token);
+  const gmV2Id = gmV2.json && gmV2.json.message && gmV2.json.message.id;
+  check('3.4 MongoDB: B escribe un mensaje en el grupo vivo', !!(gmV2.json && gmV2.json.ok && gmV2Id), gmV2);
+  const gmDelNoAuth = await api(PORT, 'DELETE', '/api/group-chats/gchat-vivo33/messages/' + gmV1Id, null, null);
+  check('3.4 MongoDB: borrar un mensaje de grupo sin sesión es 401', gmDelNoAuth.status === 401, gmDelNoAuth);
+  const gmDelGhost = await api(PORT, 'DELETE', '/api/group-chats/gchat-vivo33/messages/msg-que-no-existe', null, regA.token);
+  check('3.4 MongoDB: borrar un mensaje de grupo que no existe es 404', gmDelGhost.status === 404, gmDelGhost);
+  const gmDelOther = await api(PORT, 'DELETE', '/api/group-chats/gchat-vivo33/messages/' + gmV1Id, null, regB.token);
+  check('3.4 MongoDB: B no puede borrar el mensaje de A en el grupo (403)', gmDelOther.status === 403, gmDelOther);
+  const gmDel = await api(PORT, 'DELETE', '/api/group-chats/gchat-vivo33/messages/' + gmV1Id, null, regA.token);
+  check('3.4 MongoDB: A borra su mensaje del grupo (DELETE ok)', !!(gmDel.json && gmDel.json.ok), gmDel);
+  const gListB4 = await api(PORT, 'GET', '/api/group-chats?phone=' + PHONE_B);
+  const gVivo = gListB4.json && gListB4.json.groupChats.find(g => g.id === 'gchat-vivo33');
+  check('3.4 MongoDB: tras borrarlo, el mensaje ya NO sale en el grupo y el de B sigue', !!(gVivo && !gVivo.messages.some(m => m.id === gmV1Id) && gVivo.messages.some(m => m.id === gmV2Id)), gVivo && gVivo.messages.length);
+  const gmGoneMongo = await waitMongoValue(uri, 'groupChats', v => Array.isArray(v) && v.some(g => g.id === 'gchat-vivo33' && g.messages && !g.messages.some(m => m.id === gmV1Id)));
+  check('3.4 MongoDB: tras borrarlo, el mensaje ya NO está en la colección groupChats de MongoDB', !!gmGoneMongo);
+  const gmDelAgain = await api(PORT, 'DELETE', '/api/group-chats/gchat-vivo33/messages/' + gmV1Id, null, regA.token);
+  check('3.4 MongoDB: borrar el mismo mensaje otra vez es 404 (ya está borrado)', gmDelAgain.status === 404, gmDelAgain);
+
   /* La publicación, el mensaje y el juego tienen que estar YA en
      MongoDB (no solo en la memoria del proceso) antes de reiniciar. */
   const postsInMongo = await waitMongoValue(uri, 'posts', v => Array.isArray(v) && v.some(p => p.id === postId));
@@ -273,7 +299,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir, WORDRED_TEST_FAIL_WRITES: '1' });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 3.3', !!(health && health.version === '3.3' && health.storage === 'mongodb'), health);
+  check('3.3 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 3.4', !!(health && health.version === '3.4' && health.storage === 'mongodb'), health);
   const delFail = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con MongoDB roto, DELETE devuelve 500 (no un éxito falso)', delFail.status === 500 && !!(delFail.json && delFail.json.ok === false), delFail);
   check('3.3 MongoDB: con MongoDB roto, DELETE explica el error real', !!(delFail.json && delFail.json.error && delFail.json.error.indexOf('No se pudo guardar el borrado') >= 0), delFail.json && delFail.json.error);
@@ -284,7 +310,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '3.3'), health);
+  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '3.4'), health);
   const delFailOk = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con las escrituras sanas, el borrado sí funciona (DELETE ok)', !!(delFailOk.json && delFailOk.json.ok), delFailOk);
   const feedFailOk = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
@@ -303,7 +329,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 3.3 y storage mongodb', !!(health && health.version === '3.3' && health.storage === 'mongodb'), health);
+  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 3.4 y storage mongodb', !!(health && health.version === '3.4' && health.storage === 'mongodb'), health);
 
   const feedB2 = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, la publicación de A sigue ahí y B la sigue viendo', !!(feedB2.json && feedB2.json.ok && feedB2.json.posts.some(p => p.id === postId)), feedB2.json && feedB2.json.posts.length);
@@ -313,6 +339,8 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.3 MongoDB: tras reiniciar, el mensaje de A a B sigue ahí', allMsgs.some(m => m.id === msgId), allMsgs.length);
   const gListB3 = await api(PORT, 'GET', '/api/group-chats?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, el grupo que quedó vivo sigue en la lista de B', !!(gListB3.json && gListB3.json.ok && gListB3.json.groupChats.some(g => g.id === 'gchat-vivo33')), gListB3.json && gListB3.json.groupChats && gListB3.json.groupChats.length);
+  const gVivo3 = gListB3.json && gListB3.json.groupChats.find(g => g.id === 'gchat-vivo33');
+  check('3.4 MongoDB: tras reiniciar, el mensaje de grupo borrado SIGUE borrado y el de B sigue', !!(gVivo3 && !gVivo3.messages.some(m => m.id === gmV1Id) && gVivo3.messages.some(m => m.id === gmV2Id)), gVivo3 && gVivo3.messages.length);
   const stats2 = await api(PORT, 'GET', '/api/games/stats');
   check('3.3 MongoDB: tras reiniciar, la estadística del juego sigue (1 jugada)', !!(stats2.json && stats2.json.ok && stats2.json.stats && stats2.json.stats.prueba31 && stats2.json.stats.prueba31.plays === 1), stats2.json && stats2.json.stats);
   const verifyC = await api(PORT, 'POST', '/api/auth/verify', { phone: PHONE_C, code: codeC });
@@ -334,7 +362,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT2 = 34532;
   const proc2 = startServer(PORT2, { DATA_DIR: jsonDir });
   const health2 = await waitHealth(PORT2);
-  check('3.3 JSON: sin MONGODB_URI, /api/health dice version 3.3, storage json y mongo false', !!(health2 && health2.version === '3.3' && health2.storage === 'json' && health2.mongo === false), health2);
+  check('3.3 JSON: sin MONGODB_URI, /api/health dice version 3.4, storage json y mongo false', !!(health2 && health2.version === '3.4' && health2.storage === 'json' && health2.mongo === false), health2);
   const regJ = await register(PORT2, '524444444444');
   check('3.3 JSON: el registro sigue funcionando sin MongoDB', regJ.ok, regJ);
   const postJ = await api(PORT2, 'POST', '/api/posts', { text: 'Publicación en modo JSON' }, regJ.token);
@@ -346,7 +374,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
 
   await mongod.stop();
   console.log('\n==============================');
-  console.log('Servidor WordRed 3.3 — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('Servidor WordRed 3.4 — ' + pass + ' PASS, ' + fail + ' FAIL');
   if (fail) { console.log('Fallos: ' + failures.join(' | ')); process.exit(1); }
 })().catch((e) => {
   console.error('ERROR en las pruebas: ' + (e && e.stack ? e.stack : e));
