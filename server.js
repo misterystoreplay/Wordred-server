@@ -118,6 +118,50 @@
  * lista). Nueva colección `profileViews` (respaldo en
  * profile-views.json). Nada más cambia en la 3.7.
  *
+ * v3.8: visitas a historias, duetos y vistas de publicaciones —
+ * POST /api/story-views registra quién vio una historia (un registro
+ * por visitante y historia; ver la propia no se registra) y
+ * GET /api/story-views/:storyId devuelve las visitas solo al autor;
+ * POST /api/posts acepta y conserva `duetOf` (id del post original +
+ * autor, solo si ese post existe); POST /api/posts/:id/view registra
+ * una vista real por visitante (ver la propia no cuenta, invitados
+ * tampoco) y GET /api/posts/:id/stats devuelve vistas, me gusta,
+ * comentarios y compartidas solo al autor. Nuevas colecciones
+ * `storyViews` (respaldo story-views.json) y `postViews` (respaldo
+ * post-views.json).
+ * Además en 3.8: encuestas en historias (`storyPollVotes`,
+ * POST /api/stories/:id/poll-vote; la encuesta viaja con la historia
+ * según quién pide); retos de Shorts (`challenge` en posts +
+ * GET /api/challenges); reacciones rápidas a historias
+ * (`storyReactions`, POST /api/stories/:id/react +
+ * GET /api/stories/:id/reactions, solo el autor); verificación de
+ * cuenta automática por criterios (GET/POST /api/verification/status
+ * y /request; `verified` en el perfil); comentarios con foto/video y
+ * menciones con @ (media/mediaUrl/mentions en el comentario, plural
+ * /api/posts/:id/comments como alias); amigos cercanos (`closeFriends`,
+ * audience 'close' en historias); regalos virtuales en lives
+ * (`liveGifts`, POST/GET /api/lives/:id/gift(s), sin dinero);
+ * salas de audio en vivo (`audioRooms`); torneos semanales
+ * (`tournaments`, GET /api/tournaments/current +
+ * POST /api/tournaments/:id/score, mejor puntaje por jugador);
+ * lista de deseos (`wishlists`); estado de ánimo (`mood` en posts);
+ * invitado en vivo (coHost + /invite + /invite/respond, mensajes
+ * liveInvite/liveInviteAccepted/liveInviteDeclined); lugar en la
+ * publicación (`place`); encuesta con foto (`photoPoll` en posts +
+ * POST /api/posts/:id/vote + GET /api/posts/:id/votes, colección
+ * `postVotes`); enlace en la historia (`link`); nota en el perfil y
+ * canción del día y portada de destacadas (`note`, `songOfTheDay`,
+ * `pinnedCover` en POST /api/profile); silenciados (`muted`, y
+ * notify() no crea el aviso si el destinatario silenció al
+ * remitente); mensajes temporales (`conversationSettings`,
+ * POST /api/conversations/:id/disappearing + poda al leer);
+ * cupones (`coupons`, POST /api/coupons + GET /api/coupons?seller= +
+ * POST /api/coupons/:code/apply). Colecciones nuevas en total: 13
+ * (storyPollVotes, storyReactions, closeFriends, liveGifts,
+ * audioRooms, tournaments, wishlists, postVotes, muted,
+ * conversationSettings, coupons, más storyViews y postViews).
+ * Nada más cambia en la 3.8.
+ *
  * Almacenamiento: MongoDB con MONGODB_URI; sin ella, JSON en disco
  * (carpeta data/).
  *
@@ -302,6 +346,19 @@ let lives = loadJson('lives.json', []);
 let gameStats = loadJson('games.json', { plays: {}, players: {} }); // {plays:{gameId:n}, players:{gameId:{phone:true}}} (v1.8)
 let gameRatings = loadJson('game-ratings.json', []); // [{gameId, phone, stars, comment, createdAt}] (v1.8)              // [{id, host, title, createdAt, endedAt, viewers:[], chat:[], reactions:{}}] (v1.5)
 let profileViews = loadJson('profile-views.json', {}); // v3.7: visto -> [{viewer, at}] (quién vio ese perfil)
+let storyViews = loadJson('story-views.json', {}); // v3.8: historia -> [{viewer, at}] (quién vio esa historia)
+let postViews = loadJson('post-views.json', {}); // v3.8: publicación -> [{viewer, at}] (vistas reales por visitante)
+let storyPollVotes = loadJson('story-poll-votes.json', {}); // v3.8: historia -> [{voter, option, at}] (encuesta de historia)
+let storyReactions = loadJson('story-reactions.json', {}); // v3.8: historia -> [{viewer, emoji, at}] (reacciones rápidas)
+let closeFriends = loadJson('close-friends.json', {}); // v3.8: dueño -> [teléfonos] (amigos cercanos)
+let liveGifts = loadJson('live-gifts.json', {}); // v3.8: live -> [{giftId, from, at}] (regalos virtuales, sin dinero)
+let audioRooms = loadJson('audio-rooms.json', []); // v3.8: [{id, title, topic, owner, participants:[{phone, muted, joinedAt}], createdAt, endedAt}]
+let tournaments = loadJson('tournaments.json', []); // v3.8: [{id, weekKey, gameId, gameName, startsAt, endsAt, scores:{phone: mejor}, createdAt}]
+let wishlists = loadJson('wishlists.json', {}); // v3.8: cuenta -> [ids de anuncios] (lista de deseos)
+let postVotes = loadJson('post-votes.json', {}); // v3.8: publicación -> [{voter, option, at}] (encuesta con foto)
+let muted = loadJson('muted.json', {}); // v3.8: cuenta -> [teléfonos silenciados] (solo apaga avisos, no oculta)
+let conversationSettings = loadJson('conversation-settings.json', {}); // v3.8: "a|b" -> {disappearingHours} (mensajes temporales)
+let coupons = loadJson('coupons.json', []); // v3.8: [{code, seller, discountPct, listingId|null, expiresAt, createdAt}]
 /* (v3.1: al arrancar, los lives que quedaron abiertos se marcan como
    terminados dentro de initStore, después de cargar los datos.) */
 const codeHits = {};                                // phone -> [timestamps]
@@ -330,6 +387,19 @@ function saveAll() {
   saveJson('games.json', gameStats);
   saveJson('game-ratings.json', gameRatings);
   saveJson('profile-views.json', profileViews);
+  saveJson('story-views.json', storyViews);
+  saveJson('post-views.json', postViews);
+  saveJson('story-poll-votes.json', storyPollVotes);
+  saveJson('story-reactions.json', storyReactions);
+  saveJson('close-friends.json', closeFriends);
+  saveJson('live-gifts.json', liveGifts);
+  saveJson('audio-rooms.json', audioRooms);
+  saveJson('tournaments.json', tournaments);
+  saveJson('wishlists.json', wishlists);
+  saveJson('post-votes.json', postVotes);
+  saveJson('muted.json', muted);
+  saveJson('conversation-settings.json', conversationSettings);
+  saveJson('coupons.json', coupons);
   if (mongoReady) return flushPendingWrites();
   return undefined;
 }
@@ -374,7 +444,14 @@ const FILE_TO_COLL = {
   'group-chats.json': 'groupChats', 'notifications.json': 'notifications', 'blocked.json': 'blocked', 'reports.json': 'reports',
   'auth.json': 'auth', 'media.json': 'media', 'lives.json': 'lives',
   'games.json': 'gameStats', 'game-ratings.json': 'gameRatings',
-  'profile-views.json': 'profileViews'
+  'profile-views.json': 'profileViews',
+  'story-views.json': 'storyViews', 'post-views.json': 'postViews',
+  'story-poll-votes.json': 'storyPollVotes', 'story-reactions.json': 'storyReactions',
+  'close-friends.json': 'closeFriends', 'live-gifts.json': 'liveGifts',
+  'audio-rooms.json': 'audioRooms', 'tournaments.json': 'tournaments',
+  'wishlists.json': 'wishlists', 'post-votes.json': 'postVotes',
+  'muted.json': 'muted', 'conversation-settings.json': 'conversationSettings',
+  'coupons.json': 'coupons'
 };
 const DATASETS = [
   { file: 'profiles.json', get: () => profiles, set: v => { profiles = v; }, fallback: {} },
@@ -398,7 +475,20 @@ const DATASETS = [
   { file: 'lives.json', get: () => lives, set: v => { lives = v; }, fallback: [] },
   { file: 'games.json', get: () => gameStats, set: v => { gameStats = v; }, fallback: { plays: {}, players: {} } },
   { file: 'game-ratings.json', get: () => gameRatings, set: v => { gameRatings = v; }, fallback: [] },
-  { file: 'profile-views.json', get: () => profileViews, set: v => { profileViews = v; }, fallback: {} }
+  { file: 'profile-views.json', get: () => profileViews, set: v => { profileViews = v; }, fallback: {} },
+  { file: 'story-views.json', get: () => storyViews, set: v => { storyViews = v; }, fallback: {} },
+  { file: 'post-views.json', get: () => postViews, set: v => { postViews = v; }, fallback: {} },
+  { file: 'story-poll-votes.json', get: () => storyPollVotes, set: v => { storyPollVotes = v; }, fallback: {} },
+  { file: 'story-reactions.json', get: () => storyReactions, set: v => { storyReactions = v; }, fallback: {} },
+  { file: 'close-friends.json', get: () => closeFriends, set: v => { closeFriends = v; }, fallback: {} },
+  { file: 'live-gifts.json', get: () => liveGifts, set: v => { liveGifts = v; }, fallback: {} },
+  { file: 'audio-rooms.json', get: () => audioRooms, set: v => { audioRooms = v; }, fallback: [] },
+  { file: 'tournaments.json', get: () => tournaments, set: v => { tournaments = v; }, fallback: [] },
+  { file: 'wishlists.json', get: () => wishlists, set: v => { wishlists = v; }, fallback: {} },
+  { file: 'post-votes.json', get: () => postVotes, set: v => { postVotes = v; }, fallback: {} },
+  { file: 'muted.json', get: () => muted, set: v => { muted = v; }, fallback: {} },
+  { file: 'conversation-settings.json', get: () => conversationSettings, set: v => { conversationSettings = v; }, fallback: {} },
+  { file: 'coupons.json', get: () => coupons, set: v => { coupons = v; }, fallback: [] }
 ];
 /* Espera a que terminen las escrituras pendientes a MongoDB (con tope,
    para no dejar una petición colgada si MongoDB va lento). Nunca
@@ -629,7 +719,238 @@ function liveStories() {
   const t = Date.now();
   return stories.filter(s => t - s.createdAt <= STORY_TTL_MS);
 }
+/* v3.8: una historia viva (existe y no caducó). Las de 24 h ya no
+   aceptan visitas, votos ni reacciones, aunque sigan en el arreglo. */
+function findLiveStory(id) {
+  const s = stories.find(x => x.id === id);
+  if (!s) return null;
+  if (Date.now() - s.createdAt > STORY_TTL_MS) return null;
+  return s;
+}
+/* v3.8: ¿puede este teléfono ver esta historia? Las de audiencia
+   'close' solo las ven su autor y su lista de cercanos. */
+function canSeeStory(story, phone) {
+  if (!story) return false;
+  if (story.audience !== 'close') return true;
+  if (!phone) return false;
+  if (story.author === phone) return true;
+  return (closeFriends[story.author] || []).includes(phone);
+}
+function profilePublic(phone) {
+  const p = profiles[phone];
+  return { phone, name: (p && p.name) || phone, avatar: (p && p.photo) || '' };
+}
+/* v3.8: valida la encuesta de una historia: pregunta + 2 opciones. */
+function validateStoryPoll(poll) {
+  if (!poll || typeof poll !== 'object') return null;
+  const question = String(poll.question || '').trim().slice(0, 120);
+  if (!question) return null;
+  if (!Array.isArray(poll.options) || poll.options.length !== 2) return null;
+  const options = poll.options.map(function (o) {
+    const text = String((o && o.text) || o || '').trim().slice(0, 40);
+    return { text };
+  });
+  if (!options[0].text || !options[1].text) return null;
+  return { question, options: [{ text: options[0].text, votes: 0 }, { text: options[1].text, votes: 0 }] };
+}
+function storyPollCounts(storyId) {
+  const votes = storyPollVotes[storyId] || [];
+  return [votes.filter(function (v) { return v.option === 0; }).length, votes.filter(function (v) { return v.option === 1; }).length];
+}
+/* v3.8: la historia servida lleva su encuesta según quién pide:
+   el autor ve votos + quién votó qué; quien ya votó ve los conteos
+   y su voto; quien no ha votado solo ve la pregunta y las opciones.
+   También lleva myReaction (su emoji o null). Nunca se inventan votos. */
+function shapeStory(story, viewerPhone) {
+  const out = Object.assign({}, story);
+  if (story.poll) {
+    const counts = storyPollCounts(story.id);
+    const myVoteRec = viewerPhone ? (storyPollVotes[story.id] || []).find(function (v) { return v.voter === viewerPhone; }) : null;
+    if (viewerPhone && story.author === viewerPhone) {
+      out.poll = {
+        question: story.poll.question,
+        options: story.poll.options.map(function (o, i) { return { text: o.text, votes: counts[i] }; }),
+        voters: (storyPollVotes[story.id] || []).slice().sort(function (a, b) { return b.at - a.at; }).map(function (v) {
+          const pub = profilePublic(v.voter);
+          return { phone: v.voter, name: pub.name, avatar: pub.avatar, option: v.option, at: v.at };
+        })
+      };
+    } else if (myVoteRec) {
+      out.poll = { question: story.poll.question, options: story.poll.options.map(function (o, i) { return { text: o.text, votes: counts[i] }; }), myVote: myVoteRec.option };
+    } else {
+      out.poll = { question: story.poll.question, options: story.poll.options.map(function (o) { return { text: o.text }; }) };
+    }
+  }
+  if (viewerPhone) {
+    const myReact = (storyReactions[story.id] || []).find(function (r) { return r.viewer === viewerPhone; });
+    out.myReaction = myReact ? myReact.emoji : null;
+  } else out.myReaction = null;
+  return out;
+}
+/* v3.8: conteos de la encuesta con foto de una publicación. */
+function photoPollCounts(postId) {
+  const votes = postVotes[postId] || [];
+  return [votes.filter(function (v) { return v.option === 0; }).length, votes.filter(function (v) { return v.option === 1; }).length];
+}
+/* v3.8: la publicación servida lleva su encuesta con foto con los
+   conteos reales y el voto de quien pide (myVote o null). */
+function enrichPostForViewer(post, viewerPhone) {
+  if (!post || !post.photoPoll) return post;
+  const out = Object.assign({}, post);
+  const counts = photoPollCounts(post.id);
+  const myVoteRec = viewerPhone ? (postVotes[post.id] || []).find(function (v) { return v.voter === viewerPhone; }) : null;
+  out.photoPoll = {
+    options: post.photoPoll.options.map(function (o, i) { return { mediaUrl: o.mediaUrl, label: o.label, votes: counts[i] }; }),
+    votes: counts,
+    myVote: myVoteRec ? myVoteRec.option : null
+  };
+  return out;
+}
+/* v3.8: ¿es una URL http(s) válida? (enlaces de historias, medios de
+   comentarios, portadas). Sin http(s) no se acepta. */
+function isHttpUrl(u) {
+  if (typeof u !== 'string') return false;
+  const s = u.trim();
+  if (s.indexOf('http://') !== 0 && s.indexOf('https://') !== 0) return false;
+  try { const parsed = new URL(s); return parsed.protocol === 'http:' || parsed.protocol === 'https:'; } catch (e) { return false; }
+}
+/* v3.8: normaliza una etiqueta de reto: sin espacios, con # delante,
+   solo letras, números, guion y guion bajo, máx. 40 caracteres. */
+function normalizeChallenge(tag) {
+  if (typeof tag !== 'string') return null;
+  let t = tag.trim().replace(/\s+/g, '');
+  if (!t) return null;
+  if (t.charAt(0) !== '#') t = '#' + t;
+  if (!/^#[A-Za-z0-9_\-áéíóúÁÉÍÓÚñÑ]{1,39}$/.test(t)) return null;
+  return t;
+}
+/* v3.8: valida el lugar de una publicación: nombre real + coordenadas. */
+function validatePlace(place) {
+  if (!place || typeof place !== 'object') return null;
+  const lat = Number(place.lat), lng = Number(place.lng);
+  if (!isFinite(lat) || lat < -90 || lat > 90) return null;
+  if (!isFinite(lng) || lng < -180 || lng > 180) return null;
+  const name = String(place.name || '').trim().slice(0, 120);
+  return { name, lat, lng };
+}
+/* v3.8: valida el estado de ánimo: texto corto + emoji. */
+function validateMood(mood) {
+  if (!mood || typeof mood !== 'object') return null;
+  const text = String(mood.text || '').trim().slice(0, 30);
+  const emoji = String(mood.emoji || '').trim().slice(0, 8);
+  if (!text) return null;
+  return { text, emoji };
+}
+/* v3.8: valida la encuesta con foto: exactamente 2 fotos con URL válida. */
+function validatePhotoPoll(pp) {
+  if (!pp || typeof pp !== 'object') return null;
+  if (!Array.isArray(pp.options) || pp.options.length !== 2) return null;
+  const options = pp.options.map(function (o) {
+    return { mediaUrl: String((o && o.mediaUrl) || '').trim(), label: String((o && o.label) || '').trim().slice(0, 40) };
+  });
+  if (!options.every(function (o) { return isHttpUrl(o.mediaUrl); })) return null;
+  return { options };
+}
+/* v3.8: verificación de cuenta — criterios reales, nada manual:
+   teléfono verificado + perfil completo (foto, nombre, biografía) +
+   cuenta con al menos 7 días + al menos 5 publicaciones. Devuelve
+   {verified, missing:[{key, label}]} con lo que falta, en español. */
+function verificationStatus(phone) {
+  const missing = [];
+  const a = auth[phone];
+  if (!a || !a.verified) missing.push({ key: 'telefono', label: 'Verifica tu teléfono' });
+  const p = profiles[phone];
+  if (!p || !String(p.photo || '').trim() || !String(p.name || '').trim() || !String(p.bio || '').trim()) {
+    missing.push({ key: 'perfil', label: 'Completa tu perfil (foto, nombre y biografía)' });
+  }
+  const createdAt = p && p.createdAt ? p.createdAt : 0;
+  if (!createdAt || Date.now() - createdAt < 7 * 24 * 60 * 60 * 1000) {
+    missing.push({ key: 'antiguedad', label: 'Tu cuenta debe tener al menos 7 días' });
+  }
+  const nPosts = posts.filter(function (x) { return x.author === phone; }).length;
+  if (nPosts < 5) missing.push({ key: 'publicaciones', label: 'Publica al menos 5 publicaciones (llevas ' + nPosts + ')' });
+  return { verified: missing.length === 0, missing };
+}
+/* v3.8: regalos virtuales de los lives (sin dinero, sin precios). */
+const GIFT_IDS = ['rosa', 'corazon', 'estrella', 'corona', 'cohete', 'diamante'];
+/* v3.8: los 36 minijuegos, en el mismo orden que la app (assets/games.js).
+   El torneo de la semana rota entre ellos, uno por semana. */
+const TOURNAMENT_GAMES = [
+  { id: 'serpiente', name: 'Serpiente clásica' }, { id: 'serpiente-veloz', name: 'Serpiente veloz' },
+  { id: 'serpiente-muro', name: 'Serpiente en el laberinto' }, { id: 'serpiente-portales', name: 'Serpiente con portales' },
+  { id: 'memoria', name: 'Memoria de parejas' }, { id: 'memoria-experta', name: 'Memoria experta' },
+  { id: 'rompebloques', name: 'Rompebloques' }, { id: 'rompebloques-multibola', name: 'Rompebloques multibola' },
+  { id: 'rompebloques-laser', name: 'Rompebloques con láser' }, { id: 'pong', name: 'Pong contra la máquina' },
+  { id: 'pong-pared', name: 'Pong contra la pared' }, { id: 'vuelo', name: 'Vuelo' },
+  { id: 'vuelo-rapido', name: 'Vuelo rápido' }, { id: 'bloques', name: 'Bloques' },
+  { id: 'bloques-caida', name: 'Bloques en caída libre' }, { id: 'fusion-2048', name: 'Fusión 2048' },
+  { id: 'fusion-mini', name: 'Fusión mini 3x3' }, { id: 'invasores', name: 'Invasores del espacio' },
+  { id: 'asteroides', name: 'Asteroides' }, { id: 'tiro-blanco', name: 'Tiro al blanco' },
+  { id: 'corredor', name: 'Corredor saltarín' }, { id: 'esquiva', name: 'Esquiva bloques' },
+  { id: 'salto-nubes', name: 'Salto entre nubes' }, { id: 'desliza-15', name: 'Desliza 15' },
+  { id: 'buscaminas', name: 'Buscaminas' }, { id: 'conecta-3', name: 'Conecta 3' },
+  { id: 'simon', name: 'Simón' }, { id: 'laberinto', name: 'Laberinto' },
+  { id: 'tres-raya', name: 'Tres en raya' }, { id: 'ahorcado', name: 'Ahorcado' },
+  { id: 'topo', name: 'Atrapa al topo' }, { id: 'reaccion', name: 'Prueba de reflejos' },
+  { id: 'atrapa-frutas', name: 'Atrapa frutas' }, { id: 'carrera', name: 'Carrera de autos' },
+  { id: 'burbujas', name: 'Burbujas' }, { id: 'torres', name: 'Torres' }
+];
+/* v3.8: clave de semana (lunes a domingo, UTC) y sus límites. */
+function weekKeyFor(d) {
+  const date = new Date(d);
+  const day = (date.getUTCDay() + 6) % 7; // lunes = 0
+  const monday = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - day, 0, 0, 0, 0));
+  const sunday = new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000 + 23 * 60 * 60 * 1000 + 59 * 60 * 1000 + 59 * 1000);
+  const key = monday.getUTCFullYear() + '-W' + String(Math.ceil((((monday - Date.UTC(monday.getUTCFullYear(), 0, 1)) / 86400000) + 1) / 7)).padStart(2, '0');
+  return { key, startsAt: monday.getTime(), endsAt: sunday.getTime() };
+}
+function tournamentPublic(t) {
+  const board = Object.keys(t.scores || {}).map(function (phone) {
+    const pub = profilePublic(phone);
+    return { phone, name: pub.name, avatar: pub.avatar, score: t.scores[phone] };
+  }).sort(function (a, b) { return b.score - a.score; });
+  board.forEach(function (row, i) { row.rank = i + 1; });
+  return { id: t.id, weekKey: t.weekKey, gameId: t.gameId, gameName: t.gameName, startsAt: t.startsAt, endsAt: t.endsAt, leaderboard: board };
+}
+function getOrCreateCurrentTournament() {
+  const w = weekKeyFor(Date.now());
+  let t = tournaments.find(function (x) { return x.weekKey === w.key; });
+  if (!t) {
+    // El juego rota por semana: el índice sale de la semana del año.
+    const weekNum = parseInt(w.key.split('-W')[1], 10) || 1;
+    const game = TOURNAMENT_GAMES[(weekNum - 1) % TOURNAMENT_GAMES.length];
+    t = { id: uid('tour'), weekKey: w.key, gameId: game.id, gameName: game.name, startsAt: w.startsAt, endsAt: w.endsAt, scores: {}, createdAt: Date.now() };
+    tournaments.push(t);
+    saveJson('tournaments.json', tournaments);
+  }
+  return t;
+}
+/* v3.8: clave de una conversación 1 a 1 (los dos teléfonos ordenados). */
+function conversationKey(a, b) {
+  return [a, b].sort().join('|');
+}
+/* v3.8: poda los mensajes vencidos de una conversación con mensajes
+   temporales. Devuelve true si borró algo (para guardar). El archivo
+   del medio en Cloudinary puede quedar guardado: solo se borra el
+   mensaje y su enlace, y la app avisa de la captura en la notita. */
+function pruneDisappearingMessages(a, b) {
+  const key = conversationKey(a, b);
+  const hours = (conversationSettings[key] && conversationSettings[key].disappearingHours) || 0;
+  if (!hours) return false;
+  const limit = Date.now() - hours * 60 * 60 * 1000;
+  const before = messages.length;
+  messages = messages.filter(function (m) {
+    if (!((m.from === a && m.to === b) || (m.from === b && m.to === a))) return true;
+    return m.createdAt > limit;
+  });
+  return messages.length !== before;
+}
 function notify(type, from, to, text, refId) {
+  /* v3.8: si el destinatario silenció al remitente, no se crea el
+     aviso (la campana ni la notificación del teléfono). Silenciar
+     SOLO apaga avisos: las publicaciones y los mensajes se siguen
+     viendo normales. */
+  if (to && from && (muted[to] || []).includes(from)) return null;
   const n = { id: uid('notif'), type, from, to, text, refId: refId || '', createdAt: Date.now(), read: false };
   notifications.unshift(n);
   if (notifications.length > 500) notifications.length = 500;
@@ -691,7 +1012,7 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.7', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.8', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v3.5: actualización de la aplicación. La última versión vive en
    app-version.json junto al APK (WordRed.apk) en el repo: al publicar
@@ -868,8 +1189,16 @@ app.post('/api/profile', async (req, res) => {
   const name = String((req.body && req.body.name) || '').trim();
   if (name.length < 2) return res.status(400).json({ ok: false, error: 'Escribe tu nombre.' });
   const p = profiles[phone] || { phone, createdAt: Date.now(), isDemo: false };
+  /* v3.8: la insignia de verificación nace en false; solo el endpoint
+     de verificación la pone en true (criterios reales, nada manual). */
+  if (p.verified === undefined) p.verified = false;
   p.name = name;
-  p.bio = String((req.body && req.body.bio) || '').slice(0, 200);
+  /* v3.8: la biografía solo se toca si el cliente la manda. Antes se
+     ponía a '' en cada actualización parcial (por ejemplo al cambiar
+     solo la nota o el video de perfil), y eso borraba el perfil
+     completo sin avisar — y rompía la verificación, que exige
+     biografía. Igual que photo/cover, que ya eran condicionales. */
+  if (req.body && req.body.bio !== undefined) p.bio = String(req.body.bio || '').slice(0, 200);
   if (req.body && req.body.photo !== undefined) p.photo = req.body.photo || '';
   if (req.body && req.body.cover !== undefined) p.cover = req.body.cover || '';
   // Personalización v1.1: marco, tema, campos de biografía y privacidad por sección.
@@ -884,6 +1213,48 @@ app.post('/api/profile', async (req, res) => {
   if (req.body && req.body.birthday !== undefined) p.birthday = String(req.body.birthday || '');
   if (req.body && req.body.website !== undefined) p.website = String(req.body.website || '');
   if (req.body && req.body.pinnedPosts !== undefined && Array.isArray(req.body.pinnedPosts)) p.pinnedPosts = req.body.pinnedPosts.slice(0, 3);
+  /* v3.8: nota en el perfil (máx. 60 caracteres, vacía por defecto);
+     canción del día {song, date} (la app solo la muestra si date es
+     hoy); portada de las Destacadas (URL http(s) o '' para quitarla);
+     video de la foto de perfil {url, durationMs} (máx. 6 s); marco
+     de la foto (avatarFrame) y filtro de la foto (avatarFilter),
+     valores fijos — los demás se ignoran, como el frame que ya existe. */
+  if (req.body && req.body.note !== undefined) p.note = String(req.body.note || '').slice(0, 60);
+  if (req.body && req.body.avatarFrame !== undefined) {
+    const AVATAR_FRAMES = ['none', 'rojo', 'dorado', 'azul', 'verde', 'morado', 'arcoiris'];
+    if (AVATAR_FRAMES.includes(req.body.avatarFrame)) p.avatarFrame = req.body.avatarFrame;
+  }
+  if (req.body && req.body.avatarFilter !== undefined) {
+    const AVATAR_FILTERS = ['Original', 'Blanco y negro', 'Sepia', 'Vivo', 'Suave'];
+    if (AVATAR_FILTERS.includes(req.body.avatarFilter)) p.avatarFilter = req.body.avatarFilter;
+  }
+  if (req.body && req.body.songOfTheDay !== undefined) {
+    const sod = req.body.songOfTheDay;
+    if (sod === null) p.songOfTheDay = null;
+    else if (sod && typeof sod === 'object' && sod.song && /^\d{4}-\d{2}-\d{2}$/.test(String(sod.date || ''))) {
+      p.songOfTheDay = { song: sod.song, date: String(sod.date) };
+    }
+  }
+  if (req.body && req.body.pinnedCover !== undefined) {
+    const pc = String(req.body.pinnedCover || '').trim();
+    if (pc && !isHttpUrl(pc)) return res.status(400).json({ ok: false, error: 'Portada de destacadas inválida.' });
+    p.pinnedCover = pc;
+  }
+  if (req.body && req.body.avatarVideo !== undefined) {
+    const av = req.body.avatarVideo;
+    if (av === null || av === '') p.avatarVideo = null;
+    else if (typeof av === 'string') {
+      if (!isHttpUrl(av)) return res.status(400).json({ ok: false, error: 'Video de perfil inválido.' });
+      p.avatarVideo = { url: av.trim(), durationMs: null };
+    } else if (av && typeof av === 'object' && typeof av.url === 'string') {
+      if (!isHttpUrl(av.url)) return res.status(400).json({ ok: false, error: 'Video de perfil inválido.' });
+      const dur = Number(av.durationMs);
+      if (av.durationMs !== undefined && av.durationMs !== null && (!isFinite(dur) || dur > 6000)) {
+        return res.status(400).json({ ok: false, error: 'El video de perfil debe durar 6 segundos como máximo.' });
+      }
+      p.avatarVideo = { url: av.url.trim(), durationMs: (av.durationMs === undefined || av.durationMs === null) ? null : dur };
+    }
+  }
   if (req.body && req.body.sectionPrivacy !== undefined) {
     const okVals = ['Público', 'Amigos', 'Solo yo'];
     const sp = req.body.sectionPrivacy;
@@ -1042,7 +1413,9 @@ function canSee(viewer, post) {
 app.get('/api/feed', (req, res) => {
   const phone = normPhone(req.query.phone);
   const visible = posts.filter(p => canSee(phone, p)).sort((a, b) => b.createdAt - a.createdAt).slice(0, 100);
-  return res.json({ ok: true, posts: visible, profiles: Object.values(profiles) });
+  /* v3.8: las publicaciones con encuesta con foto llevan los conteos
+     reales y el voto de quien pide. */
+  return res.json({ ok: true, posts: visible.map(function (p) { return enrichPostForViewer(p, phone); }), profiles: Object.values(profiles) });
 });
 /* Edición de video (v1.2, ola 11): stickers, subtítulos, canción y recorte. */
 function validateVideoEditsSrv(edits) {
@@ -1108,6 +1481,26 @@ app.post('/api/posts', async (req, res) => {
     if (!pg) return res.status(404).json({ ok: false, error: 'Página no encontrada.' });
     if (pg.creator !== phone) return res.status(403).json({ ok: false, error: 'Solo quien creó la página puede publicar en ella.' });
   }
+  /* v3.8: dueto — el vínculo al post original solo se conserva si ese
+     post existe de verdad; si no, se guarda sin vínculo (nunca se
+     inventa un original). */
+  let duetOf = null;
+  if (body.duetOf && typeof body.duetOf === 'object' && typeof body.duetOf.postId === 'string' && body.duetOf.postId) {
+    const orig = posts.find(function (p) { return p.id === body.duetOf.postId; });
+    if (orig) duetOf = { postId: orig.id, author: orig.author };
+  }
+  /* v3.8: reto, estado de ánimo, lugar y encuesta con foto — solo se
+     conservan si son válidos; si no, se guardan como null (nunca se
+     inventan). La encuesta con foto necesita exactamente 2 fotos con
+     URL válida; si no, la publicación se rechaza con 400. */
+  const challenge = normalizeChallenge(body.challenge);
+  const mood = validateMood(body.mood);
+  const place = validatePlace(body.place);
+  let photoPoll = null;
+  if (body.photoPoll !== undefined && body.photoPoll !== null) {
+    photoPoll = validatePhotoPoll(body.photoPoll);
+    if (!photoPoll) return res.status(400).json({ ok: false, error: 'La encuesta con foto necesita dos fotos válidas.' });
+  }
   const post = {
     id: body.id || uid('post'), author: phone, text: text.slice(0, 2000),
     media: body.media || '', mediaType: body.mediaType || '',
@@ -1119,7 +1512,8 @@ app.post('/api/posts', async (req, res) => {
     audioTitle: String(body.audioTitle || '').slice(0, 100), audioCover: String(body.audioCover || '').slice(0, 2000),
     song: validateSongSrv(body.song), videoEdits: validateVideoEditsSrv(body.videoEdits), isAd: !!body.isAd, adTitle: String(body.adTitle || '').slice(0, 100), adLink: String(body.adLink || '').slice(0, 500),
     privacy: body.groupId || body.pageId ? 'Público' : (['Público', 'Amigos', 'Solo yo'].includes(body.privacy) ? body.privacy : 'Público'),
-    groupId: body.groupId || null, sharedFrom: body.sharedFrom || null,
+    groupId: body.groupId || null, sharedFrom: body.sharedFrom || null, duetOf: duetOf,
+    challenge: challenge, mood: mood, place: place, photoPoll: photoPoll,
     liveId: body.liveId || null, // aviso de un live (v1.5): tocarlo entra al live
     isLiveRecording: !!body.isLiveRecording, // v2.1: grabación de un live como publicación en el inicio
     liveRecordingId: body.liveRecordingId || null,
@@ -1216,14 +1610,37 @@ function countComments(post) {
   post.comments.forEach(c => { n += (c.replies || []).length; });
   return n;
 }
-app.post('/api/posts/:id/comment', (req, res) => {
+/* v3.8: comentar con foto/video y menciones con @. El medio debe ser
+   una URL http(s) válida (Cloudinary); si la subida falló, el
+   comentario no se publica (400). El texto puede estar vacío si hay
+   medio. Las menciones solo se guardan y se notifican a amigos reales
+   con perfil; las de no-amigos se descartan en silencio. */
+function addPostComment(req, res) {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
   const post = posts.find(p => p.id === req.params.id);
   if (!post) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
   const text = String((req.body && req.body.text) || '').trim();
-  if (!text) return res.status(400).json({ ok: false, error: 'Comentario vacío.' });
-  const comment = { id: uid('cmt'), author: phone, text: text.slice(0, 1000), createdAt: Date.now(), replies: [] };
+  const mediaUrl = String((req.body && (req.body.mediaUrl || req.body.media)) || '').trim();
+  if (mediaUrl && !isHttpUrl(mediaUrl)) return res.status(400).json({ ok: false, error: 'Medio no válido.' });
+  if (!text && !mediaUrl) return res.status(400).json({ ok: false, error: 'Comentario vacío.' });
+  let mediaType = String((req.body && req.body.mediaType) || '').trim();
+  if (mediaUrl && mediaType !== 'image' && mediaType !== 'video') {
+    mediaType = /\.(mp4|webm|mov|3gp)(\?|$)/i.test(mediaUrl) ? 'video' : 'image';
+  }
+  const mentions = [];
+  if (Array.isArray(req.body && req.body.mentions)) {
+    req.body.mentions.slice(0, 10).forEach(function (m) {
+      const mp = normPhone(String(m || ''));
+      if (!mp || mp === phone) return;
+      if (!profiles[mp]) return;
+      if (!(friends[phone] || []).includes(mp)) return;
+      if (mentions.some(function (x) { return x.phone === mp; })) return;
+      const pub = profilePublic(mp);
+      mentions.push({ phone: mp, name: pub.name, avatar: pub.avatar });
+    });
+  }
+  const comment = { id: uid('cmt'), author: phone, text: text.slice(0, 1000), media: mediaUrl, mediaType: mediaUrl ? mediaType : '', mentions, createdAt: Date.now(), replies: [] };
   const parentId = req.body && req.body.parentId;
   if (parentId) {
     const parent = post.comments.find(c => c.id === parentId);
@@ -1231,11 +1648,16 @@ app.post('/api/posts/:id/comment', (req, res) => {
     parent.replies.push(comment);
   } else post.comments.push(comment);
   if (post.author !== phone) notify('comment', phone, post.author, 'comentó tu publicación', post.id);
+  mentions.forEach(function (m) {
+    if (m.phone !== post.author) notify('mention', phone, m.phone, 'te mencionó en un comentario', post.id);
+  });
   saveJson('posts.json', posts);
   // v1.5: el contador de comentarios se actualiza en vivo para todos.
   broadcast({ kind: 'comment', postId: post.id, commentCount: countComments(post), comment, parentId: parentId || null });
   return res.json({ ok: true, comment, commentCount: countComments(post) });
-});
+}
+app.post('/api/posts/:id/comment', addPostComment);
+app.post('/api/posts/:id/comments', addPostComment);
 app.post('/api/posts/:id/share', (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
@@ -1257,12 +1679,27 @@ app.post('/api/posts/:id/share', (req, res) => {
   return res.json({ ok: true, post: repost });
 });
 
-// Encuesta: votar en una publicación con encuesta (v1.1).
-app.post('/api/posts/:id/vote', (req, res) => {
+// Encuesta: votar en una publicación con encuesta (v1.1) o con
+// encuesta con foto (v3.8, idea 26: {optionIndex: 0|1}).
+app.post('/api/posts/:id/vote', async (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
   const post = posts.find(p => p.id === req.params.id);
   if (!post) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
+  /* v3.8: encuesta con foto — un voto por visitante, se puede cambiar;
+     los conteos son reales (colección postVotes). */
+  if (post.photoPoll) {
+    const option = Number(req.body && req.body.optionIndex);
+    if (option !== 0 && option !== 1) return res.status(400).json({ ok: false, error: 'Opción inválida.' });
+    if (!postVotes[post.id]) postVotes[post.id] = [];
+    const list = postVotes[post.id];
+    const old = list.find(function (v) { return v.voter === phone; });
+    if (old) { old.option = option; old.at = Date.now(); }
+    else list.push({ voter: phone, option, at: Date.now() });
+    try { await saveJsonStrict('post-votes.json', postVotes); }
+    catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar el voto.' }); }
+    return res.json({ ok: true, votes: photoPollCounts(post.id), myVote: option });
+  }
   if (!post.poll) return res.status(400).json({ ok: false, error: 'Sin encuesta.' });
   const opt = post.poll.options.find(o => o.id === (req.body && req.body.optionId));
   if (!opt) return res.status(404).json({ ok: false, error: 'Opción no encontrada.' });
@@ -1334,6 +1771,12 @@ app.delete('/api/posts/:id', async (req, res) => {
     return res.status(500).json({ ok: false, error: 'No se pudo guardar el borrado en el servidor. Inténtalo de nuevo.' });
   }
   broadcast({ kind: 'postDeleted', postId: post.id });
+  /* v3.8: al borrar la publicación se borran también sus vistas y
+     sus votos de encuesta con foto. */
+  delete postViews[post.id];
+  saveJson('post-views.json', postViews);
+  delete postVotes[post.id];
+  saveJson('post-votes.json', postVotes);
   return res.json({ ok: true });
 });
 
@@ -1471,6 +1914,15 @@ app.delete('/api/listings/:id', (req, res) => {
   if (listings[i].seller !== phone) return res.status(403).json({ ok: false, error: 'Sin permiso.' });
   listings.splice(i, 1);
   saveJson('listings.json', listings);
+  /* v3.8: el anuncio borrado desaparece también de todas las listas
+     de deseos (nunca se muestra un producto falso). */
+  let pruned = false;
+  Object.keys(wishlists).forEach(function (owner) {
+    const before = wishlists[owner].length;
+    wishlists[owner] = wishlists[owner].filter(function (id) { return id !== req.params.id; });
+    if (wishlists[owner].length !== before) pruned = true;
+  });
+  if (pruned) saveJson('wishlists.json', wishlists);
   return res.json({ ok: true });
 });
 
@@ -1564,6 +2016,15 @@ app.delete('/api/stories/:id', (req, res) => {
   if (stories[i].author !== phone) return res.status(403).json({ ok: false, error: 'Sin permiso.' });
   stories.splice(i, 1);
   saveJson('stories.json', stories);
+  /* v3.8: al borrar la historia se borran también sus visitas, sus
+     votos de encuesta y sus reacciones (los votos y las reacciones
+     mueren con la historia). */
+  delete storyViews[req.params.id];
+  saveJson('story-views.json', storyViews);
+  delete storyPollVotes[req.params.id];
+  saveJson('story-poll-votes.json', storyPollVotes);
+  delete storyReactions[req.params.id];
+  saveJson('story-reactions.json', storyReactions);
   return res.json({ ok: true });
 });
 app.delete('/api/messages/:id', (req, res) => {
@@ -1600,6 +2061,10 @@ app.delete('/api/groups/:id', (req, res) => {
 app.delete('/api/account', async (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  /* v3.8: las ids de sus historias y publicaciones se guardan ANTES de
+     filtrarlas, para poder borrar también sus visitas y vistas. */
+  const myStoryIds = stories.filter(function (s) { return s.author === phone; }).map(function (s) { return s.id; });
+  const myPostIds = posts.filter(function (p) { return p.author === phone; }).map(function (p) { return p.id; });
   delete profiles[phone];
   posts = posts.filter(p => p.author !== phone);
   stories = stories.filter(s => s.author !== phone);
@@ -1613,6 +2078,48 @@ app.delete('/api/account', async (req, res) => {
   /* v3.7: también se borran las visitas a su perfil y las que él hizo. */
   delete profileViews[phone];
   Object.keys(profileViews).forEach(function (k) { profileViews[k] = profileViews[k].filter(function (v) { return v.viewer !== phone; }); });
+  /* v3.8: también se borran las visitas a sus historias y a sus
+     publicaciones, y las visitas que él hizo a historias y publicaciones. */
+  myStoryIds.forEach(function (id) { delete storyViews[id]; });
+  Object.keys(storyViews).forEach(function (k) { storyViews[k] = storyViews[k].filter(function (v) { return v.viewer !== phone; }); });
+  myPostIds.forEach(function (id) { delete postViews[id]; });
+  Object.keys(postViews).forEach(function (k) { postViews[k] = postViews[k].filter(function (v) { return v.viewer !== phone; }); });
+  /* v3.8: y todo lo demás de 3.8 — votos y reacciones de sus historias
+     y los que él hizo, sus regalos en lives, sus salas de audio (las
+     que creó se cierran), sus puntajes de torneo, su lista de deseos,
+     sus votos de encuesta con foto, sus silencios, sus ajustes de
+     mensajes temporales y sus cupones. */
+  myStoryIds.forEach(function (id) { delete storyPollVotes[id]; delete storyReactions[id]; });
+  Object.keys(storyPollVotes).forEach(function (k) { storyPollVotes[k] = storyPollVotes[k].filter(function (v) { return v.voter !== phone; }); });
+  Object.keys(storyReactions).forEach(function (k) { storyReactions[k] = storyReactions[k].filter(function (v) { return v.viewer !== phone; }); });
+  myPostIds.forEach(function (id) { delete postVotes[id]; });
+  Object.keys(postVotes).forEach(function (k) { postVotes[k] = postVotes[k].filter(function (v) { return v.voter !== phone; }); });
+  Object.keys(liveGifts).forEach(function (k) { liveGifts[k] = liveGifts[k].filter(function (g) { return g.from !== phone; }); });
+  audioRooms.forEach(function (room) {
+    room.participants = room.participants.filter(function (pt) { return pt.phone !== phone; });
+    if (room.owner === phone && room.participants.length) room.owner = room.participants[0].phone;
+    if (!room.participants.length && !room.endedAt) room.endedAt = Date.now();
+  });
+  tournaments.forEach(function (t) { delete t.scores[phone]; });
+  delete wishlists[phone];
+  Object.keys(wishlists).forEach(function (owner) { wishlists[owner] = wishlists[owner].filter(function (id) { return listings.some(function (l) { return l.id === id; }); }); });
+  delete muted[phone];
+  Object.keys(muted).forEach(function (owner) { muted[owner] = muted[owner].filter(function (p) { return p !== phone; }); });
+  delete closeFriends[phone];
+  Object.keys(closeFriends).forEach(function (owner) { closeFriends[owner] = closeFriends[owner].filter(function (p) { return p !== phone; }); });
+  Object.keys(conversationSettings).forEach(function (k) { if (k.split('|').includes(phone)) delete conversationSettings[k]; });
+  coupons = coupons.filter(function (c) { return c.seller !== phone; });
+  saveJson('story-poll-votes.json', storyPollVotes);
+  saveJson('story-reactions.json', storyReactions);
+  saveJson('close-friends.json', closeFriends);
+  saveJson('live-gifts.json', liveGifts);
+  saveJson('audio-rooms.json', audioRooms);
+  saveJson('tournaments.json', tournaments);
+  saveJson('wishlists.json', wishlists);
+  saveJson('post-votes.json', postVotes);
+  saveJson('muted.json', muted);
+  saveJson('conversation-settings.json', conversationSettings);
+  saveJson('coupons.json', coupons);
   messages = messages.filter(m => m.from !== phone && m.to !== phone);
   notifications = notifications.filter(n => n.to !== phone && n.from !== phone);
   posts.forEach(p => {
@@ -1644,7 +2151,15 @@ app.delete('/api/account', async (req, res) => {
 });
 
 /* ---- historias ---- */
-app.get('/api/stories', (req, res) => res.json({ ok: true, stories: liveStories() }));
+/* v3.8: al servir historias, una de audiencia 'close' solo la ven su
+   autor y su lista de cercanos (los demás ni siquiera la ven en la
+   lista). Cada historia lleva su encuesta según quién pide y su
+   reacción (myReaction). */
+app.get('/api/stories', (req, res) => {
+  const viewer = authPhone(req);
+  const list = liveStories().filter(function (s) { return canSeeStory(s, viewer); });
+  return res.json({ ok: true, stories: list.map(function (s) { return shapeStory(s, viewer); }) });
+});
 app.post('/api/stories', (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
@@ -1653,8 +2168,34 @@ app.post('/api/stories', (req, res) => {
      se rechazaban con 400 "Historia vacía." — nunca llegaban al servidor. */
   const body = req.body && req.body.story ? req.body.story : req.body;
   const text = String((body && body.text) || '').trim();
-  if (!text && !(body && body.media)) return res.status(400).json({ ok: false, error: 'Historia vacía.' });
-  const s = { id: uid('story'), author: phone, text: text.slice(0, 300), media: (body && body.media) || '', mediaType: (body && body.mediaType) || '', edits: validateStoryEdits(body && body.edits), song: validateSongSrv(body && body.song), videoEdits: validateVideoEditsSrv(body && body.videoEdits), createdAt: Date.now(), views: [], likes: {}, comments: [], shares: [] };
+  /* v3.8 (idea 50): compartir un Short en tu historia — la historia
+     es una referencia (portada + enlace al Short), no una copia del
+     video; si el Short no existe, 400. */
+  let sharedShortId = null;
+  if (body && body.sharedShortId !== undefined && body.sharedShortId !== null && String(body.sharedShortId).trim()) {
+    const short = posts.find(function (p) { return p.id === String(body.sharedShortId).trim(); });
+    if (!short) return res.status(400).json({ ok: false, error: 'Ese Short no existe.' });
+    sharedShortId = short.id;
+  }
+  if (!text && !(body && body.media) && !sharedShortId) return res.status(400).json({ ok: false, error: 'Historia vacía.' });
+  /* v3.8: encuesta (pregunta + 2 opciones), audiencia (all/close),
+     enlace (solo http(s), 400 si no es una URL válida) y color de
+     fondo para historias de solo texto (hex #RRGGBB). El audio se
+     guarda como cualquier medio (mediaType 'audio'): la subida
+     /api/media ya acepta audio/* (mp3, m4a, wav, ogg, webm). */
+  const poll = validateStoryPoll(body && body.poll);
+  const audience = (body && body.audience === 'close') ? 'close' : 'all';
+  let link = '';
+  if (body && body.link !== undefined && body.link !== null && String(body.link).trim()) {
+    if (!isHttpUrl(String(body.link))) return res.status(400).json({ ok: false, error: 'Enlace inválido: debe ser una URL http(s).' });
+    link = String(body.link).trim().slice(0, 500);
+  }
+  let backgroundColor = '';
+  if (body && body.backgroundColor !== undefined && body.backgroundColor !== null && String(body.backgroundColor).trim()) {
+    if (!/^#[0-9a-fA-F]{6}$/.test(String(body.backgroundColor).trim())) return res.status(400).json({ ok: false, error: 'Color de fondo inválido.' });
+    backgroundColor = String(body.backgroundColor).trim();
+  }
+  const s = { id: uid('story'), author: phone, text: text.slice(0, 300), media: (body && body.media) || '', mediaType: (body && body.mediaType) || '', edits: validateStoryEdits(body && body.edits), song: validateSongSrv(body && body.song), videoEdits: validateVideoEditsSrv(body && body.videoEdits), poll, audience, link, backgroundColor, sharedShortId, createdAt: Date.now(), views: [], likes: {}, comments: [], shares: [] };
   stories.unshift(s);
   saveJson('stories.json', stories);
   return res.json({ ok: true, story: s });
@@ -1785,24 +2326,662 @@ app.get('/api/profile-views/me', (req, res) => {
   return res.json({ ok: true, count: viewers.length, lastViewer: viewers[0] || null, viewers: viewers });
 });
 
+/* ---- visitas a historias (v3.8) ----
+   Igual que las visitas al perfil (3.7), pero por historia: un registro
+   por visitante y historia (si vuelve, solo se actualiza la fecha); ver
+   la propia historia no se registra y los invitados tampoco. La lista
+   solo la puede leer el autor de la historia, nunca otra persona. */
+app.post('/api/story-views', async (req, res) => {
+  const from = authPhone(req);
+  if (!from) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const storyId = String((req.body && req.body.storyId) || '');
+  const story = stories.find(function (s) { return s.id === storyId; });
+  if (!story) return res.status(404).json({ ok: false, error: 'Esa historia no existe.' });
+  if (Date.now() - story.createdAt > STORY_TTL_MS) return res.status(410).json({ ok: false, error: 'Historia caducada.' });
+  if (!canSeeStory(story, from)) return res.status(404).json({ ok: false, error: 'Esa historia no existe.' });
+  if (from === story.author) return res.json({ ok: true, recorded: false, count: (storyViews[storyId] || []).length });
+  if (!storyViews[storyId]) storyViews[storyId] = [];
+  const list = storyViews[storyId];
+  const old = list.find(function (v) { return v.viewer === from; });
+  if (old) old.at = Date.now();
+  else list.push({ viewer: from, at: Date.now() });
+  try { await saveJsonStrict('story-views.json', storyViews); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar la visita.' }); }
+  return res.json({ ok: true, recorded: true, count: list.length });
+});
+app.get('/api/story-views/:storyId', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const story = stories.find(function (s) { return s.id === req.params.storyId; });
+  if (!story) return res.status(404).json({ ok: false, error: 'Esa historia no existe.' });
+  if (Date.now() - story.createdAt > STORY_TTL_MS) return res.status(410).json({ ok: false, error: 'Historia caducada.' });
+  if (story.author !== phone) return res.status(403).json({ ok: false, error: 'Solo quien publicó la historia puede ver quién la vio.' });
+  const list = (storyViews[req.params.storyId] || []).slice().sort(function (a, b) { return b.at - a.at; });
+  const viewers = list.map(function (v) {
+    const p = profiles[v.viewer];
+    return { phone: v.viewer, name: p ? p.name : v.viewer, avatar: (p && p.photo) || '', at: v.at };
+  });
+  return res.json({ ok: true, count: viewers.length, viewers: viewers });
+});
+
+/* ---- vistas reales de publicaciones (v3.8) ----
+   Una vista por visitante y publicación: si la misma persona vuelve a
+   verla, solo se actualiza la fecha, nunca se infla el conteo. Ver la
+   propia publicación no cuenta y los invitados (sin sesión) tampoco.
+   Las estadísticas solo las lee el autor de la publicación. */
+app.post('/api/posts/:id/view', async (req, res) => {
+  const from = authPhone(req);
+  if (!from) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const post = posts.find(function (p) { return p.id === req.params.id; });
+  if (!post) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
+  if (from === post.author) return res.json({ ok: true, recorded: false, count: (postViews[post.id] || []).length });
+  if (!postViews[post.id]) postViews[post.id] = [];
+  const list = postViews[post.id];
+  const old = list.find(function (v) { return v.viewer === from; });
+  if (old) old.at = Date.now();
+  else list.push({ viewer: from, at: Date.now() });
+  try { await saveJsonStrict('post-views.json', postViews); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar la vista.' }); }
+  return res.json({ ok: true, recorded: true, count: list.length });
+});
+app.get('/api/posts/:id/stats', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const post = posts.find(function (p) { return p.id === req.params.id; });
+  if (!post) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
+  if (post.author !== phone) return res.status(403).json({ ok: false, error: 'Solo quien publicó puede ver sus estadísticas.' });
+  return res.json({ ok: true, views: (postViews[post.id] || []).length, likes: Object.keys(post.likes || {}).length, comments: (post.comments || []).length, shares: (post.shares || []).length });
+});
+
+/* ---- quién compartió tu publicación (v3.8, idea 42) ----
+   Los reposts ya existen como publicaciones con `sharedFrom`, así que
+   no hace falta colección nueva: se buscan las publicaciones cuyo
+   sharedFrom es este post. Solo el autor ve la lista. Los compartidos
+   a otras apps no dejan registro y no aparecen. */
+app.get('/api/posts/:id/shares', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const post = posts.find(function (p) { return p.id === req.params.id; });
+  if (!post) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
+  if (post.author !== phone) return res.status(403).json({ ok: false, error: 'Solo quien publicó puede ver quién la compartió.' });
+  const shares = posts.filter(function (p) {
+    const sf = p.sharedFrom;
+    return sf && (sf === post.id || sf.postId === post.id || sf.id === post.id);
+  }).sort(function (a, b) { return b.createdAt - a.createdAt; }).map(function (p) {
+    const pub = profilePublic(p.author);
+    return { phone: p.author, name: pub.name, avatar: pub.avatar, at: p.createdAt, repostId: p.id };
+  });
+  return res.json({ ok: true, count: shares.length, shares });
+});
+
+/* ---- encuesta con foto (v3.8, idea 26) ----
+   El voto vive en POST /api/posts/:id/vote (unificado con la encuesta
+   de texto v1.1). Solo el autor ve quién votó qué. */
+app.get('/api/posts/:id/votes', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const post = posts.find(function (p) { return p.id === req.params.id; });
+  if (!post) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
+  if (post.author !== phone) return res.status(403).json({ ok: false, error: 'Solo quien publicó puede ver quién votó.' });
+  if (!post.photoPoll) return res.status(400).json({ ok: false, error: 'Esta publicación no tiene encuesta con foto.' });
+  const voters = (postVotes[post.id] || []).slice().sort(function (a, b) { return b.at - a.at; }).map(function (v) {
+    const pub = profilePublic(v.voter);
+    return { phone: v.voter, name: pub.name, avatar: pub.avatar, option: v.option, at: v.at };
+  });
+  return res.json({ ok: true, options: post.photoPoll.options, votes: photoPollCounts(post.id), voters });
+});
+
+/* ---- retos de Shorts (v3.8, idea 8) ----
+   Solo retos que existen de verdad, con su conteo real de Shorts y
+   los más recientes. */
+app.get('/api/challenges', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const byTag = {};
+  posts.forEach(function (p) {
+    if (!p.challenge) return;
+    if (!byTag[p.challenge]) byTag[p.challenge] = [];
+    byTag[p.challenge].push(p);
+  });
+  const challenges = Object.keys(byTag).map(function (tag) {
+    const list = byTag[tag].slice().sort(function (a, b) { return b.createdAt - a.createdAt; });
+    return {
+      tag, count: list.length, latest: list[0].createdAt,
+      recent: list.slice(0, 5).map(function (p) { return { postId: p.id, author: p.author, createdAt: p.createdAt }; })
+    };
+  }).sort(function (a, b) { return b.count - a.count || b.latest - a.latest; });
+  return res.json({ ok: true, challenges });
+});
+
+/* ---- encuesta en historias (v3.8, idea 7) ----
+   Un voto por visitante por historia; se puede cambiar el voto; ver
+   tu propia historia no vota; los invitados no votan. Los votos
+   mueren con la historia (se borran al borrarla o al borrar la
+   cuenta). */
+app.post('/api/stories/:id/poll-vote', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const story = stories.find(function (s) { return s.id === req.params.id; });
+  if (!story) return res.status(404).json({ ok: false, error: 'Historia no encontrada.' });
+  if (Date.now() - story.createdAt > STORY_TTL_MS) return res.status(410).json({ ok: false, error: 'Historia caducada.' });
+  if (!canSeeStory(story, phone)) return res.status(404).json({ ok: false, error: 'Historia no encontrada.' });
+  if (!story.poll) return res.status(400).json({ ok: false, error: 'Esta historia no tiene encuesta.' });
+  if (phone === story.author) return res.status(400).json({ ok: false, error: 'No puedes votar en tu propia historia.' });
+  const option = Number(req.body && req.body.option);
+  if (option !== 0 && option !== 1) return res.status(400).json({ ok: false, error: 'Opción inválida.' });
+  if (!storyPollVotes[story.id]) storyPollVotes[story.id] = [];
+  const list = storyPollVotes[story.id];
+  const old = list.find(function (v) { return v.voter === phone; });
+  if (old) { old.option = option; old.at = Date.now(); }
+  else list.push({ voter: phone, option, at: Date.now() });
+  try { await saveJsonStrict('story-poll-votes.json', storyPollVotes); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar el voto.' }); }
+  const counts = storyPollCounts(story.id);
+  return res.json({ ok: true, poll: { question: story.poll.question, options: story.poll.options.map(function (o, i) { return { text: o.text, votes: counts[i] }; }) } });
+});
+
+/* ---- reacciones rápidas a historias (v3.8, idea 9) ----
+   Una reacción por visitante por historia, se puede cambiar; ver tu
+   propia historia no reacciona; los invitados no reaccionan. Solo el
+   autor ve quién reaccionó con qué emoji. */
+app.post('/api/stories/:id/react', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const story = stories.find(function (s) { return s.id === req.params.id; });
+  if (!story) return res.status(404).json({ ok: false, error: 'Historia no encontrada.' });
+  if (Date.now() - story.createdAt > STORY_TTL_MS) return res.status(410).json({ ok: false, error: 'Historia caducada.' });
+  if (!canSeeStory(story, phone)) return res.status(404).json({ ok: false, error: 'Historia no encontrada.' });
+  if (phone === story.author) return res.status(400).json({ ok: false, error: 'No puedes reaccionar a tu propia historia.' });
+  const emoji = String((req.body && req.body.emoji) || '').trim();
+  if (!emoji || Array.from(emoji).length > 4) return res.status(400).json({ ok: false, error: 'Emoji inválido.' });
+  if (!storyReactions[story.id]) storyReactions[story.id] = [];
+  const list = storyReactions[story.id];
+  const old = list.find(function (r) { return r.viewer === phone; });
+  if (old) { old.emoji = emoji; old.at = Date.now(); }
+  else list.push({ viewer: phone, emoji, at: Date.now() });
+  try { await saveJsonStrict('story-reactions.json', storyReactions); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar la reacción.' }); }
+  return res.json({ ok: true, reaction: { emoji } });
+});
+app.get('/api/stories/:id/reactions', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const story = stories.find(function (s) { return s.id === req.params.id; });
+  if (!story) return res.status(404).json({ ok: false, error: 'Historia no encontrada.' });
+  if (Date.now() - story.createdAt > STORY_TTL_MS) return res.status(410).json({ ok: false, error: 'Historia caducada.' });
+  if (story.author !== phone) return res.status(403).json({ ok: false, error: 'Solo quien publicó la historia puede ver las reacciones.' });
+  const list = (storyReactions[story.id] || []).slice().sort(function (a, b) { return b.at - a.at; });
+  const byEmoji = {};
+  list.forEach(function (r) { byEmoji[r.emoji] = (byEmoji[r.emoji] || 0) + 1; });
+  const reactions = list.map(function (r) {
+    const pub = profilePublic(r.viewer);
+    return { phone: r.viewer, name: pub.name, avatar: pub.avatar, emoji: r.emoji, at: r.at };
+  });
+  return res.json({ ok: true, count: reactions.length, byEmoji, reactions });
+});
+
+/* ---- amigos cercanos (v3.8, idea 13) ----
+   Solo amigos reales se pueden añadir a la lista de cercanos. */
+app.get('/api/close-friends', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const list = (closeFriends[phone] || []).map(function (p) { return profilePublic(p); });
+  return res.json({ ok: true, closeFriends: list });
+});
+app.post('/api/close-friends', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const friendPhone = normPhone(req.body && req.body.friendPhone);
+  if (!profiles[friendPhone]) return res.status(404).json({ ok: false, error: 'Esa cuenta no existe.' });
+  if (!(friends[phone] || []).includes(friendPhone)) return res.status(404).json({ ok: false, error: 'No es tu amigo.' });
+  if (!closeFriends[phone]) closeFriends[phone] = [];
+  if (!closeFriends[phone].includes(friendPhone)) closeFriends[phone].push(friendPhone);
+  try { await saveJsonStrict('close-friends.json', closeFriends); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar.' }); }
+  return res.json({ ok: true, closeFriends: closeFriends[phone].map(function (p) { return profilePublic(p); }) });
+});
+app.delete('/api/close-friends/:friendPhone', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const friendPhone = normPhone(req.params.friendPhone);
+  if (closeFriends[phone]) closeFriends[phone] = closeFriends[phone].filter(function (p) { return p !== friendPhone; });
+  try { await saveJsonStrict('close-friends.json', closeFriends); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar.' }); }
+  return res.json({ ok: true, closeFriends: (closeFriends[phone] || []).map(function (p) { return profilePublic(p); }) });
+});
+
+/* ---- cuenta verificada (v3.8, idea 10) ----
+   Regla honesta y automática, sin panel del dueño ni documentos: la
+   insignia la concede el servidor cuando la cuenta cumple TODO de
+   verdad (ver verificationStatus): teléfono verificado + perfil
+   completo + cuenta con al menos 7 días + al menos 5 publicaciones.
+   Una solicitud por cuenta: si ya está verificado, no se duplica. */
+app.get('/api/verification/status', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  if (profiles[phone] && profiles[phone].verified) return res.json({ ok: true, verified: true, missing: [] });
+  const st = verificationStatus(phone);
+  return res.json({ ok: true, verified: false, missing: st.missing });
+});
+app.post('/api/verification/request', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  if (!profiles[phone]) return res.status(404).json({ ok: false, error: 'Perfil no encontrado.' });
+  if (profiles[phone].verified) return res.json({ ok: true, verified: true, already: true });
+  const st = verificationStatus(phone);
+  if (!st.verified) return res.json({ ok: false, verified: false, missing: st.missing });
+  profiles[phone].verified = true;
+  try { await saveJsonStrict('profiles.json', profiles); }
+  catch (e) {
+    profiles[phone].verified = false;
+    return res.status(500).json({ ok: false, error: 'No se pudo guardar la verificación.' });
+  }
+  broadcast({ kind: 'profile', profile: profiles[phone] });
+  return res.json({ ok: true, verified: true });
+});
+
+/* ---- silenciados (v3.8, idea 31) ----
+   El silencio SOLO apaga los avisos (notify() no crea el aviso si el
+   destinatario silenció al remitente). Las publicaciones y los
+   mensajes se siguen viendo normales. Nunca se silencia a nadie por
+   defecto. */
+app.get('/api/muted', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  return res.json({ ok: true, muted: (muted[phone] || []).map(function (p) { return profilePublic(p); }) });
+});
+app.post('/api/muted', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const target = normPhone(req.body && req.body.phone);
+  if (!profiles[target]) return res.status(404).json({ ok: false, error: 'Esa cuenta no existe.' });
+  if (target === phone) return res.status(400).json({ ok: false, error: 'No puedes silenciarte a ti mismo.' });
+  if (!muted[phone]) muted[phone] = [];
+  if (!muted[phone].includes(target)) muted[phone].push(target);
+  try { await saveJsonStrict('muted.json', muted); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar.' }); }
+  return res.json({ ok: true, muted: muted[phone].map(function (p) { return profilePublic(p); }) });
+});
+app.delete('/api/muted/:phone', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const target = normPhone(req.params.phone);
+  if (muted[phone]) muted[phone] = muted[phone].filter(function (p) { return p !== target; });
+  try { await saveJsonStrict('muted.json', muted); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar.' }); }
+  return res.json({ ok: true, muted: (muted[phone] || []).map(function (p) { return profilePublic(p); }) });
+});
+
+/* ---- lista de deseos (v3.8, idea 21) ----
+   Un documento por cuenta con sus ids. Solo anuncios reales; si el
+   vendedor borró el anuncio, el deseo desaparece (se poda al leer). */
+function wishlistPublic(phone) {
+  let ids = wishlists[phone] || [];
+  const live = ids.filter(function (id) { return listings.some(function (l) { return l.id === id; }); });
+  if (live.length !== ids.length) { wishlists[phone] = live; saveJson('wishlists.json', wishlists); }
+  return live.map(function (id) { return listings.find(function (l) { return l.id === id; }); });
+}
+app.get('/api/wishlist', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  return res.json({ ok: true, wishlist: wishlistPublic(phone) });
+});
+app.post('/api/wishlist', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const listingId = String((req.body && req.body.listingId) || '');
+  if (!listings.some(function (l) { return l.id === listingId; })) return res.status(404).json({ ok: false, error: 'Anuncio no encontrado.' });
+  if (!wishlists[phone]) wishlists[phone] = [];
+  if (!wishlists[phone].includes(listingId)) wishlists[phone].push(listingId);
+  try { await saveJsonStrict('wishlists.json', wishlists); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar.' }); }
+  return res.json({ ok: true, wishlist: wishlistPublic(phone) });
+});
+app.delete('/api/wishlist/:listingId', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  if (wishlists[phone]) wishlists[phone] = wishlists[phone].filter(function (id) { return id !== req.params.listingId; });
+  try { await saveJsonStrict('wishlists.json', wishlists); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar.' }); }
+  return res.json({ ok: true, wishlist: wishlistPublic(phone) });
+});
+
+/* ---- cupones (v3.8, idea 34) ----
+   Descuento real para tus productos. El pago sigue siendo manual: el
+   comprador paga el total con descuento por transferencia. Nunca se
+   inventa un descuento: solo cupones creados por el vendedor. */
+function normalizeCouponCode(code) {
+  return String(code || '').trim().toUpperCase().replace(/\s+/g, '');
+}
+app.post('/api/coupons', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const code = normalizeCouponCode(req.body && req.body.code);
+  if (!/^[A-Z0-9\-]{3,20}$/.test(code)) return res.status(400).json({ ok: false, error: 'El código debe tener entre 3 y 20 letras o números.' });
+  const discountPct = Number(req.body && req.body.discountPct);
+  if (!Number.isInteger(discountPct) || discountPct < 1 || discountPct > 90) return res.status(400).json({ ok: false, error: 'El descuento debe ser un porcentaje entre 1 y 90.' });
+  const listingId = (req.body && req.body.listingId) ? String(req.body.listingId) : null;
+  if (listingId) {
+    const l = listings.find(function (x) { return x.id === listingId; });
+    if (!l) return res.status(404).json({ ok: false, error: 'Anuncio no encontrado.' });
+    if (l.seller !== phone) return res.status(403).json({ ok: false, error: 'Solo puedes crear cupones sobre tus propias publicaciones.' });
+  }
+  const expiresAt = Number(req.body && req.body.expiresAt);
+  if (!isFinite(expiresAt) || expiresAt <= Date.now()) return res.status(400).json({ ok: false, error: 'La vigencia debe ser una fecha futura.' });
+  if (coupons.some(function (c) { return c.seller === phone && c.code === code; })) return res.status(400).json({ ok: false, error: 'Ya tienes un cupón con ese código.' });
+  const coupon = { code, seller: phone, discountPct, listingId, expiresAt, createdAt: Date.now() };
+  coupons.push(coupon);
+  try { await saveJsonStrict('coupons.json', coupons); }
+  catch (e) { coupons.pop(); return res.status(500).json({ ok: false, error: 'No se pudo guardar el cupón.' }); }
+  return res.json({ ok: true, coupon });
+});
+app.get('/api/coupons', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const seller = normPhone(req.query.seller) || phone;
+  return res.json({ ok: true, coupons: coupons.filter(function (c) { return c.seller === seller; }) });
+});
+app.post('/api/coupons/:code/apply', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const code = normalizeCouponCode(req.params.code);
+  const listingId = String((req.body && req.body.listingId) || '');
+  const listing = listings.find(function (l) { return l.id === listingId; });
+  if (!listing) return res.status(404).json({ ok: false, error: 'Anuncio no encontrado.' });
+  const coupon = coupons.find(function (c) { return c.code === code && c.seller === listing.seller; });
+  if (!coupon) return res.status(404).json({ ok: false, error: 'Cupón no válido para esta publicación.' });
+  if (coupon.expiresAt <= Date.now()) return res.status(400).json({ ok: false, error: 'El cupón venció.' });
+  if (coupon.listingId && coupon.listingId !== listingId) return res.status(404).json({ ok: false, error: 'Cupón no válido para esta publicación.' });
+  const originalPrice = Number(listing.price);
+  if (!isFinite(originalPrice) || originalPrice < 0) return res.status(400).json({ ok: false, error: 'La publicación no tiene precio.' });
+  const finalPrice = Math.round(originalPrice * (100 - coupon.discountPct) / 100 * 100) / 100;
+  return res.json({ ok: true, code: coupon.code, discountPct: coupon.discountPct, originalPrice, finalPrice });
+});
+
+/* ---- salas de audio en vivo (v3.8, idea 19) ----
+   Solo voz, sin video. La sala vive mientras tenga participantes: si
+   se queda vacía, se cierra. Si el dueño sale y quedan participantes,
+   la propiedad pasa al participante más antiguo. */
+function roomPublic(room) {
+  return {
+    id: room.id, title: room.title, topic: room.topic, owner: room.owner,
+    ownerName: (profiles[room.owner] && profiles[room.owner].name) || room.owner,
+    participants: room.participants.map(function (pt) {
+      const pub = profilePublic(pt.phone);
+      return { phone: pt.phone, name: pub.name, avatar: pub.avatar, muted: !!pt.muted };
+    }),
+    count: room.participants.length, createdAt: room.createdAt
+  };
+}
+app.post('/api/audio-rooms', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const title = String((req.body && req.body.title) || '').trim().slice(0, 80);
+  if (!title) return res.status(400).json({ ok: false, error: 'La sala necesita un título.' });
+  const topic = String((req.body && req.body.topic) || '').trim().slice(0, 120);
+  const room = { id: uid('room'), title, topic, owner: phone, participants: [{ phone, muted: false, joinedAt: Date.now() }], createdAt: Date.now(), endedAt: null };
+  audioRooms.push(room);
+  try { await saveJsonStrict('audio-rooms.json', audioRooms); }
+  catch (e) { audioRooms.pop(); return res.status(500).json({ ok: false, error: 'No se pudo crear la sala.' }); }
+  broadcast({ kind: 'audioRoomUpdated', roomId: room.id, count: 1 });
+  return res.json({ ok: true, room: roomPublic(room) });
+});
+app.get('/api/audio-rooms', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const live = audioRooms.filter(function (r) { return !r.endedAt && r.participants.length > 0; });
+  return res.json({ ok: true, rooms: live.map(roomPublic) });
+});
+app.post('/api/audio-rooms/:id/join', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const room = audioRooms.find(function (r) { return r.id === req.params.id; });
+  if (!room || room.endedAt) return res.status(404).json({ ok: false, error: 'Sala no encontrada.' });
+  const existing = room.participants.find(function (pt) { return pt.phone === phone; });
+  if (existing) existing.muted = !!(req.body && req.body.muted);
+  else room.participants.push({ phone, muted: !!(req.body && req.body.muted), joinedAt: Date.now() });
+  try { await saveJsonStrict('audio-rooms.json', audioRooms); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo entrar a la sala.' }); }
+  broadcast({ kind: 'audioRoomUpdated', roomId: room.id, count: room.participants.length });
+  return res.json({ ok: true, room: roomPublic(room) });
+});
+app.post('/api/audio-rooms/:id/leave', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const room = audioRooms.find(function (r) { return r.id === req.params.id; });
+  if (!room || room.endedAt) return res.status(404).json({ ok: false, error: 'Sala no encontrada.' });
+  room.participants = room.participants.filter(function (pt) { return pt.phone !== phone; });
+  if (room.owner === phone && room.participants.length) room.owner = room.participants[0].phone;
+  if (!room.participants.length) room.endedAt = Date.now();
+  try { await saveJsonStrict('audio-rooms.json', audioRooms); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo salir de la sala.' }); }
+  broadcast({ kind: room.endedAt ? 'audioRoomClosed' : 'audioRoomUpdated', roomId: room.id, count: room.participants.length });
+  return res.json({ ok: true });
+});
+app.post('/api/audio-rooms/:id/mute', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const room = audioRooms.find(function (r) { return r.id === req.params.id; });
+  if (!room || room.endedAt) return res.status(404).json({ ok: false, error: 'Sala no encontrada.' });
+  const pt = room.participants.find(function (x) { return x.phone === phone; });
+  if (!pt) return res.status(403).json({ ok: false, error: 'No estás en esa sala.' });
+  pt.muted = !!(req.body && req.body.muted);
+  try { await saveJsonStrict('audio-rooms.json', audioRooms); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo cambiar el micrófono.' }); }
+  broadcast({ kind: 'audioRoomUpdated', roomId: room.id, count: room.participants.length });
+  return res.json({ ok: true, room: roomPublic(room) });
+});
+app.delete('/api/audio-rooms/:id', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const room = audioRooms.find(function (r) { return r.id === req.params.id; });
+  if (!room || room.endedAt) return res.status(404).json({ ok: false, error: 'Sala no encontrada.' });
+  const isOwner = room.owner === phone;
+  const isParticipant = room.participants.some(function (pt) { return pt.phone === phone; });
+  if (!isOwner && !(isParticipant && !room.participants.some(function (pt) { return pt.phone === room.owner; }))) {
+    return res.status(403).json({ ok: false, error: 'Solo el creador puede cerrar la sala.' });
+  }
+  room.endedAt = Date.now();
+  try { await saveJsonStrict('audio-rooms.json', audioRooms); }
+  catch (e) { room.endedAt = null; return res.status(500).json({ ok: false, error: 'No se pudo cerrar la sala.' }); }
+  broadcast({ kind: 'audioRoomClosed', roomId: room.id, count: 0 });
+  return res.json({ ok: true });
+});
+
+/* Señalización WebRTC de las salas de audio (v3.8, idea 19): igual que
+   /api/live-signal, pero para la malla de voz de la sala. La app la
+   llama para offer/answer/ice y escucha 'audioRoomSignal' por
+   WebSocket. Sin este endpoint el audio entre teléfonos no se conecta:
+   la sala solo mostraría quién está, sin voz. */
+app.post('/api/audio-rooms/:id/signal', (req, res) => {
+  const from = authPhone(req);
+  if (!from) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const room = audioRooms.find(function (r) { return r.id === req.params.id; });
+  if (!room || room.endedAt) return res.status(404).json({ ok: false, error: 'Sala no encontrada.' });
+  if (!room.participants.some(function (p) { return p.phone === from; })) return res.status(403).json({ ok: false, error: 'No estás en esta sala.' });
+  const to = normPhone(req.body && req.body.to);
+  const type = String((req.body && req.body.type) || '');
+  if (!profiles[to]) return res.status(404).json({ ok: false, error: 'Esa persona no existe.' });
+  if (!room.participants.some(function (p) { return p.phone === to; })) return res.status(403).json({ ok: false, error: 'Esa persona no está en esta sala.' });
+  if (!['offer', 'answer', 'ice'].includes(type)) return res.status(400).json({ ok: false, error: 'Señal inválida.' });
+  const set = sockets.get(to);
+  if (!set || !set.size) return res.status(404).json({ ok: false, error: 'La otra persona no está en línea.' });
+  sendTo(to, { kind: 'audioRoomSignal', from, roomId: room.id, type, offer: (req.body && req.body.offer) || null, answer: (req.body && req.body.answer) || null, candidate: (req.body && req.body.candidate) || null, payload: (req.body && req.body.payload) || null });
+  return res.json({ ok: true });
+});
+
+/* ---- torneos de juegos (v3.8, idea 20) ----
+   Un torneo por semana (lunes a domingo), con el juego de la semana
+   rotando entre los 36 minijuegos. Solo se guarda el mejor puntaje
+   por jugador y torneo: repetir solo mejora si el puntaje es mayor.
+   Nunca se inventan puntajes; el conteo empieza con 3.8. */
+app.get('/api/tournaments/current', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const t = getOrCreateCurrentTournament();
+  return res.json({ ok: true, tournament: tournamentPublic(t) });
+});
+app.post('/api/tournaments/:id/score', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const t = tournaments.find(function (x) { return x.id === req.params.id; });
+  if (!t) return res.status(404).json({ ok: false, error: 'Torneo no encontrado.' });
+  const current = getOrCreateCurrentTournament();
+  if (t.weekKey !== current.weekKey) return res.status(400).json({ ok: false, error: 'Ese torneo ya terminó.' });
+  const score = Math.floor(Number(req.body && req.body.score));
+  if (!isFinite(score) || score < 0 || score > 10000000) return res.status(400).json({ ok: false, error: 'Puntaje inválido.' });
+  if (!t.scores) t.scores = {};
+  const best = t.scores[phone] || 0;
+  const improved = score > best;
+  if (improved) t.scores[phone] = score;
+  try { await saveJsonStrict('tournaments.json', tournaments); }
+  catch (e) {
+    if (improved) t.scores[phone] = best;
+    return res.status(500).json({ ok: false, error: 'No se pudo guardar el puntaje.' });
+  }
+  return res.json({ ok: true, best: t.scores[phone] || 0, improved });
+});
+
+/* ---- mensajes temporales (v3.8, idea 32) ----
+   La conversación 1 a 1 gana disappearingHours (24 o 0). Al leerla,
+   el servidor poda los mensajes vencidos de verdad (ver GET
+   /api/messages). El archivo del medio en Cloudinary puede quedar
+   guardado aunque el mensaje y su enlace ya no existan. */
+app.post('/api/conversations/:id/disappearing', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const other = normPhone(req.params.id);
+  if (!profiles[other]) return res.status(404).json({ ok: false, error: 'Esa cuenta no existe.' });
+  const hours = Number(req.body && req.body.hours);
+  if (hours !== 24 && hours !== 0) return res.status(400).json({ ok: false, error: 'Solo 24 horas o apagado (0).' });
+  const key = conversationKey(phone, other);
+  if (hours === 0) delete conversationSettings[key];
+  else conversationSettings[key] = { disappearingHours: 24 };
+  const pruned = pruneDisappearingMessages(phone, other);
+  try { await saveJsonStrict('conversation-settings.json', conversationSettings); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar.' }); }
+  if (pruned) saveJson('messages.json', messages);
+  return res.json({ ok: true, disappearingHours: hours });
+});
+
+/* ---- regalos en los en vivos (v3.8, idea 16) ----
+   Regalos virtuales, SIN dinero y SIN precios: cada envío suma uno al
+   conteo del regalo. El creador ve quién regaló qué. */
+function liveGiftCounts(liveId) {
+  const counts = {};
+  GIFT_IDS.forEach(function (g) { counts[g] = 0; });
+  (liveGifts[liveId] || []).forEach(function (g) { if (counts[g.giftId] !== undefined) counts[g.giftId]++; });
+  return counts;
+}
+app.post('/api/lives/:id/gift', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const live = lives.find(function (l) { return l.id === req.params.id; });
+  if (!live || live.endedAt) return res.status(404).json({ ok: false, error: 'Live no encontrado o terminado.' });
+  const giftId = String((req.body && req.body.giftId) || '');
+  if (!GIFT_IDS.includes(giftId)) return res.status(400).json({ ok: false, error: 'Regalo inválido.' });
+  if (!liveGifts[live.id]) liveGifts[live.id] = [];
+  liveGifts[live.id].push({ giftId, from: phone, at: Date.now() });
+  try { await saveJsonStrict('live-gifts.json', liveGifts); }
+  catch (e) { liveGifts[live.id].pop(); return res.status(500).json({ ok: false, error: 'No se pudo enviar el regalo.' }); }
+  const counts = liveGiftCounts(live.id);
+  const total = liveGifts[live.id].length;
+  broadcast({ kind: 'liveGift', liveId: live.id, giftId, from: phone, counts, total });
+  return res.json({ ok: true, counts, total });
+});
+app.get('/api/lives/:id/gifts', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const live = lives.find(function (l) { return l.id === req.params.id; });
+  if (!live) return res.status(404).json({ ok: false, error: 'Live no encontrado.' });
+  const counts = liveGiftCounts(live.id);
+  const byGiver = {};
+  (liveGifts[live.id] || []).forEach(function (g) { byGiver[g.from] = (byGiver[g.from] || 0) + 1; });
+  const top = Object.keys(byGiver).map(function (p) {
+    const pub = profilePublic(p);
+    return { phone: p, name: pub.name, avatar: pub.avatar, gifts: byGiver[p] };
+  }).sort(function (a, b) { return b.gifts - a.gifts; }).slice(0, 10);
+  return res.json({ ok: true, counts, total: (liveGifts[live.id] || []).length, top });
+});
+
 /* ---- grupos ---- */
 app.post('/api/groups', (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
   const name = String((req.body && req.body.name) || '').trim();
   if (name.length < 3) return res.status(400).json({ ok: false, error: 'El grupo necesita un nombre.' });
-  const g = { id: uid('grp'), name: name.slice(0, 80), desc: String((req.body && req.body.desc) || '').slice(0, 300), creator: phone, members: [phone], admins: [], cover: String((req.body && req.body.cover) || ''), coverType: (req.body && req.body.coverType) === 'video' ? 'video' : 'image', accent: GROUP_ACCENTS.includes(req.body && req.body.accent) ? req.body.accent : 'rojo', headerGradient: GROUP_GRADIENTS.includes(req.body && req.body.headerGradient) ? req.body.headerGradient : 'none', rules: String((req.body && req.body.rules) || '').slice(0, 500), approval: !!(req.body && req.body.approval), joinRequests: [], pinnedPosts: [], createdAt: Date.now() };
+  const g = { id: uid('grp'), name: name.slice(0, 80), desc: String((req.body && req.body.desc) || '').slice(0, 300), creator: phone, members: [phone], admins: [], cover: String((req.body && req.body.cover) || ''), coverType: (req.body && req.body.coverType) === 'video' ? 'video' : 'image', accent: GROUP_ACCENTS.includes(req.body && req.body.accent) ? req.body.accent : 'rojo', headerGradient: GROUP_GRADIENTS.includes(req.body && req.body.headerGradient) ? req.body.headerGradient : 'none', rules: String((req.body && req.body.rules) || '').slice(0, 500), approval: !!(req.body && req.body.approval), joinRequests: [], pinnedPosts: [], createdAt: Date.now(),
+    /* v3.8: grupo secreto — no aparece en búsquedas ni en descubrimiento
+       para quien no es miembro; solo se entra por invitación. */
+    secret: !!(req.body && req.body.secret), invites: [] };
   groups.push(g);
   saveJson('groups.json', groups);
   return res.json({ ok: true, group: g });
 });
-app.get('/api/groups', (req, res) => res.json({ ok: true, groups }));
+/* v3.8: los grupos secretos no aparecen en el descubrimiento para
+   quien no es miembro (los miembros sí los ven). */
+app.get('/api/groups', (req, res) => {
+  const phone = authPhone(req);
+  const visible = groups.filter(function (g) {
+    if (!g.secret) return true;
+    return !!phone && g.members.includes(phone);
+  });
+  return res.json({ ok: true, groups: visible });
+});
+/* v3.8: información pública de un grupo para el enlace de invitación
+   (nombre, portada, conteo de miembros, si es secreto) — sin revelar
+   nada de dentro. */
+app.get('/api/groups/:id/public', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const g = groups.find(function (x) { return x.id === req.params.id; });
+  if (!g) return res.status(404).json({ ok: false, error: 'Grupo no encontrado.' });
+  return res.json({ ok: true, group: { id: g.id, name: g.name, desc: g.desc || '', cover: g.cover || '', memberCount: (g.members || []).length, secret: !!g.secret, creator: g.creator, isMember: g.members.includes(phone) } });
+});
+/* v3.8: invitar a un grupo secreto (o a cualquier grupo) — solo
+   administradores. El invitado recibe el aviso en la campana para
+   aceptar (join) o rechazar. */
+app.post('/api/groups/:id/invite', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const g = groups.find(function (x) { return x.id === req.params.id; });
+  if (!g) return res.status(404).json({ ok: false, error: 'Grupo no encontrado.' });
+  if (g.creator !== phone && !(g.admins || []).includes(phone)) return res.status(403).json({ ok: false, error: 'Solo los administradores pueden invitar.' });
+  const invited = normPhone(req.body && req.body.phone);
+  if (!profiles[invited]) return res.status(404).json({ ok: false, error: 'Esa cuenta no existe.' });
+  if (g.members.includes(invited)) return res.status(400).json({ ok: false, error: 'Esa persona ya es miembro.' });
+  if (!g.invites) g.invites = [];
+  if (!g.invites.includes(invited)) g.invites.push(invited);
+  try { await saveJsonStrict('groups.json', groups); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo enviar la invitación.' }); }
+  notify('groupInvite', phone, invited, 'te invitó al grupo ' + g.name, g.id);
+  return res.json({ ok: true });
+});
+app.post('/api/groups/:id/invite/decline', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const g = groups.find(function (x) { return x.id === req.params.id; });
+  if (!g) return res.status(404).json({ ok: false, error: 'Grupo no encontrado.' });
+  if (g.invites) g.invites = g.invites.filter(function (p) { return p !== phone; });
+  try { await saveJsonStrict('groups.json', groups); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo rechazar la invitación.' }); }
+  return res.json({ ok: true });
+});
 app.post('/api/groups/:id/join', (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
   const g = groups.find(x => x.id === req.params.id);
   if (!g) return res.status(404).json({ ok: false, error: 'Grupo no encontrado.' });
   if (g.members.includes(phone)) return res.json({ ok: true, group: g });
+  /* v3.8: a un grupo secreto solo se entra por invitación; el enlace
+     solo NO salta las reglas. Al aceptar, la invitación se consume. */
+  if (g.secret) {
+    if (!(g.invites || []).includes(phone)) return res.status(403).json({ ok: false, error: 'Este grupo es secreto y solo se entra por invitación.' });
+    g.invites = g.invites.filter(function (p) { return p !== phone; });
+    g.members.push(phone);
+    saveJson('groups.json', groups);
+    return res.json({ ok: true, group: g });
+  }
   if (g.approval) {
     if (!g.joinRequests.includes(phone)) g.joinRequests.push(phone);
     saveJson('groups.json', groups);
@@ -2168,7 +3347,7 @@ app.post('/api/call-signal', (req, res) => {
    (oferta/respuesta/ICE). El video del live no queda guardado. */
 function activeLives() { return lives.filter(l => !l.endedAt); }
 function livePublic(l) {
-  return { id: l.id, host: l.host, title: l.title || '', createdAt: l.createdAt, viewers: (l.viewers || []).slice(), viewerCount: (l.viewers || []).length, chat: (l.chat || []).slice(-50), reactions: l.reactions || {}, likes: l.likes || 0 };
+  return { id: l.id, host: l.host, title: l.title || '', createdAt: l.createdAt, viewers: (l.viewers || []).slice(), viewerCount: (l.viewers || []).length, chat: (l.chat || []).slice(-50), reactions: l.reactions || {}, likes: l.likes || 0, coHost: l.coHost || null };
 }
 app.get('/api/lives', (req, res) => {
   return res.json({ ok: true, lives: activeLives().map(livePublic) });
@@ -2179,7 +3358,7 @@ app.post('/api/lives', (req, res) => {
   if (!profiles[phone]) return res.status(404).json({ ok: false, error: 'Perfil no encontrado.' });
   if (activeLives().some(l => l.host === phone)) return res.status(400).json({ ok: false, error: 'Ya tienes un live en curso.' });
   const title = String((req.body && req.body.title) || '').trim().slice(0, 100);
-  const live = { id: uid('live'), host: phone, title, createdAt: Date.now(), endedAt: null, viewers: [], chat: [], reactions: {}, likes: 0 };
+  const live = { id: uid('live'), host: phone, title, createdAt: Date.now(), endedAt: null, viewers: [], chat: [], reactions: {}, likes: 0, coHost: null, invite: null };
   lives.push(live);
   saveJson('lives.json', lives);
   broadcast({ kind: 'live', event: 'started', live: livePublic(live) });
@@ -2218,9 +3397,57 @@ app.post('/api/lives/:id/leave', (req, res) => {
   const live = lives.find(l => l.id === req.params.id);
   if (!live) return res.status(404).json({ ok: false, error: 'Live no encontrado.' });
   live.viewers = (live.viewers || []).filter(v => v !== phone);
+  /* v3.8: si sale el coanfitrión, el live sigue solo con el dueño y
+     se avisa a todos (liveCoHostLeft). */
+  if (live.coHost === phone) {
+    live.coHost = null;
+    saveJson('lives.json', lives);
+    broadcast({ kind: 'liveCoHostLeft', liveId: live.id });
+  }
   saveJson('lives.json', lives);
   broadcast({ kind: 'live', event: 'viewers', liveId: live.id, viewerCount: live.viewers.length, viewers: live.viewers.slice() });
   return res.json({ ok: true });
+});
+/* ---- invitados en tu en vivo (v3.8, idea 23) ----
+   Solo el dueño del live invita; el invitado acepta o rechaza y su
+   cámara se une en vista dividida. Si su conexión se cae, el live
+   sigue solo con el dueño (ver leave). */
+app.post('/api/lives/:id/invite', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const live = lives.find(function (l) { return l.id === req.params.id; });
+  if (!live || live.endedAt) return res.status(404).json({ ok: false, error: 'Live no encontrado o terminado.' });
+  if (live.host !== phone) return res.status(403).json({ ok: false, error: 'Solo el dueño del live puede invitar.' });
+  const invited = normPhone(req.body && req.body.phone);
+  if (!profiles[invited]) return res.status(404).json({ ok: false, error: 'Esa cuenta no existe.' });
+  if (invited === phone) return res.status(400).json({ ok: false, error: 'No puedes invitarte a ti mismo.' });
+  if (live.invite && live.invite.phone === invited && live.invite.status === 'pending') return res.status(400).json({ ok: false, error: 'Ya tienes una invitación pendiente para esa persona.' });
+  live.invite = { phone: invited, status: 'pending', at: Date.now() };
+  try { await saveJsonStrict('lives.json', lives); }
+  catch (e) { live.invite = null; return res.status(500).json({ ok: false, error: 'No se pudo enviar la invitación.' }); }
+  broadcast({ kind: 'liveInvite', liveId: live.id, from: phone, to: invited });
+  return res.json({ ok: true, invite: live.invite });
+});
+app.post('/api/lives/:id/invite/respond', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const live = lives.find(function (l) { return l.id === req.params.id; });
+  if (!live || live.endedAt) return res.status(404).json({ ok: false, error: 'Live no encontrado o terminado.' });
+  if (!live.invite || live.invite.phone !== phone || live.invite.status !== 'pending') return res.status(404).json({ ok: false, error: 'No tienes una invitación pendiente para este live.' });
+  const accept = !!(req.body && req.body.accept);
+  if (accept) {
+    live.coHost = phone;
+    live.invite.status = 'accepted';
+    try { await saveJsonStrict('lives.json', lives); }
+    catch (e) { live.coHost = null; live.invite.status = 'pending'; return res.status(500).json({ ok: false, error: 'No se pudo aceptar la invitación.' }); }
+    broadcast({ kind: 'liveInviteAccepted', liveId: live.id, from: phone, coHost: phone });
+    return res.json({ ok: true, coHost: phone });
+  }
+  live.invite = null;
+  try { await saveJsonStrict('lives.json', lives); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo rechazar la invitación.' }); }
+  broadcast({ kind: 'liveInviteDeclined', liveId: live.id, from: phone });
+  return res.json({ ok: true, coHost: null });
 });
 app.post('/api/lives/:id/chat', (req, res) => {
   const phone = authPhone(req);
@@ -2466,6 +3693,14 @@ app.post('/api/live-signal', (req, res) => {
 });
 
 /* ---- mensajes ---- */
+/* v3.8: paquete de stickers originales incluido en el APK (12). Solo
+   estos ids se aceptan; un mensaje puede llevar solo el sticker. */
+const STICKER_IDS = ['corazon', 'risa', 'fuego', 'estrella', 'abrazo', 'ok', 'triste', 'enojado', 'sorpresa', 'fiesta', 'gato', 'perro'];
+function validateStickerId(v) {
+  const s = String(v || '').trim();
+  if (!s) return '';
+  return STICKER_IDS.includes(s) ? s : null;
+}
 app.post('/api/messages', async (req, res) => {
   const from = authPhone(req);
   if (!from) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
@@ -2474,11 +3709,31 @@ app.post('/api/messages', async (req, res) => {
   const text = String((body && body.text) || '').trim();
   if (!profiles[to]) return res.status(404).json({ ok: false, error: 'Esa persona no existe.' });
   if (isBlockedSrv(from, to)) return res.status(403).json({ ok: false, error: 'No puedes escribirle a esa persona.' });
-  if (!text && !(body && body.media) && !(body && body.file) && !(body && body.voice)) return res.status(400).json({ ok: false, error: 'Mensaje vacío.' });
+  const stickerId = validateStickerId(body && body.stickerId);
+  if (stickerId === null) return res.status(400).json({ ok: false, error: 'Sticker inválido.' });
+  /* v3.8: ubicación en vivo (máx. 1 hora) e invitación de juego. */
+  let liveLocation = null;
+  if (body && body.liveLocation !== undefined && body.liveLocation !== null) {
+    const ll = body.liveLocation;
+    const lat = Number(ll && ll.lat), lng = Number(ll && ll.lng);
+    if (!isFinite(lat) || lat < -90 || lat > 90 || !isFinite(lng) || lng < -180 || lng > 180) return res.status(400).json({ ok: false, error: 'Ubicación inválida.' });
+    let expiresAt = Number(ll && ll.expiresAt);
+    if (!isFinite(expiresAt) || expiresAt <= Date.now()) expiresAt = Date.now() + 60 * 60 * 1000;
+    if (expiresAt > Date.now() + 60 * 60 * 1000) expiresAt = Date.now() + 60 * 60 * 1000;
+    liveLocation = { lat, lng, expiresAt, updatedAt: Date.now() };
+  }
+  let gameInvite = null;
+  if (body && body.gameInvite !== undefined && body.gameInvite !== null) {
+    const gi = body.gameInvite;
+    if (!gi || !TOURNAMENT_GAMES.some(function (g) { return g.id === gi.gameId; })) return res.status(400).json({ ok: false, error: 'Juego inválido.' });
+    gameInvite = { gameId: gi.gameId, roomId: String(gi.roomId || '').slice(0, 100) };
+  }
+  if (!text && !(body && body.media) && !(body && body.file) && !(body && body.voice) && !stickerId && !liveLocation && !gameInvite) return res.status(400).json({ ok: false, error: 'Mensaje vacío.' });
   const msg = {
     id: (body && body.id) || uid('msg'), from, to, text: text.slice(0, 2000),
     media: (body && body.media) || '', mediaType: (body && body.mediaType) || '',
     file: (body && body.file) || null, voice: (body && body.voice) || null,
+    stickerId: stickerId, liveLocation: liveLocation, gameInvite: gameInvite, reactions: [],
     /* v1.5: pregunta por un anuncio de Marketplace (id y título). */
     listing: (body && body.listing) || null,
     createdAt: (body && body.createdAt) || Date.now(), readBy: [from], readAt: null
@@ -2491,14 +3746,33 @@ app.post('/api/messages', async (req, res) => {
   await flushPendingWrites();
   return res.json({ ok: true, message: msg });
 });
+/* v3.8: el mensaje servido lleva sus reacciones con nombre
+   [{phone, name, emoji}] (en el registro solo van phone + emoji). */
+function messagePublic(m) {
+  const out = Object.assign({}, m);
+  out.reactions = (m.reactions || []).map(function (r) {
+    const pub = profilePublic(r.phone);
+    return { phone: r.phone, name: pub.name, emoji: r.emoji };
+  });
+  return out;
+}
 app.get('/api/messages', (req, res) => {
   const phone = normPhone(req.query.phone);
+  /* v3.8: al leer, se podan de verdad los mensajes temporales vencidos
+     de todas mis conversaciones. */
+  let prunedAny = false;
+  Object.keys(conversationSettings).forEach(function (key) {
+    const parts = key.split('|');
+    if (!parts.includes(phone)) return;
+    if (pruneDisappearingMessages(parts[0], parts[1])) prunedAny = true;
+  });
+  if (prunedAny) saveJson('messages.json', messages);
   const mine = messages.filter(m => m.from === phone || m.to === phone).sort((a, b) => a.createdAt - b.createdAt);
   const byKey = {};
   mine.forEach(m => {
     const key = [m.from, m.to].sort().join('|');
-    if (!byKey[key]) byKey[key] = { id: 'conv_' + key, participants: [m.from, m.to], messages: [], unread: {} };
-    byKey[key].messages.push(m);
+    if (!byKey[key]) byKey[key] = { id: 'conv_' + key, participants: [m.from, m.to], messages: [], unread: {}, disappearingHours: (conversationSettings[key] && conversationSettings[key].disappearingHours) || 0 };
+    byKey[key].messages.push(messagePublic(m));
     if (m.to === phone && !m.readBy.includes(phone)) byKey[key].unread[phone] = (byKey[key].unread[phone] || 0) + 1;
   });
   return res.json({ ok: true, conversations: Object.values(byKey) });
@@ -2507,6 +3781,9 @@ app.post('/api/messages/read', (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
   const other = normPhone((req.body && req.body.other) || (req.body && req.body.to));
+  /* v3.8: al abrir la conversación se podan los mensajes temporales
+     vencidos antes de marcar como leído. */
+  if (pruneDisappearingMessages(phone, other)) saveJson('messages.json', messages);
   /* v1.5: al abrir la conversación se marca como leída con la hora, y
      se avisa en vivo al que escribió para que vea "Visto" con la hora. */
   const at = Date.now();
@@ -2521,6 +3798,65 @@ app.post('/api/messages/read', (req, res) => {
   saveJson('messages.json', messages);
   if (readIds.length) sendTo(other, { kind: 'read', from: phone, to: other, at, messageIds: readIds });
   return res.json({ ok: true, readAt: at, read: readIds.length });
+});
+
+/* ---- reacciones y ubicación en vivo en mensajes (v3.8, ideas 55-56) ----
+   Vale para chats 1 a 1 y de grupo. Una reacción por persona por
+   mensaje, se puede cambiar; solo los 6 emojis del selector. La
+   ubicación solo la actualiza quien la comparte, hasta que caduca. */
+function findMessageAnywhere(id) {
+  const m = messages.find(function (x) { return x.id === id; });
+  if (m) return { msg: m, group: null };
+  for (const g of groupChats) {
+    const gm = (g.messages || []).find(function (x) { return x.id === id; });
+    if (gm) return { msg: gm, group: g };
+  }
+  return null;
+}
+const MESSAGE_REACTION_EMOJIS = ['❤️', '😂', '😮', '😢', '😡', '👍'];
+app.post('/api/messages/:id/react', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const found = findMessageAnywhere(req.params.id);
+  if (!found) return res.status(404).json({ ok: false, error: 'Mensaje no encontrado.' });
+  const msg = found.msg, group = found.group;
+  const isParticipant = group ? group.participants.includes(phone) : (msg.from === phone || msg.to === phone);
+  if (!isParticipant) return res.status(403).json({ ok: false, error: 'No eres parte de ese chat.' });
+  const emoji = String((req.body && req.body.emoji) || '').trim();
+  if (!MESSAGE_REACTION_EMOJIS.includes(emoji)) return res.status(400).json({ ok: false, error: 'Emoji inválido.' });
+  if (!msg.reactions) msg.reactions = [];
+  const old = msg.reactions.find(function (r) { return r.phone === phone; });
+  if (old) { old.emoji = emoji; old.at = Date.now(); }
+  else msg.reactions.push({ phone, emoji, at: Date.now() });
+  try {
+    if (group) await saveJsonStrict('group-chats.json', groupChats);
+    else await saveJsonStrict('messages.json', messages);
+  } catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar la reacción.' }); }
+  const pub = messagePublic(msg);
+  if (group) broadcast({ kind: 'messageReaction', messageId: msg.id, groupId: group.id, reactions: pub.reactions });
+  else sendTo(msg.from === phone ? msg.to : msg.from, { kind: 'messageReaction', messageId: msg.id, reactions: pub.reactions });
+  return res.json({ ok: true, reactions: pub.reactions });
+});
+app.post('/api/messages/:id/location', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const found = findMessageAnywhere(req.params.id);
+  if (!found) return res.status(404).json({ ok: false, error: 'Mensaje no encontrado.' });
+  const msg = found.msg, group = found.group;
+  if (msg.from !== phone) return res.status(403).json({ ok: false, error: 'Solo quien comparte su ubicación puede actualizarla.' });
+  if (!msg.liveLocation) return res.status(400).json({ ok: false, error: 'Este mensaje no comparte ubicación.' });
+  if (msg.liveLocation.expiresAt <= Date.now()) return res.status(400).json({ ok: false, error: 'La ubicación en vivo ya caducó.' });
+  const lat = Number(req.body && req.body.lat), lng = Number(req.body && req.body.lng);
+  if (!isFinite(lat) || lat < -90 || lat > 90 || !isFinite(lng) || lng < -180 || lng > 180) return res.status(400).json({ ok: false, error: 'Ubicación inválida.' });
+  msg.liveLocation.lat = lat; msg.liveLocation.lng = lng; msg.liveLocation.updatedAt = Date.now();
+  try {
+    if (group) await saveJsonStrict('group-chats.json', groupChats);
+    else await saveJsonStrict('messages.json', messages);
+  } catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo actualizar la ubicación.' }); }
+  const pub = messagePublic(msg);
+  if (group) broadcast({ kind: 'messageLocation', messageId: msg.id, groupId: group.id, liveLocation: msg.liveLocation });
+  else sendTo(msg.to, { kind: 'messageLocation', messageId: msg.id, liveLocation: msg.liveLocation });
+  return res.json({ ok: true, message: pub });
 });
 
 /* ---- mensajes grupales (v1.5.14, servidor 3.3) ----
@@ -2560,7 +3896,13 @@ app.post('/api/group-chats', async (req, res) => {
 });
 app.get('/api/group-chats', (req, res) => {
   const phone = normPhone(req.query.phone);
-  return res.json({ ok: true, groupChats: groupChats.filter(g => groupChatVisible(g, phone)) });
+  /* v3.8: cada mensaje lleva sus reacciones con nombre. */
+  const list = groupChats.filter(g => groupChatVisible(g, phone)).map(function (g) {
+    const out = Object.assign({}, g);
+    out.messages = (g.messages || []).map(messagePublic);
+    return out;
+  });
+  return res.json({ ok: true, groupChats: list });
 });
 app.post('/api/group-chats/:id/messages', async (req, res) => {
   const me = authPhone(req);
@@ -2570,11 +3912,31 @@ app.post('/api/group-chats/:id/messages', async (req, res) => {
   if (!g.participants.includes(me)) return res.status(403).json({ ok: false, error: 'Ya no eres parte de ese grupo.' });
   const body = (req.body && req.body.message) || req.body;
   const text = String((body && body.text) || '').trim();
-  if (!text && !(body && body.media)) return res.status(400).json({ ok: false, error: 'Mensaje vacío.' });
+  const stickerId = validateStickerId(body && body.stickerId);
+  if (stickerId === null) return res.status(400).json({ ok: false, error: 'Sticker inválido.' });
+  /* v3.8: ubicación en vivo (máx. 1 hora) e invitación de juego. */
+  let liveLocation = null;
+  if (body && body.liveLocation !== undefined && body.liveLocation !== null) {
+    const ll = body.liveLocation;
+    const lat = Number(ll && ll.lat), lng = Number(ll && ll.lng);
+    if (!isFinite(lat) || lat < -90 || lat > 90 || !isFinite(lng) || lng < -180 || lng > 180) return res.status(400).json({ ok: false, error: 'Ubicación inválida.' });
+    let expiresAt = Number(ll && ll.expiresAt);
+    if (!isFinite(expiresAt) || expiresAt <= Date.now()) expiresAt = Date.now() + 60 * 60 * 1000;
+    if (expiresAt > Date.now() + 60 * 60 * 1000) expiresAt = Date.now() + 60 * 60 * 1000;
+    liveLocation = { lat, lng, expiresAt, updatedAt: Date.now() };
+  }
+  let gameInvite = null;
+  if (body && body.gameInvite !== undefined && body.gameInvite !== null) {
+    const gi = body.gameInvite;
+    if (!gi || !TOURNAMENT_GAMES.some(function (g) { return g.id === gi.gameId; })) return res.status(400).json({ ok: false, error: 'Juego inválido.' });
+    gameInvite = { gameId: gi.gameId, roomId: String(gi.roomId || '').slice(0, 100) };
+  }
+  if (!text && !(body && body.media) && !stickerId && !liveLocation && !gameInvite) return res.status(400).json({ ok: false, error: 'Mensaje vacío.' });
   const msg = {
     id: (body && body.id) || uid('msg'), from: me, text: text.slice(0, 2000),
     media: (body && body.media) || '', mediaType: (body && body.mediaType) || '',
     file: (body && body.file) || null, voice: (body && body.voice) || null,
+    stickerId: stickerId, liveLocation: liveLocation, gameInvite: gameInvite, reactions: [],
     createdAt: (body && body.createdAt) || Date.now(), readBy: [me], readAt: null
   };
   if (g.messages.some(m => m.id === msg.id)) return res.json({ ok: true, message: msg });
@@ -2702,9 +4064,12 @@ app.get('/api/search', (req, res) => {
     if ((p.name || '').toLowerCase().includes(q)) out.people.push(p);
   });
   posts.forEach(p => {
-    if (canSee(phone, p) && ((p.text || '').toLowerCase().includes(q) || (p.link && (p.link.title || '').toLowerCase().includes(q)))) out.posts.push(p);
+    if (canSee(phone, p) && ((p.text || '').toLowerCase().includes(q) || (p.link && (p.link.title || '').toLowerCase().includes(q)))) out.posts.push(enrichPostForViewer(p, phone));
   });
   groups.forEach(g => {
+    /* v3.8: los grupos secretos no aparecen en la búsqueda para quien
+       no es miembro. */
+    if (g.secret && !(g.members || []).includes(phone)) return;
     if ((g.name || '').toLowerCase().includes(q) || (g.desc || '').toLowerCase().includes(q)) out.groups.push(g);
   });
   pages.forEach(pg => { if ((pg.name || '').toLowerCase().includes(q)) out.pages.push(pg); });
