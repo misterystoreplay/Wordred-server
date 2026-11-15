@@ -1,5 +1,5 @@
 'use strict';
-/* Pruebas del servidor WordRed 3.6 — los datos quedan PARA SIEMPRE en
+/* Pruebas del servidor WordRed 3.7 — los datos quedan PARA SIEMPRE en
    MongoDB (y el respaldo JSON sigue funcionando sin MONGODB_URI).
    Se arranca el servidor de verdad como proceso hijo (node server.js)
    contra un MongoDB en memoria (mongodb-memory-server) y se comprueba
@@ -128,7 +128,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   /* ---- modo MongoDB ---- */
   let proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   let health = await waitHealth(PORT);
-  check('3.6 MongoDB: /api/health dice version 3.6', !!(health && health.version === '3.6'), health);
+  check('3.7 MongoDB: /api/health dice version 3.7', !!(health && health.version === '3.7'), health);
   check('3.6 MongoDB: /api/health dice storage mongodb y mongo true', !!(health && health.storage === 'mongodb' && health.mongo === true), health);
 
   /* ---- actualización de la app (v3.5): GET /api/app/latest y
@@ -161,6 +161,32 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.3 MongoDB: el perfil de A se crea', !!(profA.json && profA.json.ok), profA);
   const profB = await api(PORT, 'POST', '/api/profile', { name: 'Beto (prueba)' }, regB.token);
   check('3.3 MongoDB: el perfil de B se crea', !!(profB.json && profB.json.ok), profB);
+
+  /* ---- visitas al perfil (v3.7): POST /api/profile-views registra
+     quién vio el perfil de otra persona y GET /api/profile-views/me
+     devuelve las visitas del propio perfil. Un registro por visitante:
+     si la misma persona vuelve, solo se actualiza la fecha. Verse el
+     propio perfil no se registra y sin sesión da 401. */
+  const viewNoAuth = await api(PORT, 'POST', '/api/profile-views', { viewedPhone: PHONE_A }, null);
+  check('3.7 MongoDB: registrar una visita sin sesión da 401', viewNoAuth.status === 401, viewNoAuth);
+  const viewGhost = await api(PORT, 'POST', '/api/profile-views', { viewedPhone: '529999999999' }, regB.token);
+  check('3.7 MongoDB: registrar una visita a un perfil que no existe da 404', viewGhost.status === 404, viewGhost);
+  const myViewsEmpty = await api(PORT, 'GET', '/api/profile-views/me', null, regA.token);
+  check('3.7 MongoDB: antes de ninguna visita, mis visitas son 0 y sin último visitante', !!(myViewsEmpty.json && myViewsEmpty.json.ok && myViewsEmpty.json.count === 0 && myViewsEmpty.json.lastViewer === null && Array.isArray(myViewsEmpty.json.viewers) && myViewsEmpty.json.viewers.length === 0), myViewsEmpty.json);
+  const viewB = await api(PORT, 'POST', '/api/profile-views', { viewedPhone: PHONE_A }, regB.token);
+  check('3.7 MongoDB: B ve el perfil de A (visita registrada)', !!(viewB.json && viewB.json.ok && viewB.json.recorded === true && viewB.json.count === 1), viewB.json);
+  const myViewsA = await api(PORT, 'GET', '/api/profile-views/me', null, regA.token);
+  check('3.7 MongoDB: A lee sus visitas (cantidad 1, último visitante B con su nombre)', !!(myViewsA.json && myViewsA.json.ok && myViewsA.json.count === 1 && myViewsA.json.lastViewer && myViewsA.json.lastViewer.phone === PHONE_B && myViewsA.json.lastViewer.name === 'Beto (prueba)' && myViewsA.json.viewers.length === 1 && myViewsA.json.viewers[0].phone === PHONE_B), myViewsA.json);
+  const myViewsB = await api(PORT, 'GET', '/api/profile-views/me', null, regB.token);
+  check('3.7 MongoDB: B solo ve SUS visitas (0: nadie vio su perfil todavía)', !!(myViewsB.json && myViewsB.json.ok && myViewsB.json.count === 0 && myViewsB.json.lastViewer === null), myViewsB.json);
+  const viewBAgain = await api(PORT, 'POST', '/api/profile-views', { viewedPhone: PHONE_A }, regB.token);
+  check('3.7 MongoDB: B vuelve a ver el perfil de A y la cantidad sigue en 1 (no se duplica)', !!(viewBAgain.json && viewBAgain.json.ok && viewBAgain.json.recorded === true && viewBAgain.json.count === 1), viewBAgain.json);
+  const viewSelf = await api(PORT, 'POST', '/api/profile-views', { viewedPhone: PHONE_A }, regA.token);
+  check('3.7 MongoDB: verse el propio perfil NO se registra (recorded false, cantidad sigue en 1)', !!(viewSelf.json && viewSelf.json.ok && viewSelf.json.recorded === false && viewSelf.json.count === 1), viewSelf.json);
+  const myViewsNoAuth = await api(PORT, 'GET', '/api/profile-views/me', null, null);
+  check('3.7 MongoDB: leer mis visitas sin sesión da 401', myViewsNoAuth.status === 401, myViewsNoAuth);
+  const viewsInMongo = await waitMongoValue(uri, 'profileViews', v => v && v[PHONE_A] && v[PHONE_A].length === 1 && v[PHONE_A][0].viewer === PHONE_B);
+  check('3.7 MongoDB: la visita está guardada en la colección profileViews de MongoDB', !!viewsInMongo);
 
   const postRes = await api(PORT, 'POST', '/api/posts', { text: 'Publicación que tiene que sobrevivir al reinicio' }, regA.token);
   const postId = postRes.json && postRes.json.post && postRes.json.post.id;
@@ -345,7 +371,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir, WORDRED_TEST_FAIL_WRITES: '1' });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 3.6', !!(health && health.version === '3.6' && health.storage === 'mongodb'), health);
+  check('3.7 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 3.7', !!(health && health.version === '3.7' && health.storage === 'mongodb'), health);
   const delFail = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con MongoDB roto, DELETE devuelve 500 (no un éxito falso)', delFail.status === 500 && !!(delFail.json && delFail.json.ok === false), delFail);
   check('3.3 MongoDB: con MongoDB roto, DELETE explica el error real', !!(delFail.json && delFail.json.error && delFail.json.error.indexOf('No se pudo guardar el borrado') >= 0), delFail.json && delFail.json.error);
@@ -356,7 +382,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '3.6'), health);
+  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '3.7'), health);
   const delFailOk = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con las escrituras sanas, el borrado sí funciona (DELETE ok)', !!(delFailOk.json && delFailOk.json.ok), delFailOk);
   const feedFailOk = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
@@ -375,7 +401,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 3.6 y storage mongodb', !!(health && health.version === '3.6' && health.storage === 'mongodb'), health);
+  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 3.7 y storage mongodb', !!(health && health.version === '3.7' && health.storage === 'mongodb'), health);
 
   const feedB2 = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, la publicación de A sigue ahí y B la sigue viendo', !!(feedB2.json && feedB2.json.ok && feedB2.json.posts.some(p => p.id === postId)), feedB2.json && feedB2.json.posts.length);
@@ -383,6 +409,8 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const msgsB2 = await api(PORT, 'GET', '/api/messages?phone=' + PHONE_B);
   const allMsgs = (msgsB2.json && msgsB2.json.conversations || []).flatMap(c => c.messages || []);
   check('3.3 MongoDB: tras reiniciar, el mensaje de A a B sigue ahí', allMsgs.some(m => m.id === msgId), allMsgs.length);
+  const myViewsAfterRestart = await api(PORT, 'GET', '/api/profile-views/me', null, regA.token);
+  check('3.7 MongoDB: tras reiniciar, la visita de B al perfil de A sigue ahí (cantidad 1, último visitante B)', !!(myViewsAfterRestart.json && myViewsAfterRestart.json.ok && myViewsAfterRestart.json.count === 1 && myViewsAfterRestart.json.lastViewer && myViewsAfterRestart.json.lastViewer.phone === PHONE_B), myViewsAfterRestart.json);
   const gListB3 = await api(PORT, 'GET', '/api/group-chats?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, el grupo que quedó vivo sigue en la lista de B', !!(gListB3.json && gListB3.json.ok && gListB3.json.groupChats.some(g => g.id === 'gchat-vivo33')), gListB3.json && gListB3.json.groupChats && gListB3.json.groupChats.length);
   const gVivo3 = gListB3.json && gListB3.json.groupChats.find(g => g.id === 'gchat-vivo33');
@@ -399,8 +427,8 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await mc.connect();
   const collNames = (await mc.db('wordred').listCollections().toArray()).map(c => c.name).sort();
   await mc.close();
-  const expected = ['auth', 'blocked', 'events', 'friends', 'gameRatings', 'gameStats', 'groupChats', 'groups', 'listings', 'lives', 'media', 'messages', 'notifications', 'pages', 'posts', 'profiles', 'ratings', 'reports', 'requests', 'salesGroups', 'stories'];
-  check('3.3 MongoDB: existen las 21 colecciones (una por conjunto de datos)', expected.every(c => collNames.includes(c)), collNames);
+  const expected = ['auth', 'blocked', 'events', 'friends', 'gameRatings', 'gameStats', 'groupChats', 'groups', 'listings', 'lives', 'media', 'messages', 'notifications', 'pages', 'posts', 'profileViews', 'profiles', 'ratings', 'reports', 'requests', 'salesGroups', 'stories'];
+  check('3.3 MongoDB: existen las 22 colecciones (una por conjunto de datos)', expected.every(c => collNames.includes(c)), collNames);
   await stopServer(proc);
 
   /* ---- modo respaldo JSON (sin MONGODB_URI) ---- */
@@ -408,7 +436,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT2 = 34532;
   const proc2 = startServer(PORT2, { DATA_DIR: jsonDir });
   const health2 = await waitHealth(PORT2);
-  check('3.5 JSON: sin MONGODB_URI, /api/health dice version 3.6, storage json y mongo false', !!(health2 && health2.version === '3.6' && health2.storage === 'json' && health2.mongo === false), health2);
+  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 3.7, storage json y mongo false', !!(health2 && health2.version === '3.7' && health2.storage === 'json' && health2.mongo === false), health2);
   const regJ = await register(PORT2, '524444444444');
   check('3.3 JSON: el registro sigue funcionando sin MongoDB', regJ.ok, regJ);
   const postJ = await api(PORT2, 'POST', '/api/posts', { text: 'Publicación en modo JSON' }, regJ.token);
@@ -416,11 +444,24 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const feedJ = await api(PORT2, 'GET', '/api/feed?phone=524444444444');
   check('3.3 JSON: la publicación se ve en el inicio sin MongoDB', !!(feedJ.json && feedJ.json.ok && feedJ.json.posts.some(p => p.id === (postJ.json && postJ.json.post && postJ.json.post.id))), feedJ.json && feedJ.json.posts.length);
   check('3.3 JSON: sin MongoDB, los datos quedan en archivos JSON en disco', fs.existsSync(path.join(jsonDir, 'posts.json')) && fs.existsSync(path.join(jsonDir, 'auth.json')));
+  /* Visitas al perfil en modo JSON (v3.7): mismo comportamiento con el
+     respaldo en profile-views.json. */
+  const regJ2 = await register(PORT2, '525555555555');
+  check('3.7 JSON: el segundo usuario se registra sin MongoDB', regJ2.ok, regJ2);
+  const profJ = await api(PORT2, 'POST', '/api/profile', { name: 'Julia (prueba JSON)' }, regJ.token);
+  check('3.7 JSON: el perfil de J se crea sin MongoDB', !!(profJ.json && profJ.json.ok), profJ);
+  const profJ2 = await api(PORT2, 'POST', '/api/profile', { name: 'Karen (prueba JSON)' }, regJ2.token);
+  check('3.7 JSON: el perfil de K se crea sin MongoDB', !!(profJ2.json && profJ2.json.ok), profJ2);
+  const viewJ = await api(PORT2, 'POST', '/api/profile-views', { viewedPhone: '524444444444' }, regJ2.token);
+  check('3.7 JSON: K ve el perfil de J sin MongoDB (visita registrada)', !!(viewJ.json && viewJ.json.ok && viewJ.json.recorded === true && viewJ.json.count === 1), viewJ.json);
+  const myViewsJ = await api(PORT2, 'GET', '/api/profile-views/me', null, regJ.token);
+  check('3.7 JSON: J lee su visita sin MongoDB (cantidad 1, última visitante K)', !!(myViewsJ.json && myViewsJ.json.ok && myViewsJ.json.count === 1 && myViewsJ.json.lastViewer && myViewsJ.json.lastViewer.phone === '525555555555'), myViewsJ.json);
+  check('3.7 JSON: sin MongoDB, la visita queda en profile-views.json en disco', fs.existsSync(path.join(jsonDir, 'profile-views.json')));
   await stopServer(proc2);
 
   await mongod.stop();
   console.log('\n==============================');
-  console.log('Servidor WordRed 3.6 — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('Servidor WordRed 3.7 — ' + pass + ' PASS, ' + fail + ' FAIL');
   if (fail) { console.log('Fallos: ' + failures.join(' | ')); process.exit(1); }
 })().catch((e) => {
   console.error('ERROR en las pruebas: ' + (e && e.stack ? e.stack : e));
