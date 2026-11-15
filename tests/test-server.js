@@ -1,5 +1,5 @@
 'use strict';
-/* Pruebas del servidor WordRed 3.7 — los datos quedan PARA SIEMPRE en
+/* Pruebas del servidor WordRed 3.8 — los datos quedan PARA SIEMPRE en
    MongoDB (y el respaldo JSON sigue funcionando sin MONGODB_URI).
    Se arranca el servidor de verdad como proceso hijo (node server.js)
    contra un MongoDB en memoria (mongodb-memory-server) y se comprueba
@@ -128,7 +128,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   /* ---- modo MongoDB ---- */
   let proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   let health = await waitHealth(PORT);
-  check('3.7 MongoDB: /api/health dice version 3.7', !!(health && health.version === '3.7'), health);
+  check('3.8 MongoDB: /api/health dice version 3.8', !!(health && health.version === '3.8'), health);
   check('3.6 MongoDB: /api/health dice storage mongodb y mongo true', !!(health && health.storage === 'mongodb' && health.mongo === true), health);
 
   /* ---- actualización de la app (v3.5): GET /api/app/latest y
@@ -349,6 +349,507 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const gmDelAgain = await api(PORT, 'DELETE', '/api/group-chats/gchat-vivo33/messages/' + gmV1Id, null, regA.token);
   check('3.4 MongoDB: borrar el mismo mensaje otra vez es 404 (ya está borrado)', gmDelAgain.status === 404, gmDelAgain);
 
+  /* ================= 3.8 =================
+     Visitas a historias, duetos, vistas reales, encuestas, retos,
+     reacciones, verificación, comentarios con medio y menciones,
+     cercanos, silenciados, deseos, cupones, salas de audio, torneos,
+     mensajes temporales, regalos e invitados en lives, lugar, encuesta
+     con foto, enlace y fondo en historias, nota/canción/portada/video/
+     marco/filtro en el perfil, grupos secretos, stickers, ubicación en
+     vivo, invitación de juego, reacciones a mensajes y compartidos. */
+
+  /* A y B se hacen amigos (hace falta para cercanos y menciones). */
+  const frReqAB = await api(PORT, 'POST', '/api/friends/request', { to: PHONE_B }, regA.token);
+  const frReqId = frReqAB.json && frReqAB.json.request && frReqAB.json.request.id;
+  check('3.8 MongoDB: A envía solicitud de amistad a B', !!(frReqAB.json && frReqAB.json.ok && frReqId), frReqAB);
+  const frAccAB = await api(PORT, 'POST', '/api/friends/respond', { requestId: frReqId, accept: true }, regB.token);
+  check('3.8 MongoDB: B acepta y ya son amigos', !!(frAccAB.json && frAccAB.json.ok), frAccAB);
+  const frReqBC = await api(PORT, 'POST', '/api/friends/request', { to: PHONE_C }, regB.token);
+  const frReqBCId = frReqBC.json && frReqBC.json.request && frReqBC.json.request.id;
+  const frAccBC = await api(PORT, 'POST', '/api/friends/respond', { requestId: frReqBCId, accept: true }, regC.token);
+  check('3.8 MongoDB: B y C también se hacen amigos', !!(frAccBC.json && frAccBC.json.ok), frAccBC);
+
+  /* ---- verificación (v3.8, idea 10): estado antes de cumplir ----
+     B tiene el teléfono verificado (código), pero le faltan perfil
+     completo, antigüedad y publicaciones. */
+  const verStatusB = await api(PORT, 'GET', '/api/verification/status', null, regB.token);
+  const verMissingB = (verStatusB.json && verStatusB.json.missing || []).map(m => m.key);
+  check('3.8 MongoDB: el estado de verificación de B dice que NO está verificado y qué le falta (perfil, antigüedad, publicaciones; no teléfono)', !!(verStatusB.json && verStatusB.json.ok && verStatusB.json.verified === false && verMissingB.includes('perfil') && verMissingB.includes('antiguedad') && verMissingB.includes('publicaciones') && !verMissingB.includes('telefono')), verStatusB.json);
+  const verReqB = await api(PORT, 'POST', '/api/verification/request', {}, regB.token);
+  check('3.8 MongoDB: pedir la verificación sin cumplir devuelve ok:false con lo que falta (no finge la concesión)', !!(verReqB.json && verReqB.json.ok === false && verReqB.json.verified === false && Array.isArray(verReqB.json.missing) && verReqB.json.missing.length === 3), verReqB.json);
+  const verNoAuth = await api(PORT, 'GET', '/api/verification/status', null, null);
+  check('3.8 MongoDB: el estado de verificación sin sesión da 401', verNoAuth.status === 401, verNoAuth);
+
+  /* ---- visitas a historias (v3.8, idea 1) ---- */
+  const svNoAuth = await api(PORT, 'POST', '/api/story-views', { storyId }, null);
+  check('3.8 MongoDB: registrar una visita a una historia sin sesión da 401', svNoAuth.status === 401, svNoAuth);
+  const svGhost = await api(PORT, 'POST', '/api/story-views', { storyId: 'story-que-no-existe' }, regB.token);
+  check('3.8 MongoDB: registrar una visita a una historia que no existe da 404', svGhost.status === 404, svGhost);
+  const svB = await api(PORT, 'POST', '/api/story-views', { storyId }, regB.token);
+  check('3.8 MongoDB: B ve la historia de A (visita registrada)', !!(svB.json && svB.json.ok && svB.json.recorded === true && svB.json.count === 1), svB.json);
+  const svBAgain = await api(PORT, 'POST', '/api/story-views', { storyId }, regB.token);
+  check('3.8 MongoDB: B vuelve a ver la historia y la cantidad sigue en 1 (no se duplica)', !!(svBAgain.json && svBAgain.json.ok && svBAgain.json.recorded === true && svBAgain.json.count === 1), svBAgain.json);
+  const svSelf = await api(PORT, 'POST', '/api/story-views', { storyId }, regA.token);
+  check('3.8 MongoDB: ver tu propia historia NO se registra (recorded false)', !!(svSelf.json && svSelf.json.ok && svSelf.json.recorded === false && svSelf.json.count === 1), svSelf.json);
+  const svListA = await api(PORT, 'GET', '/api/story-views/' + storyId, null, regA.token);
+  check('3.8 MongoDB: A lee quién vio su historia (cantidad 1, visitante B con su nombre)', !!(svListA.json && svListA.json.ok && svListA.json.count === 1 && svListA.json.viewers.length === 1 && svListA.json.viewers[0].phone === PHONE_B && svListA.json.viewers[0].name === 'Beto (prueba)'), svListA.json);
+  const svListB = await api(PORT, 'GET', '/api/story-views/' + storyId, null, regB.token);
+  check('3.8 MongoDB: B no puede ver quién vio la historia de A (403, solo el autor)', svListB.status === 403, svListB);
+  const svInMongo = await waitMongoValue(uri, 'storyViews', v => v && v[storyId] && v[storyId].length === 1 && v[storyId][0].viewer === PHONE_B);
+  check('3.8 MongoDB: la visita está guardada en la colección storyViews de MongoDB', !!svInMongo);
+
+  /* ---- vistas reales y estadísticas (v3.8, idea 4) ---- */
+  const pvNoAuth = await api(PORT, 'POST', '/api/posts/' + postId + '/view', {}, null);
+  check('3.8 MongoDB: registrar una vista sin sesión da 401', pvNoAuth.status === 401, pvNoAuth);
+  const pvB = await api(PORT, 'POST', '/api/posts/' + postId + '/view', {}, regB.token);
+  check('3.8 MongoDB: B ve la publicación de A (vista registrada)', !!(pvB.json && pvB.json.ok && pvB.json.recorded === true && pvB.json.count === 1), pvB.json);
+  const pvBAgain = await api(PORT, 'POST', '/api/posts/' + postId + '/view', {}, regB.token);
+  check('3.8 MongoDB: B vuelve a verla y la cantidad sigue en 1 (no se infla)', !!(pvBAgain.json && pvBAgain.json.ok && pvBAgain.json.recorded === true && pvBAgain.json.count === 1), pvBAgain.json);
+  const pvSelf = await api(PORT, 'POST', '/api/posts/' + postId + '/view', {}, regA.token);
+  check('3.8 MongoDB: ver tu propia publicación NO cuenta (recorded false)', !!(pvSelf.json && pvSelf.json.ok && pvSelf.json.recorded === false && pvSelf.json.count === 1), pvSelf.json);
+  const statsA = await api(PORT, 'GET', '/api/posts/' + postId + '/stats', null, regA.token);
+  check('3.8 MongoDB: A lee sus estadísticas (1 vista, 0 me gusta, 0 comentarios, 0 compartidas)', !!(statsA.json && statsA.json.ok && statsA.json.views === 1 && statsA.json.likes === 0 && statsA.json.comments === 0 && statsA.json.shares === 0), statsA.json);
+  const statsB = await api(PORT, 'GET', '/api/posts/' + postId + '/stats', null, regB.token);
+  check('3.8 MongoDB: B no puede ver las estadísticas de A (403, solo el autor)', statsB.status === 403, statsB);
+  const pvInMongo = await waitMongoValue(uri, 'postViews', v => v && v[postId] && v[postId].length === 1 && v[postId][0].viewer === PHONE_B);
+  check('3.8 MongoDB: la vista está guardada en la colección postViews de MongoDB', !!pvInMongo);
+
+  /* ---- dueto (v3.8, idea 3): duetOf solo se conserva si existe ---- */
+  const duetRes = await api(PORT, 'POST', '/api/posts', { text: 'Mi dueto', media: 'https://ejemplo.com/dueto.mp4', mediaType: 'video', duetOf: { postId, author: PHONE_A } }, regB.token);
+  const duetPostId = duetRes.json && duetRes.json.post && duetRes.json.post.id;
+  check('3.8 MongoDB: B publica un dueto del post de A (duetOf conservado con id y autor)', !!(duetRes.json && duetRes.json.ok && duetRes.json.post.duetOf && duetRes.json.post.duetOf.postId === postId && duetRes.json.post.duetOf.author === PHONE_A), duetRes.json && duetRes.json.post);
+  const duetGhost = await api(PORT, 'POST', '/api/posts', { text: 'Dueto fantasma', duetOf: { postId: 'post-que-no-existe', author: PHONE_A } }, regB.token);
+  check('3.8 MongoDB: un dueto de un post que no existe se guarda SIN vínculo (nunca se inventa el original)', !!(duetGhost.json && duetGhost.json.ok && duetGhost.json.post.duetOf === null), duetGhost.json && duetGhost.json.post);
+
+  /* ---- encuesta en historias (v3.8, idea 7) ---- */
+  const pollStoryRes = await api(PORT, 'POST', '/api/stories', { story: { text: 'Encuesta de prueba', poll: { question: '¿Rojo o azul?', options: ['Rojo', 'Azul'] } } }, regA.token);
+  const pollStoryId = pollStoryRes.json && pollStoryRes.json.story && pollStoryRes.json.story.id;
+  check('3.8 MongoDB: A publica una historia con encuesta (pregunta + 2 opciones)', !!(pollStoryRes.json && pollStoryRes.json.ok && pollStoryRes.json.story.poll && pollStoryRes.json.story.poll.question === '¿Rojo o azul?' && pollStoryRes.json.story.poll.options.length === 2), pollStoryRes.json && pollStoryRes.json.story);
+  const pollBad = await api(PORT, 'POST', '/api/stories', { story: { text: 'Encuesta mala', poll: { question: '¿Solo una?', options: ['Solo una'] } } }, regA.token);
+  check('3.8 MongoDB: una encuesta con una sola opción NO se guarda (poll null)', !!(pollBad.json && pollBad.json.ok && pollBad.json.story.poll === null), pollBad.json && pollBad.json.story);
+  const pvNoAuth2 = await api(PORT, 'POST', '/api/stories/' + pollStoryId + '/poll-vote', { option: 0 }, null);
+  check('3.8 MongoDB: votar en una encuesta sin sesión da 401', pvNoAuth2.status === 401, pvNoAuth2);
+  const pvGhost = await api(PORT, 'POST', '/api/stories/story-que-no-existe/poll-vote', { option: 0 }, regB.token);
+  check('3.8 MongoDB: votar en una historia que no existe da 404', pvGhost.status === 404, pvGhost);
+  const pvSelfPoll = await api(PORT, 'POST', '/api/stories/' + pollStoryId + '/poll-vote', { option: 0 }, regA.token);
+  check('3.8 MongoDB: votar en tu propia historia da 400', pvSelfPoll.status === 400, pvSelfPoll);
+  const pvBadOpt = await api(PORT, 'POST', '/api/stories/' + pollStoryId + '/poll-vote', { option: 5 }, regB.token);
+  check('3.8 MongoDB: votar con una opción inválida da 400', pvBadOpt.status === 400, pvBadOpt);
+  const pvB0 = await api(PORT, 'POST', '/api/stories/' + pollStoryId + '/poll-vote', { option: 0 }, regB.token);
+  check('3.8 MongoDB: B vota la opción 0 (conteos [1,0])', !!(pvB0.json && pvB0.json.ok && pvB0.json.poll.options[0].votes === 1 && pvB0.json.poll.options[1].votes === 0), pvB0.json && pvB0.json.poll);
+  const pvB1 = await api(PORT, 'POST', '/api/stories/' + pollStoryId + '/poll-vote', { option: 1 }, regB.token);
+  check('3.8 MongoDB: B cambia su voto a la opción 1 (conteos [0,1], no se duplica)', !!(pvB1.json && pvB1.json.ok && pvB1.json.poll.options[0].votes === 0 && pvB1.json.poll.options[1].votes === 1), pvB1.json && pvB1.json.poll);
+  const storiesAsB = await api(PORT, 'GET', '/api/stories', null, regB.token);
+  const pollAsB = storiesAsB.json && storiesAsB.json.stories.find(s => s.id === pollStoryId);
+  check('3.8 MongoDB: quien ya votó ve los conteos y su voto (myVote 1)', !!(pollAsB && pollAsB.poll && pollAsB.poll.options[1].votes === 1 && pollAsB.poll.myVote === 1), pollAsB && pollAsB.poll);
+  const storiesAsC = await api(PORT, 'GET', '/api/stories', null, regC.token);
+  const pollAsC = storiesAsC.json && storiesAsC.json.stories.find(s => s.id === pollStoryId);
+  check('3.8 MongoDB: quien NO ha votado solo ve la pregunta y las opciones (sin votos)', !!(pollAsC && pollAsC.poll && pollAsC.poll.question === '¿Rojo o azul?' && pollAsC.poll.options[0].votes === undefined && pollAsC.poll.myVote === undefined), pollAsC && pollAsC.poll);
+  const storiesAsA = await api(PORT, 'GET', '/api/stories', null, regA.token);
+  const pollAsA = storiesAsA.json && storiesAsA.json.stories.find(s => s.id === pollStoryId);
+  check('3.8 MongoDB: el autor ve los votos Y quién votó qué (B, opción 1)', !!(pollAsA && pollAsA.poll && pollAsA.poll.voters && pollAsA.poll.voters.length === 1 && pollAsA.poll.voters[0].phone === PHONE_B && pollAsA.poll.voters[0].option === 1 && pollAsA.poll.voters[0].name === 'Beto (prueba)'), pollAsA && pollAsA.poll);
+  const pollInMongo = await waitMongoValue(uri, 'storyPollVotes', v => v && v[pollStoryId] && v[pollStoryId].length === 1 && v[pollStoryId][0].voter === PHONE_B && v[pollStoryId][0].option === 1);
+  check('3.8 MongoDB: el voto está guardado en la colección storyPollVotes de MongoDB', !!pollInMongo);
+
+  /* ---- reacciones rápidas a historias (v3.8, idea 9) ---- */
+  const reactSelf = await api(PORT, 'POST', '/api/stories/' + storyId + '/react', { emoji: '❤️' }, regA.token);
+  check('3.8 MongoDB: reaccionar a tu propia historia da 400', reactSelf.status === 400, reactSelf);
+  const reactBad = await api(PORT, 'POST', '/api/stories/' + storyId + '/react', { emoji: '' }, regB.token);
+  check('3.8 MongoDB: reaccionar sin emoji da 400', reactBad.status === 400, reactBad);
+  const reactB = await api(PORT, 'POST', '/api/stories/' + storyId + '/react', { emoji: '❤️' }, regB.token);
+  check('3.8 MongoDB: B reacciona ❤️ a la historia de A', !!(reactB.json && reactB.json.ok && reactB.json.reaction && reactB.json.reaction.emoji === '❤️'), reactB.json);
+  const reactB2 = await api(PORT, 'POST', '/api/stories/' + storyId + '/react', { emoji: '😂' }, regB.token);
+  check('3.8 MongoDB: B cambia su reacción a 😂 (se puede cambiar)', !!(reactB2.json && reactB2.json.ok && reactB2.json.reaction.emoji === '😂'), reactB2.json);
+  const reactListA = await api(PORT, 'GET', '/api/stories/' + storyId + '/reactions', null, regA.token);
+  check('3.8 MongoDB: A lee las reacciones (cantidad 1, 😂:1, B con 😂)', !!(reactListA.json && reactListA.json.ok && reactListA.json.count === 1 && reactListA.json.byEmoji['😂'] === 1 && reactListA.json.reactions[0].phone === PHONE_B && reactListA.json.reactions[0].emoji === '😂'), reactListA.json);
+  const reactListB = await api(PORT, 'GET', '/api/stories/' + storyId + '/reactions', null, regB.token);
+  check('3.8 MongoDB: B no puede ver las reacciones de la historia de A (403, solo el autor)', reactListB.status === 403, reactListB);
+  const storiesAsB2 = await api(PORT, 'GET', '/api/stories', null, regB.token);
+  const storyAsB = storiesAsB2.json && storiesAsB2.json.stories.find(s => s.id === storyId);
+  check('3.8 MongoDB: quien ve la historia ve su propia reacción marcada (myReaction 😂)', !!(storyAsB && storyAsB.myReaction === '😂'), storyAsB);
+  const reactInMongo = await waitMongoValue(uri, 'storyReactions', v => v && v[storyId] && v[storyId].length === 1 && v[storyId][0].viewer === PHONE_B && v[storyId][0].emoji === '😂');
+  check('3.8 MongoDB: la reacción está guardada en la colección storyReactions de MongoDB', !!reactInMongo);
+
+  /* ---- amigos cercanos (v3.8, idea 13) ---- */
+  const cfGhost = await api(PORT, 'POST', '/api/close-friends', { friendPhone: '529999999999' }, regA.token);
+  check('3.8 MongoDB: añadir a cercanos a alguien que no existe da 404', cfGhost.status === 404, cfGhost);
+  const cfNotFriend = await api(PORT, 'POST', '/api/close-friends', { friendPhone: PHONE_D }, regA.token);
+  check('3.8 MongoDB: añadir a cercanos a alguien que NO es tu amigo da 404', cfNotFriend.status === 404, cfNotFriend);
+  const cfAdd = await api(PORT, 'POST', '/api/close-friends', { friendPhone: PHONE_B }, regA.token);
+  check('3.8 MongoDB: A añade a B a sus cercanos', !!(cfAdd.json && cfAdd.json.ok && cfAdd.json.closeFriends.some(f => f.phone === PHONE_B)), cfAdd.json);
+  const cfAddAgain = await api(PORT, 'POST', '/api/close-friends', { friendPhone: PHONE_B }, regA.token);
+  check('3.8 MongoDB: añadir dos veces al mismo cercano no duplica', !!(cfAddAgain.json && cfAddAgain.json.ok && cfAddAgain.json.closeFriends.filter(f => f.phone === PHONE_B).length === 1), cfAddAgain.json);
+  const closeStoryRes = await api(PORT, 'POST', '/api/stories', { story: { text: 'Historia solo para cercanos', audience: 'close' } }, regA.token);
+  const closeStoryId = closeStoryRes.json && closeStoryRes.json.story && closeStoryRes.json.story.id;
+  check('3.8 MongoDB: A publica una historia solo para cercanos (audience close)', !!(closeStoryRes.json && closeStoryRes.json.ok && closeStoryRes.json.story.audience === 'close'), closeStoryRes.json && closeStoryRes.json.story);
+  const storiesCloseB = await api(PORT, 'GET', '/api/stories', null, regB.token);
+  check('3.8 MongoDB: B (cercano) SÍ ve la historia de cercanos de A', !!(storiesCloseB.json && storiesCloseB.json.stories.some(s => s.id === closeStoryId)), storiesCloseB.json && storiesCloseB.json.stories.length);
+  const storiesCloseC = await api(PORT, 'GET', '/api/stories', null, regC.token);
+  check('3.8 MongoDB: C (no cercano) NO ve la historia de cercanos de A (ni en la lista)', !!(storiesCloseC.json && storiesCloseC.json.ok && !storiesCloseC.json.stories.some(s => s.id === closeStoryId)), storiesCloseC.json && storiesCloseC.json.stories.length);
+  const storiesCloseGuest = await api(PORT, 'GET', '/api/stories');
+  check('3.8 MongoDB: un invitado NO ve la historia de cercanos', !!(storiesCloseGuest.json && storiesCloseGuest.json.ok && !storiesCloseGuest.json.stories.some(s => s.id === closeStoryId)), storiesCloseGuest.json && storiesCloseGuest.json.stories.length);
+  const svCloseC = await api(PORT, 'POST', '/api/story-views', { storyId: closeStoryId }, regC.token);
+  check('3.8 MongoDB: C tampoco puede registrar visita en la historia de cercanos (404, como si no existiera)', svCloseC.status === 404, svCloseC);
+  const cfDel = await api(PORT, 'DELETE', '/api/close-friends/' + PHONE_B, null, regA.token);
+  check('3.8 MongoDB: A quita a B de sus cercanos', !!(cfDel.json && cfDel.json.ok && !cfDel.json.closeFriends.some(f => f.phone === PHONE_B)), cfDel.json);
+  const storiesCloseB2 = await api(PORT, 'GET', '/api/stories', null, regB.token);
+  check('3.8 MongoDB: al salir de cercanos, B ya NO ve la historia', !!(storiesCloseB2.json && storiesCloseB2.json.ok && !storiesCloseB2.json.stories.some(s => s.id === closeStoryId)), storiesCloseB2.json && storiesCloseB2.json.stories.length);
+  const cfReAdd = await api(PORT, 'POST', '/api/close-friends', { friendPhone: PHONE_B }, regA.token);
+  check('3.8 MongoDB: A vuelve a añadir a B a sus cercanos (para que sobreviva al reinicio)', !!(cfReAdd.json && cfReAdd.json.ok && cfReAdd.json.closeFriends.some(f => f.phone === PHONE_B)), cfReAdd.json);
+  const cfInMongo = await waitMongoValue(uri, 'closeFriends', v => v && v[PHONE_A] && v[PHONE_A].includes(PHONE_B));
+  check('3.8 MongoDB: la lista de cercanos está guardada en la colección closeFriends de MongoDB', !!cfInMongo);
+
+  /* ---- retos de Shorts (v3.8, idea 8) ---- */
+  const chPost1 = await api(PORT, 'POST', '/api/posts', { text: 'Mi baile', media: 'https://ejemplo.com/baile.mp4', mediaType: 'video', challenge: 'BaileChallenge' }, regB.token);
+  check('3.8 MongoDB: B publica un Short con reto (se guarda como #BaileChallenge)', !!(chPost1.json && chPost1.json.ok && chPost1.json.post.challenge === '#BaileChallenge'), chPost1.json && chPost1.json.post);
+  const chPost2 = await api(PORT, 'POST', '/api/posts', { text: 'Otro baile', media: 'https://ejemplo.com/baile2.mp4', mediaType: 'video', challenge: '#BaileChallenge' }, regA.token);
+  check('3.8 MongoDB: A publica otro Short en el mismo reto', !!(chPost2.json && chPost2.json.ok && chPost2.json.post.challenge === '#BaileChallenge'), chPost2.json && chPost2.json.post);
+  const chList = await api(PORT, 'GET', '/api/challenges', null, regA.token);
+  const chBaile = chList.json && chList.json.challenges.find(c => c.tag === '#BaileChallenge');
+  check('3.8 MongoDB: GET /api/challenges trae el reto con su conteo real (2 Shorts) y los recientes', !!(chList.json && chList.json.ok && chBaile && chBaile.count === 2 && chBaile.recent.length === 2), chList.json);
+  const chNoAuth = await api(PORT, 'GET', '/api/challenges', null, null);
+  check('3.8 MongoDB: listar retos sin sesión da 401', chNoAuth.status === 401, chNoAuth);
+
+  /* ---- comentarios con foto/video y menciones (v3.8, ideas 11 y 24) ---- */
+  const cmtBadMedia = await api(PORT, 'POST', '/api/posts/' + postId + '/comment', { text: 'Con medio malo', media: 'nota-url' }, regB.token);
+  check('3.8 MongoDB: comentar con un medio que no es URL válida da 400', cmtBadMedia.status === 400, cmtBadMedia);
+  const cmtMedia = await api(PORT, 'POST', '/api/posts/' + postId + '/comment', { text: 'Mira esta foto', media: 'https://ejemplo.com/foto.jpg', mentions: [PHONE_C] }, regB.token);
+  check('3.8 MongoDB: B comenta con foto y menciona a C (amigo de B): el comentario guarda medio + mención con nombre', !!(cmtMedia.json && cmtMedia.json.ok && cmtMedia.json.comment.media === 'https://ejemplo.com/foto.jpg' && cmtMedia.json.comment.mediaType === 'image' && cmtMedia.json.comment.mentions.length === 1 && cmtMedia.json.comment.mentions[0].phone === PHONE_C && cmtMedia.json.comment.mentions[0].name === 'Celia (prueba)'), cmtMedia.json && cmtMedia.json.comment);
+  const notifC = await api(PORT, 'GET', '/api/notifications?phone=' + PHONE_C);
+  check('3.8 MongoDB: C recibe el aviso "te mencionó en un comentario" en la campana', !!(notifC.json && notifC.json.ok && notifC.json.notifications.some(n => n.type === 'mention' && n.from === PHONE_B)), notifC.json && notifC.json.notifications.length);
+  const cmtNonFriend = await api(PORT, 'POST', '/api/posts/' + postId + '/comment', { text: 'Mención a no-amigo', mentions: [PHONE_D] }, regB.token);
+  check('3.8 MongoDB: mencionar a alguien que NO es amigo se descarta en silencio (mentions vacío)', !!(cmtNonFriend.json && cmtNonFriend.json.ok && cmtNonFriend.json.comment.mentions.length === 0), cmtNonFriend.json && cmtNonFriend.json.comment);
+  const cmtOnlyMedia = await api(PORT, 'POST', '/api/posts/' + postId + '/comment', { media: 'https://ejemplo.com/video.mp4', mediaType: 'video' }, regB.token);
+  check('3.8 MongoDB: comentar solo con video (sin texto) funciona', !!(cmtOnlyMedia.json && cmtOnlyMedia.json.ok && cmtOnlyMedia.json.comment.mediaType === 'video' && cmtOnlyMedia.json.comment.text === ''), cmtOnlyMedia.json && cmtOnlyMedia.json.comment);
+  const cmtPlural = await api(PORT, 'POST', '/api/posts/' + postId + '/comments', { text: 'Por la ruta en plural' }, regB.token);
+  check('3.8 MongoDB: la ruta en plural /api/posts/:id/comments también funciona', !!(cmtPlural.json && cmtPlural.json.ok), cmtPlural.json);
+  const cmtEmpty = await api(PORT, 'POST', '/api/posts/' + postId + '/comment', { text: '   ' }, regB.token);
+  check('3.8 MongoDB: comentar sin texto ni medio sigue dando 400', cmtEmpty.status === 400, cmtEmpty);
+
+  /* ---- silenciados (v3.8, idea 31) ---- */
+  const mutSelf = await api(PORT, 'POST', '/api/muted', { phone: PHONE_A }, regA.token);
+  check('3.8 MongoDB: silenciarte a ti mismo da 400', mutSelf.status === 400, mutSelf);
+  const mutGhost = await api(PORT, 'POST', '/api/muted', { phone: '529999999999' }, regA.token);
+  check('3.8 MongoDB: silenciar a una cuenta que no existe da 404', mutGhost.status === 404, mutGhost);
+  const notifA0 = await api(PORT, 'GET', '/api/notifications?phone=' + PHONE_A);
+  const notifA0Count = (notifA0.json && notifA0.json.notifications || []).length;
+  const mutAdd = await api(PORT, 'POST', '/api/muted', { phone: PHONE_B }, regA.token);
+  check('3.8 MongoDB: A silencia a B (solo apaga sus avisos)', !!(mutAdd.json && mutAdd.json.ok && mutAdd.json.muted.some(m => m.phone === PHONE_B)), mutAdd.json);
+  const cmtMuted = await api(PORT, 'POST', '/api/posts/' + postId + '/comment', { text: 'Comentario con A silenciando a B' }, regB.token);
+  check('3.8 MongoDB: B comenta mientras está silenciado (el comentario sí se publica)', !!(cmtMuted.json && cmtMuted.json.ok), cmtMuted.json);
+  const notifA1 = await api(PORT, 'GET', '/api/notifications?phone=' + PHONE_A);
+  check('3.8 MongoDB: con B silenciado, a A NO le llega el aviso del comentario (misma cantidad)', !!((notifA1.json && notifA1.json.notifications || []).length === notifA0Count), (notifA1.json && notifA1.json.notifications || []).length);
+  const feedMuted = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_A);
+  check('3.8 MongoDB: silenciar NO oculta las publicaciones de B en el inicio (siguen viéndose)', !!(feedMuted.json && feedMuted.json.ok && feedMuted.json.posts.some(p => p.author === PHONE_B)), feedMuted.json && feedMuted.json.posts.length);
+  const mutDel = await api(PORT, 'DELETE', '/api/muted/' + PHONE_B, null, regA.token);
+  check('3.8 MongoDB: A quita el silencio a B', !!(mutDel.json && mutDel.json.ok && !mutDel.json.muted.some(m => m.phone === PHONE_B)), mutDel.json);
+  const cmtUnmuted = await api(PORT, 'POST', '/api/posts/' + postId + '/comment', { text: 'Comentario con B ya sin silencio' }, regB.token);
+  check('3.8 MongoDB: B vuelve a comentar tras quitar el silencio', !!(cmtUnmuted.json && cmtUnmuted.json.ok), cmtUnmuted.json);
+  const notifA2 = await api(PORT, 'GET', '/api/notifications?phone=' + PHONE_A);
+  check('3.8 MongoDB: sin silencio, el aviso del comentario SÍ llega a A', !!((notifA2.json && notifA2.json.notifications || []).length === notifA0Count + 1), (notifA2.json && notifA2.json.notifications || []).length);
+  const mutInMongo = await waitMongoValue(uri, 'muted', v => v && v[PHONE_A] && v[PHONE_A].length === 0);
+  check('3.8 MongoDB: la lista de silenciados está guardada en la colección muted de MongoDB', !!mutInMongo);
+
+  /* ---- lista de deseos y cupones (v3.8, ideas 21 y 34) ---- */
+  const listingRes = await api(PORT, 'POST', '/api/listings', { title: 'Bicicleta de prueba', price: 1000, category: 'Deportes', condition: 'Usado' }, regA.token);
+  const listingId = listingRes.json && listingRes.json.listing && listingRes.json.listing.id;
+  check('3.8 MongoDB: A publica un anuncio (precio 1000)', !!(listingRes.json && listingRes.json.ok && listingId), listingRes);
+  const wishGhost = await api(PORT, 'POST', '/api/wishlist', { listingId: 'lst-que-no-existe' }, regB.token);
+  check('3.8 MongoDB: desear un anuncio que no existe da 404', wishGhost.status === 404, wishGhost);
+  const wishAdd = await api(PORT, 'POST', '/api/wishlist', { listingId }, regB.token);
+  check('3.8 MongoDB: B guarda el anuncio en su lista de deseos', !!(wishAdd.json && wishAdd.json.ok && wishAdd.json.wishlist.some(l => l.id === listingId)), wishAdd.json);
+  const wishGet = await api(PORT, 'GET', '/api/wishlist', null, regB.token);
+  check('3.8 MongoDB: B lee su lista de deseos (el anuncio con su precio real)', !!(wishGet.json && wishGet.json.ok && wishGet.json.wishlist.length === 1 && wishGet.json.wishlist[0].price === 1000), wishGet.json);
+  const couponBadPct = await api(PORT, 'POST', '/api/coupons', { code: 'MALO', discountPct: 0, expiresAt: Date.now() + 86400000 }, regA.token);
+  check('3.8 MongoDB: crear un cupón con 0% da 400', couponBadPct.status === 400, couponBadPct);
+  const couponOther = await api(PORT, 'POST', '/api/coupons', { code: 'OTRO10', discountPct: 10, listingId: 'lst-que-no-existe', expiresAt: Date.now() + 86400000 }, regA.token);
+  check('3.8 MongoDB: crear un cupón sobre un anuncio que no existe da 404', couponOther.status === 404, couponOther);
+  const couponRes = await api(PORT, 'POST', '/api/coupons', { code: 'prueba10', discountPct: 10, listingId, expiresAt: Date.now() + 86400000 }, regA.token);
+  check('3.8 MongoDB: A crea un cupón PRUEBA10 de 10% para su anuncio (código normalizado a mayúsculas)', !!(couponRes.json && couponRes.json.ok && couponRes.json.coupon.code === 'PRUEBA10' && couponRes.json.coupon.discountPct === 10), couponRes.json);
+  const couponDup = await api(PORT, 'POST', '/api/coupons', { code: 'PRUEBA10', discountPct: 20, expiresAt: Date.now() + 86400000 }, regA.token);
+  check('3.8 MongoDB: crear dos veces el mismo código en tu tienda da 400', couponDup.status === 400, couponDup);
+  const couponList = await api(PORT, 'GET', '/api/coupons?seller=' + PHONE_A, null, regB.token);
+  check('3.8 MongoDB: B ve los cupones de la tienda de A', !!(couponList.json && couponList.json.ok && couponList.json.coupons.some(c => c.code === 'PRUEBA10')), couponList.json);
+  const couponApply = await api(PORT, 'POST', '/api/coupons/PRUEBA10/apply', { listingId }, regB.token);
+  check('3.8 MongoDB: aplicar PRUEBA10 al anuncio de 1000 devuelve el precio real con descuento (900)', !!(couponApply.json && couponApply.json.ok && couponApply.json.originalPrice === 1000 && couponApply.json.finalPrice === 900 && couponApply.json.discountPct === 10), couponApply.json);
+  const couponApplyBad = await api(PORT, 'POST', '/api/coupons/NOEXISTE/apply', { listingId }, regB.token);
+  check('3.8 MongoDB: aplicar un cupón que no existe da 404', couponApplyBad.status === 404, couponApplyBad);
+  const couponShort = await api(PORT, 'POST', '/api/coupons', { code: 'CORTO1', discountPct: 20, expiresAt: Date.now() + 1200 }, regA.token);
+  check('3.8 MongoDB: A crea un cupón que vence en ~1 segundo', !!(couponShort.json && couponShort.json.ok), couponShort.json);
+  await sleep(1600);
+  const couponExpired = await api(PORT, 'POST', '/api/coupons/CORTO1/apply', { listingId }, regB.token);
+  check('3.8 MongoDB: aplicar un cupón vencido da 400', couponExpired.status === 400, couponExpired);
+  const wishDelListing = await api(PORT, 'DELETE', '/api/listings/' + listingId, null, regA.token);
+  check('3.8 MongoDB: A borra su anuncio', !!(wishDelListing.json && wishDelListing.json.ok), wishDelListing);
+  const wishGetAfter = await api(PORT, 'GET', '/api/wishlist', null, regB.token);
+  check('3.8 MongoDB: al borrarse el anuncio, el deseo desaparece de la lista (nunca un producto falso)', !!(wishGetAfter.json && wishGetAfter.json.ok && wishGetAfter.json.wishlist.length === 0), wishGetAfter.json);
+  const couponInMongo = await waitMongoValue(uri, 'coupons', v => Array.isArray(v) && v.some(c => c.code === 'PRUEBA10' && c.seller === PHONE_A));
+  check('3.8 MongoDB: el cupón está guardado en la colección coupons de MongoDB', !!couponInMongo);
+
+  /* ---- salas de audio en vivo (v3.8, idea 19) ---- */
+  const roomBad = await api(PORT, 'POST', '/api/audio-rooms', { title: '   ' }, regA.token);
+  check('3.8 MongoDB: crear una sala sin título da 400', roomBad.status === 400, roomBad);
+  const roomRes = await api(PORT, 'POST', '/api/audio-rooms', { title: 'Charla de prueba', topic: 'Música' }, regA.token);
+  const roomId = roomRes.json && roomRes.json.room && roomRes.json.room.id;
+  check('3.8 MongoDB: A crea una sala de audio (él es el primer participante)', !!(roomRes.json && roomRes.json.ok && roomRes.json.room.participants.length === 1 && roomRes.json.room.participants[0].phone === PHONE_A), roomRes.json && roomRes.json.room);
+  const roomJoinGhost = await api(PORT, 'POST', '/api/audio-rooms/sala-que-no-existe/join', {}, regB.token);
+  check('3.8 MongoDB: entrar a una sala que no existe da 404', roomJoinGhost.status === 404, roomJoinGhost);
+  const roomJoinB = await api(PORT, 'POST', '/api/audio-rooms/' + roomId + '/join', { muted: false }, regB.token);
+  check('3.8 MongoDB: B entra a la sala (2 participantes)', !!(roomJoinB.json && roomJoinB.json.ok && roomJoinB.json.room.participants.length === 2), roomJoinB.json && roomJoinB.json.room);
+  /* ---- señalización WebRTC de la sala (v3.8, idea 19): sin este
+     endpoint el audio entre teléfonos no se conecta ---- */
+  const sigNoAuth = await api(PORT, 'POST', '/api/audio-rooms/' + roomId + '/signal', { to: PHONE_B, type: 'offer', offer: {} }, null);
+  check('3.8 MongoDB: la señal de la sala sin sesión da 401', sigNoAuth.status === 401, sigNoAuth);
+  const sigGhostRoom = await api(PORT, 'POST', '/api/audio-rooms/sala-que-no-existe/signal', { to: PHONE_B, type: 'offer', offer: {} }, regA.token);
+  check('3.8 MongoDB: la señal a una sala que no existe da 404', sigGhostRoom.status === 404, sigGhostRoom);
+  const sigGhostTo = await api(PORT, 'POST', '/api/audio-rooms/' + roomId + '/signal', { to: '529999999999', type: 'offer', offer: {} }, regA.token);
+  check('3.8 MongoDB: la señal a una persona que no existe da 404', sigGhostTo.status === 404, sigGhostTo);
+  const sigOutsider = await api(PORT, 'POST', '/api/audio-rooms/' + roomId + '/signal', { to: PHONE_B, type: 'offer', offer: {} }, regC.token);
+  check('3.8 MongoDB: la señal de alguien que NO está en la sala da 403', sigOutsider.status === 403, sigOutsider);
+  const sigNotInRoom = await api(PORT, 'POST', '/api/audio-rooms/' + roomId + '/signal', { to: PHONE_C, type: 'offer', offer: {} }, regA.token);
+  check('3.8 MongoDB: la señal a alguien que NO está en la sala da 403', sigNotInRoom.status === 403, sigNotInRoom);
+  const sigBadType = await api(PORT, 'POST', '/api/audio-rooms/' + roomId + '/signal', { to: PHONE_B, type: 'saludo', offer: {} }, regA.token);
+  check('3.8 MongoDB: una señal con tipo inválido da 400', sigBadType.status === 400, sigBadType);
+  const sigOffline = await api(PORT, 'POST', '/api/audio-rooms/' + roomId + '/signal', { to: PHONE_B, type: 'offer', offer: { sdp: 'oferta-de-prueba' } }, regA.token);
+  check('3.8 MongoDB: la señal a alguien sin conexión da 404 (no está en línea)', sigOffline.status === 404, sigOffline);
+  const wsRoomB = new WebSocket('ws://127.0.0.1:' + PORT + '/ws?phone=' + PHONE_B);
+  await new Promise((resolve) => { if (wsRoomB.readyState === WebSocket.OPEN) resolve(); else { wsRoomB.on('open', resolve); setTimeout(resolve, 5000); } });
+  const wsRoomSignal = new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 5000);
+    wsRoomB.on('message', (data) => { try { const m = JSON.parse(String(data)); if (m.kind === 'audioRoomSignal') { clearTimeout(timer); resolve(m); } } catch (e) {} });
+  });
+  const sigOffer = await api(PORT, 'POST', '/api/audio-rooms/' + roomId + '/signal', { to: PHONE_B, type: 'offer', offer: { sdp: 'oferta-de-prueba' } }, regA.token);
+  const gotSignal = await wsRoomSignal;
+  check('3.8 MongoDB: la oferta de A llega a B por WebSocket (audioRoomSignal, con la sala y el tipo)', !!(sigOffer.json && sigOffer.json.ok && gotSignal && gotSignal.from === PHONE_A && gotSignal.roomId === roomId && gotSignal.type === 'offer' && gotSignal.offer && gotSignal.offer.sdp === 'oferta-de-prueba'), gotSignal);
+  wsRoomB.close();
+  const roomMuteB = await api(PORT, 'POST', '/api/audio-rooms/' + roomId + '/mute', { muted: true }, regB.token);
+  check('3.8 MongoDB: B se silencia en la sala (micrófono cerrado)', !!(roomMuteB.json && roomMuteB.json.ok && roomMuteB.json.room.participants.find(p => p.phone === PHONE_B).muted === true), roomMuteB.json && roomMuteB.json.room);
+  const roomsList = await api(PORT, 'GET', '/api/audio-rooms', null, regA.token);
+  check('3.8 MongoDB: la sala en vivo aparece con su conteo real (2) y los nombres', !!(roomsList.json && roomsList.json.ok && roomsList.json.rooms.some(r => r.id === roomId && r.count === 2 && r.participants.some(p => p.phone === PHONE_B && p.name === 'Beto (prueba)'))), roomsList.json);
+  const roomDelB = await api(PORT, 'DELETE', '/api/audio-rooms/' + roomId, null, regB.token);
+  check('3.8 MongoDB: B (no creador) no puede cerrar la sala (403)', roomDelB.status === 403, roomDelB);
+  const roomLeaveB = await api(PORT, 'POST', '/api/audio-rooms/' + roomId + '/leave', {}, regB.token);
+  check('3.8 MongoDB: B sale de la sala (queda A solo)', !!(roomLeaveB.json && roomLeaveB.json.ok), roomLeaveB.json);
+  const roomDelA = await api(PORT, 'DELETE', '/api/audio-rooms/' + roomId, null, regA.token);
+  check('3.8 MongoDB: A cierra su sala', !!(roomDelA.json && roomDelA.json.ok), roomDelA.json);
+  const roomsAfter = await api(PORT, 'GET', '/api/audio-rooms', null, regA.token);
+  check('3.8 MongoDB: tras cerrarla, la sala ya no aparece en vivo', !!(roomsAfter.json && roomsAfter.json.ok && !roomsAfter.json.rooms.some(r => r.id === roomId)), roomsAfter.json);
+
+  /* ---- torneos de juegos (v3.8, idea 20) ---- */
+  const tourNoAuth = await api(PORT, 'GET', '/api/tournaments/current', null, null);
+  check('3.8 MongoDB: ver el torneo sin sesión da 401', tourNoAuth.status === 401, tourNoAuth);
+  const tourCur = await api(PORT, 'GET', '/api/tournaments/current', null, regA.token);
+  const tourId = tourCur.json && tourCur.json.tournament && tourCur.json.tournament.id;
+  check('3.8 MongoDB: el torneo actual de la semana existe (juego, lunes-domingo, tabla vacía)', !!(tourCur.json && tourCur.json.ok && tourCur.json.tournament && tourCur.json.tournament.gameId && tourCur.json.tournament.gameName && tourCur.json.tournament.weekKey && tourCur.json.tournament.startsAt < tourCur.json.tournament.endsAt && Array.isArray(tourCur.json.tournament.leaderboard)), tourCur.json && tourCur.json.tournament);
+  const tourBadScore = await api(PORT, 'POST', '/api/tournaments/' + tourId + '/score', { score: -5 }, regA.token);
+  check('3.8 MongoDB: enviar un puntaje negativo da 400', tourBadScore.status === 400, tourBadScore);
+  const tourScore1 = await api(PORT, 'POST', '/api/tournaments/' + tourId + '/score', { score: 100 }, regA.token);
+  check('3.8 MongoDB: A envía 100 (mejor 100, mejoró)', !!(tourScore1.json && tourScore1.json.ok && tourScore1.json.best === 100 && tourScore1.json.improved === true), tourScore1.json);
+  const tourScore2 = await api(PORT, 'POST', '/api/tournaments/' + tourId + '/score', { score: 50 }, regA.token);
+  check('3.8 MongoDB: A envía 50 y su mejor sigue en 100 (no bajó)', !!(tourScore2.json && tourScore2.json.ok && tourScore2.json.best === 100 && tourScore2.json.improved === false), tourScore2.json);
+  const tourScore3 = await api(PORT, 'POST', '/api/tournaments/' + tourId + '/score', { score: 150 }, regA.token);
+  check('3.8 MongoDB: A envía 150 y su mejor sube a 150', !!(tourScore3.json && tourScore3.json.ok && tourScore3.json.best === 150 && tourScore3.json.improved === true), tourScore3.json);
+  const tourScoreB = await api(PORT, 'POST', '/api/tournaments/' + tourId + '/score', { score: 80 }, regB.token);
+  check('3.8 MongoDB: B envía 80 (mejor 80)', !!(tourScoreB.json && tourScoreB.json.ok && tourScoreB.json.best === 80), tourScoreB.json);
+  const tourBoard = await api(PORT, 'GET', '/api/tournaments/current', null, regB.token);
+  const board = tourBoard.json && tourBoard.json.tournament && tourBoard.json.tournament.leaderboard;
+  check('3.8 MongoDB: la tabla de posiciones es real (A 150 primero, B 80 segundo, con rangos)', !!(board && board.length === 2 && board[0].phone === PHONE_A && board[0].score === 150 && board[0].rank === 1 && board[1].phone === PHONE_B && board[1].score === 80 && board[1].rank === 2), board);
+  const tourInMongo = await waitMongoValue(uri, 'tournaments', v => Array.isArray(v) && v.some(t => t.id === tourId && t.scores && t.scores[PHONE_A] === 150 && t.scores[PHONE_B] === 80));
+  check('3.8 MongoDB: el torneo con sus puntajes está guardado en la colección tournaments de MongoDB', !!tourInMongo);
+
+  /* ---- mensajes temporales (v3.8, idea 32) ---- */
+  const dispBad = await api(PORT, 'POST', '/api/conversations/' + PHONE_B + '/disappearing', { hours: 5 }, regA.token);
+  check('3.8 MongoDB: poner mensajes temporales con 5 horas da 400 (solo 24 o 0)', dispBad.status === 400, dispBad);
+  const dispGhost = await api(PORT, 'POST', '/api/conversations/529999999999/disappearing', { hours: 24 }, regA.token);
+  check('3.8 MongoDB: poner mensajes temporales con alguien que no existe da 404', dispGhost.status === 404, dispGhost);
+  const dispOn = await api(PORT, 'POST', '/api/conversations/' + PHONE_B + '/disappearing', { hours: 24 }, regA.token);
+  check('3.8 MongoDB: A activa los mensajes temporales (24 h) con B', !!(dispOn.json && dispOn.json.ok && dispOn.json.disappearingHours === 24), dispOn.json);
+  const oldMsg = await api(PORT, 'POST', '/api/messages', { to: PHONE_B, text: 'Mensaje viejo que debe borrarse', createdAt: Date.now() - 25 * 60 * 60 * 1000 }, regA.token);
+  const oldMsgId = oldMsg.json && oldMsg.json.message && oldMsg.json.message.id;
+  check('3.8 MongoDB: A manda un mensaje con fecha de hace 25 horas', !!(oldMsg.json && oldMsg.json.ok && oldMsgId), oldMsg);
+  const newMsg = await api(PORT, 'POST', '/api/messages', { to: PHONE_B, text: 'Mensaje nuevo que se queda' }, regA.token);
+  const newMsgId = newMsg.json && newMsg.json.message && newMsg.json.message.id;
+  check('3.8 MongoDB: A manda un mensaje nuevo en el mismo chat', !!(newMsg.json && newMsg.json.ok && newMsgId), newMsg);
+  const convsA = await api(PORT, 'GET', '/api/messages?phone=' + PHONE_A);
+  const convAB = (convsA.json && convsA.json.conversations || []).find(c => c.participants.includes(PHONE_B));
+  check('3.8 MongoDB: al leer el chat, el mensaje viejo YA NO está y el nuevo sí (poda real)', !!(convAB && convAB.disappearingHours === 24 && convAB.messages.some(m => m.id === newMsgId) && !convAB.messages.some(m => m.id === oldMsgId)), convAB && convAB.messages.length);
+  const oldGoneMongo = await waitMongoValue(uri, 'messages', v => Array.isArray(v) && !v.some(m => m.id === oldMsgId) && v.some(m => m.id === newMsgId));
+  check('3.8 MongoDB: el mensaje vencido ya NO está en la colección messages de MongoDB', !!oldGoneMongo);
+  const dispOff = await api(PORT, 'POST', '/api/conversations/' + PHONE_B + '/disappearing', { hours: 0 }, regA.token);
+  check('3.8 MongoDB: A apaga los mensajes temporales con B', !!(dispOff.json && dispOff.json.ok && dispOff.json.disappearingHours === 0), dispOff.json);
+  const convsA2 = await api(PORT, 'GET', '/api/messages?phone=' + PHONE_A);
+  const convAB2 = (convsA2.json && convsA2.json.conversations || []).find(c => c.participants.includes(PHONE_B));
+  check('3.8 MongoDB: tras apagarlos, el chat ya no marca mensajes temporales', !!(convAB2 && convAB2.disappearingHours === 0), convAB2);
+
+  /* ---- regalos e invitados en lives (v3.8, ideas 16 y 23) ---- */
+  const liveRes = await api(PORT, 'POST', '/api/lives', { title: 'Live de prueba 3.8' }, regA.token);
+  const liveId = liveRes.json && liveRes.json.live && liveRes.json.live.id;
+  check('3.8 MongoDB: A inicia un live', !!(liveRes.json && liveRes.json.ok && liveId), liveRes);
+  const giftBad = await api(PORT, 'POST', '/api/lives/' + liveId + '/gift', { giftId: 'dinero' }, regB.token);
+  check('3.8 MongoDB: enviar un regalo que no existe da 400', giftBad.status === 400, giftBad);
+  const gift1 = await api(PORT, 'POST', '/api/lives/' + liveId + '/gift', { giftId: 'rosa' }, regB.token);
+  check('3.8 MongoDB: B envía una rosa (conteo rosa 1, total 1)', !!(gift1.json && gift1.json.ok && gift1.json.counts.rosa === 1 && gift1.json.total === 1), gift1.json);
+  const gift2 = await api(PORT, 'POST', '/api/lives/' + liveId + '/gift', { giftId: 'corazon' }, regB.token);
+  check('3.8 MongoDB: B envía un corazón (total 2, rosa sigue en 1)', !!(gift2.json && gift2.json.ok && gift2.json.counts.rosa === 1 && gift2.json.counts.corazon === 1 && gift2.json.total === 2), gift2.json);
+  const giftsList = await api(PORT, 'GET', '/api/lives/' + liveId + '/gifts', null, regA.token);
+  check('3.8 MongoDB: el creador ve los regalos (top: B con 2)', !!(giftsList.json && giftsList.json.ok && giftsList.json.total === 2 && giftsList.json.top.length === 1 && giftsList.json.top[0].phone === PHONE_B && giftsList.json.top[0].gifts === 2), giftsList.json);
+  const giftInMongo = await waitMongoValue(uri, 'liveGifts', v => v && v[liveId] && v[liveId].length === 2);
+  check('3.8 MongoDB: los regalos están guardados en la colección liveGifts de MongoDB', !!giftInMongo);
+  const invByB = await api(PORT, 'POST', '/api/lives/' + liveId + '/invite', { phone: PHONE_C }, regB.token);
+  check('3.8 MongoDB: B (no dueño) no puede invitar al live (403)', invByB.status === 403, invByB);
+  const invGhost = await api(PORT, 'POST', '/api/lives/' + liveId + '/invite', { phone: '529999999999' }, regA.token);
+  check('3.8 MongoDB: invitar a alguien que no existe da 404', invGhost.status === 404, invGhost);
+  const invB = await api(PORT, 'POST', '/api/lives/' + liveId + '/invite', { phone: PHONE_B }, regA.token);
+  check('3.8 MongoDB: A invita a B a transmitir con él', !!(invB.json && invB.json.ok && invB.json.invite.status === 'pending'), invB.json);
+  const invRespC = await api(PORT, 'POST', '/api/lives/' + liveId + '/invite/respond', { accept: true }, regC.token);
+  check('3.8 MongoDB: C (sin invitación) no puede aceptar (404)', invRespC.status === 404, invRespC);
+  const invRespB = await api(PORT, 'POST', '/api/lives/' + liveId + '/invite/respond', { accept: true }, regB.token);
+  check('3.8 MongoDB: B acepta y queda como coanfitrión', !!(invRespB.json && invRespB.json.ok && invRespB.json.coHost === PHONE_B), invRespB.json);
+  const livesNow = await api(PORT, 'GET', '/api/lives');
+  check('3.8 MongoDB: el live en vivo muestra su coanfitrión (B)', !!(livesNow.json && livesNow.json.ok && livesNow.json.lives.some(l => l.id === liveId && l.coHost === PHONE_B)), livesNow.json && livesNow.json.lives.length);
+  const liveLeaveB = await api(PORT, 'POST', '/api/lives/' + liveId + '/leave', {}, regB.token);
+  check('3.8 MongoDB: B sale del live', !!(liveLeaveB.json && liveLeaveB.json.ok), liveLeaveB.json);
+  const livesAfterLeave = await api(PORT, 'GET', '/api/lives');
+  check('3.8 MongoDB: al salir el invitado, el live sigue solo con el dueño (coHost null)', !!(livesAfterLeave.json && livesAfterLeave.json.ok && livesAfterLeave.json.lives.some(l => l.id === liveId && l.coHost === null)), livesAfterLeave.json && livesAfterLeave.json.lives.length);
+  const liveEnd = await api(PORT, 'POST', '/api/lives/' + liveId + '/end', {}, regA.token);
+  check('3.8 MongoDB: A termina el live', !!(liveEnd.json && liveEnd.json.ok), liveEnd.json);
+  const giftEnded = await api(PORT, 'POST', '/api/lives/' + liveId + '/gift', { giftId: 'rosa' }, regB.token);
+  check('3.8 MongoDB: enviar un regalo a un live terminado da 404', giftEnded.status === 404, giftEnded);
+
+  /* ---- historias: enlace, fondo, Short compartido y audio (v3.8, ideas 17, 29, 39, 50) ---- */
+  const storyBadLink = await api(PORT, 'POST', '/api/stories', { story: { text: 'Con enlace malo', link: 'nota-url' } }, regA.token);
+  check('3.8 MongoDB: una historia con enlace inválido da 400', storyBadLink.status === 400, storyBadLink);
+  const storyLink = await api(PORT, 'POST', '/api/stories', { story: { text: 'Con enlace', link: 'https://ejemplo.com' } }, regA.token);
+  check('3.8 MongoDB: una historia con enlace http(s) guarda el enlace', !!(storyLink.json && storyLink.json.ok && storyLink.json.story.link === 'https://ejemplo.com'), storyLink.json && storyLink.json.story);
+  const storyBadColor = await api(PORT, 'POST', '/api/stories', { story: { text: 'Color malo', backgroundColor: 'rojo' } }, regA.token);
+  check('3.8 MongoDB: una historia con color de fondo inválido da 400', storyBadColor.status === 400, storyBadColor);
+  const storyColor = await api(PORT, 'POST', '/api/stories', { story: { text: 'Solo texto con fondo', backgroundColor: '#ff0000' } }, regA.token);
+  check('3.8 MongoDB: una historia de solo texto guarda su color de fondo', !!(storyColor.json && storyColor.json.ok && storyColor.json.story.backgroundColor === '#ff0000'), storyColor.json && storyColor.json.story);
+  const storyShortBad = await api(PORT, 'POST', '/api/stories', { story: { sharedShortId: 'post-que-no-existe' } }, regA.token);
+  check('3.8 MongoDB: compartir en historia un Short que no existe da 400', storyShortBad.status === 400, storyShortBad);
+  const storyShort = await api(PORT, 'POST', '/api/stories', { story: { sharedShortId: duetPostId } }, regA.token);
+  check('3.8 MongoDB: compartir un Short en tu historia guarda la referencia (no una copia)', !!(storyShort.json && storyShort.json.ok && storyShort.json.story.sharedShortId === duetPostId), storyShort.json && storyShort.json.story);
+  const storyAudio = await api(PORT, 'POST', '/api/stories', { story: { media: 'https://ejemplo.com/nota.mp3', mediaType: 'audio' } }, regA.token);
+  check('3.8 MongoDB: una historia de solo audio (mediaType audio) se guarda', !!(storyAudio.json && storyAudio.json.ok && storyAudio.json.story.mediaType === 'audio' && storyAudio.json.story.media === 'https://ejemplo.com/nota.mp3'), storyAudio.json && storyAudio.json.story);
+
+  /* ---- publicaciones: ánimo, lugar y encuesta con foto (v3.8, ideas 22, 25, 26) ---- */
+  const moodPost = await api(PORT, 'POST', '/api/posts', { text: 'Hoy me siento bien', mood: { text: 'feliz', emoji: '😊' } }, regA.token);
+  check('3.8 MongoDB: una publicación con estado de ánimo lo conserva', !!(moodPost.json && moodPost.json.ok && moodPost.json.post.mood && moodPost.json.post.mood.text === 'feliz' && moodPost.json.post.mood.emoji === '😊'), moodPost.json && moodPost.json.post);
+  const placePost = await api(PORT, 'POST', '/api/posts', { text: 'Estoy aquí', place: { name: 'Parque Central', lat: 19.4, lng: -99.1 } }, regA.token);
+  check('3.8 MongoDB: una publicación con lugar lo conserva (nombre + coordenadas)', !!(placePost.json && placePost.json.ok && placePost.json.post.place && placePost.json.post.place.name === 'Parque Central' && placePost.json.post.place.lat === 19.4), placePost.json && placePost.json.post);
+  const placeBad = await api(PORT, 'POST', '/api/posts', { text: 'Lugar imposible', place: { name: 'Ningún lado', lat: 200, lng: 0 } }, regA.token);
+  check('3.8 MongoDB: un lugar con coordenadas imposibles se guarda como null (no se inventa)', !!(placeBad.json && placeBad.json.ok && placeBad.json.post.place === null), placeBad.json && placeBad.json.post);
+  const ppBad = await api(PORT, 'POST', '/api/posts', { text: 'Encuesta con una foto', photoPoll: { options: [{ mediaUrl: 'https://ejemplo.com/f1.jpg', label: 'Una' }] } }, regA.token);
+  check('3.8 MongoDB: una encuesta con foto con una sola foto da 400', ppBad.status === 400, ppBad);
+  const ppRes = await api(PORT, 'POST', '/api/posts', { text: '¿Cuál te gusta más?', photoPoll: { options: [{ mediaUrl: 'https://ejemplo.com/f1.jpg', label: 'Foto 1' }, { mediaUrl: 'https://ejemplo.com/f2.jpg', label: 'Foto 2' }] } }, regA.token);
+  const ppPostId = ppRes.json && ppRes.json.post && ppRes.json.post.id;
+  check('3.8 MongoDB: A publica una encuesta con foto (2 fotos)', !!(ppRes.json && ppRes.json.ok && ppRes.json.post.photoPoll && ppRes.json.post.photoPoll.options.length === 2), ppRes.json && ppRes.json.post);
+  const ppVoteBad = await api(PORT, 'POST', '/api/posts/' + postId + '/vote', { optionIndex: 0 }, regB.token);
+  check('3.8 MongoDB: votar en una publicación sin encuesta con foto da 400', ppVoteBad.status === 400, ppVoteBad);
+  const ppVote0 = await api(PORT, 'POST', '/api/posts/' + ppPostId + '/vote', { optionIndex: 0 }, regB.token);
+  check('3.8 MongoDB: B vota la foto 0 (conteos [1,0], myVote 0)', !!(ppVote0.json && ppVote0.json.ok && ppVote0.json.votes[0] === 1 && ppVote0.json.votes[1] === 0 && ppVote0.json.myVote === 0), ppVote0.json);
+  const ppVote1 = await api(PORT, 'POST', '/api/posts/' + ppPostId + '/vote', { optionIndex: 1 }, regB.token);
+  check('3.8 MongoDB: B cambia su voto a la foto 1 (conteos [0,1], no se duplica)', !!(ppVote1.json && ppVote1.json.ok && ppVote1.json.votes[0] === 0 && ppVote1.json.votes[1] === 1 && ppVote1.json.myVote === 1), ppVote1.json);
+  const ppFeedB = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
+  const ppInFeed = ppFeedB.json && ppFeedB.json.posts.find(p => p.id === ppPostId);
+  check('3.8 MongoDB: la publicación servida lleva los conteos y el voto de quien pide', !!(ppInFeed && ppInFeed.photoPoll && ppInFeed.photoPoll.votes[1] === 1 && ppInFeed.photoPoll.myVote === 1), ppInFeed && ppInFeed.photoPoll);
+  const ppVotesA = await api(PORT, 'GET', '/api/posts/' + ppPostId + '/votes', null, regA.token);
+  check('3.8 MongoDB: A ve quién votó cada foto (B, opción 1)', !!(ppVotesA.json && ppVotesA.json.ok && ppVotesA.json.voters.length === 1 && ppVotesA.json.voters[0].phone === PHONE_B && ppVotesA.json.voters[0].option === 1), ppVotesA.json);
+  const ppVotesB = await api(PORT, 'GET', '/api/posts/' + ppPostId + '/votes', null, regB.token);
+  check('3.8 MongoDB: B no puede ver quién votó (403, solo el autor)', ppVotesB.status === 403, ppVotesB);
+  const ppInMongo = await waitMongoValue(uri, 'postVotes', v => v && v[ppPostId] && v[ppPostId].length === 1 && v[ppPostId][0].voter === PHONE_B && v[ppPostId][0].option === 1);
+  check('3.8 MongoDB: el voto de la encuesta con foto está guardado en la colección postVotes de MongoDB', !!ppInMongo);
+
+  /* ---- quién compartió tu publicación (v3.8, idea 42) ---- */
+  const shareRes = await api(PORT, 'POST', '/api/posts/' + postId + '/share', {}, regB.token);
+  check('3.8 MongoDB: B comparte la publicación de A (repost)', !!(shareRes.json && shareRes.json.ok), shareRes);
+  const sharesA = await api(PORT, 'GET', '/api/posts/' + postId + '/shares', null, regA.token);
+  check('3.8 MongoDB: A ve quién compartió su publicación (B, con su repost)', !!(sharesA.json && sharesA.json.ok && sharesA.json.count === 1 && sharesA.json.shares[0].phone === PHONE_B && sharesA.json.shares[0].name === 'Beto (prueba)' && sharesA.json.shares[0].repostId), sharesA.json);
+  const sharesB = await api(PORT, 'GET', '/api/posts/' + postId + '/shares', null, regB.token);
+  check('3.8 MongoDB: B no puede ver quién compartió la publicación de A (403, solo el autor)', sharesB.status === 403, sharesB);
+
+  /* ---- perfil: nota, canción del día, portada, video, marco y filtro (v3.8, ideas 30, 33, 36, 48, 63, 65) ---- */
+  const profFields = await api(PORT, 'POST', '/api/profile', { name: 'Ana (prueba)', photo: 'https://ejemplo.com/ana.jpg', bio: 'Biografía de prueba', note: 'Hola, soy Ana', songOfTheDay: { song: { title: 'Mi canción', src: 'https://ejemplo.com/c.mp3' }, date: '2026-11-15' }, pinnedCover: 'https://ejemplo.com/portada.jpg', avatarVideo: { url: 'https://ejemplo.com/video.mp4', durationMs: 5000 }, avatarFrame: 'dorado', avatarFilter: 'Sepia' }, regA.token);
+  check('3.8 MongoDB: el perfil de A guarda nota, canción del día, portada de destacadas, video, marco y filtro', !!(profFields.json && profFields.json.ok && profFields.json.profile.note === 'Hola, soy Ana' && profFields.json.profile.songOfTheDay && profFields.json.profile.songOfTheDay.song.title === 'Mi canción' && profFields.json.profile.pinnedCover === 'https://ejemplo.com/portada.jpg' && profFields.json.profile.avatarVideo && profFields.json.profile.avatarVideo.url === 'https://ejemplo.com/video.mp4' && profFields.json.profile.avatarFrame === 'dorado' && profFields.json.profile.avatarFilter === 'Sepia'), profFields.json && profFields.json.profile);
+  const profBadVideo = await api(PORT, 'POST', '/api/profile', { name: 'Ana (prueba)', avatarVideo: { url: 'https://ejemplo.com/largo.mp4', durationMs: 7000 } }, regA.token);
+  check('3.8 MongoDB: un video de perfil de 7 segundos da 400 (máximo 6)', profBadVideo.status === 400, profBadVideo);
+  const profBadCover = await api(PORT, 'POST', '/api/profile', { name: 'Ana (prueba)', pinnedCover: 'nota-url' }, regA.token);
+  check('3.8 MongoDB: una portada de destacadas que no es URL válida da 400', profBadCover.status === 400, profBadCover);
+  const profBadFrame = await api(PORT, 'POST', '/api/profile', { name: 'Ana (prueba)', avatarFrame: 'inexistente' }, regA.token);
+  check('3.8 MongoDB: un marco inválido se ignora (el marco dorado sigue)', !!(profBadFrame.json && profBadFrame.json.ok && profBadFrame.json.profile.avatarFrame === 'dorado'), profBadFrame.json && profBadFrame.json.profile);
+  /* A necesita 5 publicaciones para la verificación (lleva: postId,
+     moodPost, placePost, placeBad, ppRes = 5). */
+  const profA5 = await api(PORT, 'GET', '/api/profile/' + PHONE_A);
+  check('3.8 MongoDB: el perfil de A se sirve con sus campos nuevos (nota y video)', !!(profA5.json && profA5.json.ok && profA5.json.profile.note === 'Hola, soy Ana' && profA5.json.profile.avatarVideo && profA5.json.profile.avatarVideo.durationMs === 5000), profA5.json && profA5.json.profile);
+
+  /* ---- grupos secretos (v3.8, idea 51) ---- */
+  const secretRes = await api(PORT, 'POST', '/api/groups', { name: 'Grupo secreto de prueba', secret: true }, regA.token);
+  const secretGroupId = secretRes.json && secretRes.json.group && secretRes.json.group.id;
+  check('3.8 MongoDB: A crea un grupo secreto', !!(secretRes.json && secretRes.json.ok && secretRes.json.group.secret === true), secretRes.json && secretRes.json.group);
+  const groupsB = await api(PORT, 'GET', '/api/groups', null, regB.token);
+  check('3.8 MongoDB: B (no miembro) NO ve el grupo secreto en el descubrimiento', !!(groupsB.json && groupsB.json.ok && !groupsB.json.groups.some(g => g.id === secretGroupId)), groupsB.json && groupsB.json.groups.length);
+  const groupsGuest = await api(PORT, 'GET', '/api/groups');
+  check('3.8 MongoDB: un invitado tampoco ve el grupo secreto', !!(groupsGuest.json && groupsGuest.json.ok && !groupsGuest.json.groups.some(g => g.id === secretGroupId)), groupsGuest.json && groupsGuest.json.groups.length);
+  const searchSecretB = await api(PORT, 'GET', '/api/search?q=secreto&phone=' + PHONE_B);
+  check('3.8 MongoDB: B no encuentra el grupo secreto en la búsqueda', !!(searchSecretB.json && searchSecretB.json.ok && !searchSecretB.json.groups.some(g => g.id === secretGroupId)), searchSecretB.json && searchSecretB.json.groups.length);
+  const searchSecretA = await api(PORT, 'GET', '/api/search?q=secreto&phone=' + PHONE_A);
+  check('3.8 MongoDB: A (miembro) SÍ encuentra su grupo secreto en la búsqueda', !!(searchSecretA.json && searchSecretA.json.ok && searchSecretA.json.groups.some(g => g.id === secretGroupId)), searchSecretA.json && searchSecretA.json.groups.length);
+  const secretPublic = await api(PORT, 'GET', '/api/groups/' + secretGroupId + '/public', null, regB.token);
+  check('3.8 MongoDB: el enlace público del grupo secreto muestra nombre, miembros (1) y que es secreto, sin nada de dentro', !!(secretPublic.json && secretPublic.json.ok && secretPublic.json.group.name === 'Grupo secreto de prueba' && secretPublic.json.group.memberCount === 1 && secretPublic.json.group.secret === true && secretPublic.json.group.isMember === false), secretPublic.json && secretPublic.json.group);
+  const secretJoinB = await api(PORT, 'POST', '/api/groups/' + secretGroupId + '/join', {}, regB.token);
+  check('3.8 MongoDB: B no puede entrar al grupo secreto sin invitación (403)', secretJoinB.status === 403, secretJoinB);
+  const secretInvByB = await api(PORT, 'POST', '/api/groups/' + secretGroupId + '/invite', { phone: PHONE_C }, regB.token);
+  check('3.8 MongoDB: B (no admin) no puede invitar al grupo secreto (403)', secretInvByB.status === 403, secretInvByB);
+  const secretInvGhost = await api(PORT, 'POST', '/api/groups/' + secretGroupId + '/invite', { phone: '529999999999' }, regA.token);
+  check('3.8 MongoDB: invitar a alguien que no existe da 404', secretInvGhost.status === 404, secretInvGhost);
+  const secretInvC = await api(PORT, 'POST', '/api/groups/' + secretGroupId + '/invite', { phone: PHONE_C }, regA.token);
+  check('3.8 MongoDB: A invita a C al grupo secreto', !!(secretInvC.json && secretInvC.json.ok), secretInvC.json);
+  const secretJoinC = await api(PORT, 'POST', '/api/groups/' + secretGroupId + '/join', {}, regC.token);
+  check('3.8 MongoDB: C acepta la invitación y entra al grupo secreto', !!(secretJoinC.json && secretJoinC.json.ok && secretJoinC.json.group.members.includes(PHONE_C)), secretJoinC.json && secretJoinC.json.group);
+  const secretInvD = await api(PORT, 'POST', '/api/groups/' + secretGroupId + '/invite', { phone: PHONE_D }, regA.token);
+  check('3.8 MongoDB: A invita a D al grupo secreto', !!(secretInvD.json && secretInvD.json.ok), secretInvD.json);
+  const secretDeclineD = await api(PORT, 'POST', '/api/groups/' + secretGroupId + '/invite/decline', {}, regD.token);
+  check('3.8 MongoDB: D rechaza la invitación', !!(secretDeclineD.json && secretDeclineD.json.ok), secretDeclineD.json);
+  const secretJoinD = await api(PORT, 'POST', '/api/groups/' + secretGroupId + '/join', {}, regD.token);
+  check('3.8 MongoDB: tras rechazar, D ya no puede entrar (403)', secretJoinD.status === 403, secretJoinD);
+
+  /* ---- mensajes: stickers, ubicación en vivo, juego y reacciones (v3.8, ideas 47, 55, 56, 57) ---- */
+  const stkBad = await api(PORT, 'POST', '/api/messages', { to: PHONE_B, stickerId: 'inexistente' }, regA.token);
+  check('3.8 MongoDB: mandar un sticker que no existe da 400', stkBad.status === 400, stkBad);
+  const stkMsg = await api(PORT, 'POST', '/api/messages', { to: PHONE_B, stickerId: 'corazon' }, regA.token);
+  const stkMsgId = stkMsg.json && stkMsg.json.message && stkMsg.json.message.id;
+  check('3.8 MongoDB: A manda un mensaje solo con el sticker corazón (sin texto)', !!(stkMsg.json && stkMsg.json.ok && stkMsg.json.message.stickerId === 'corazon' && stkMsg.json.message.text === ''), stkMsg.json && stkMsg.json.message);
+  const locBad = await api(PORT, 'POST', '/api/messages', { to: PHONE_B, liveLocation: { lat: 200, lng: 0 } }, regA.token);
+  check('3.8 MongoDB: compartir una ubicación inválida da 400', locBad.status === 400, locBad);
+  const locMsg = await api(PORT, 'POST', '/api/messages', { to: PHONE_B, text: 'Te comparto dónde estoy', liveLocation: { lat: 19.4, lng: -99.1 } }, regA.token);
+  const locMsgId = locMsg.json && locMsg.json.message && locMsg.json.message.id;
+  check('3.8 MongoDB: A comparte su ubicación en vivo por 1 hora (expiresAt en el futuro)', !!(locMsg.json && locMsg.json.ok && locMsg.json.message.liveLocation && locMsg.json.message.liveLocation.lat === 19.4 && locMsg.json.message.liveLocation.expiresAt > Date.now() && locMsg.json.message.liveLocation.expiresAt <= Date.now() + 60 * 60 * 1000), locMsg.json && locMsg.json.message);
+  const locByB = await api(PORT, 'POST', '/api/messages/' + locMsgId + '/location', { lat: 19.5, lng: -99.2 }, regB.token);
+  check('3.8 MongoDB: B (no remitente) no puede actualizar la ubicación de A (403)', locByB.status === 403, locByB);
+  const locByA = await api(PORT, 'POST', '/api/messages/' + locMsgId + '/location', { lat: 19.5, lng: -99.2 }, regA.token);
+  check('3.8 MongoDB: A actualiza su posición (lat 19.5)', !!(locByA.json && locByA.json.ok && locByA.json.message.liveLocation.lat === 19.5 && locByA.json.message.liveLocation.lng === -99.2), locByA.json && locByA.json.message);
+  const gameBad = await api(PORT, 'POST', '/api/messages', { to: PHONE_B, gameInvite: { gameId: 'juego-que-no-existe', roomId: 'sala1' } }, regA.token);
+  check('3.8 MongoDB: invitar a un juego que no existe da 400', gameBad.status === 400, gameBad);
+  const gameMsg = await api(PORT, 'POST', '/api/messages', { to: PHONE_B, text: 'Te reto a la serpiente', gameInvite: { gameId: 'serpiente', roomId: 'sala1' } }, regA.token);
+  check('3.8 MongoDB: A reta a B a la serpiente (invitación de juego guardada)', !!(gameMsg.json && gameMsg.json.ok && gameMsg.json.message.gameInvite && gameMsg.json.message.gameInvite.gameId === 'serpiente'), gameMsg.json && gameMsg.json.message);
+  const reactMsg = await api(PORT, 'POST', '/api/messages', { to: PHONE_B, text: 'Mensaje para reaccionar' }, regA.token);
+  const reactMsgId = reactMsg.json && reactMsg.json.message && reactMsg.json.message.id;
+  check('3.8 MongoDB: A manda un mensaje para reaccionar', !!(reactMsg.json && reactMsg.json.ok && reactMsgId), reactMsg);
+  const reactMsgBad = await api(PORT, 'POST', '/api/messages/' + reactMsgId + '/react', { emoji: '🔥' }, regB.token);
+  check('3.8 MongoDB: reaccionar con un emoji fuera del conjunto da 400', reactMsgBad.status === 400, reactMsgBad);
+  const reactMsgB = await api(PORT, 'POST', '/api/messages/' + reactMsgId + '/react', { emoji: '❤️' }, regB.token);
+  check('3.8 MongoDB: B reacciona ❤️ al mensaje (con su nombre)', !!(reactMsgB.json && reactMsgB.json.ok && reactMsgB.json.reactions.length === 1 && reactMsgB.json.reactions[0].phone === PHONE_B && reactMsgB.json.reactions[0].name === 'Beto (prueba)' && reactMsgB.json.reactions[0].emoji === '❤️'), reactMsgB.json);
+  const reactMsgB2 = await api(PORT, 'POST', '/api/messages/' + reactMsgId + '/react', { emoji: '👍' }, regB.token);
+  check('3.8 MongoDB: B cambia su reacción a 👍 (una sola reacción por persona)', !!(reactMsgB2.json && reactMsgB2.json.ok && reactMsgB2.json.reactions.length === 1 && reactMsgB2.json.reactions[0].emoji === '👍'), reactMsgB2.json);
+  const reactGhost = await api(PORT, 'POST', '/api/messages/msg-que-no-existe/react', { emoji: '❤️' }, regB.token);
+  check('3.8 MongoDB: reaccionar a un mensaje que no existe da 404', reactGhost.status === 404, reactGhost);
+  const convsB = await api(PORT, 'GET', '/api/messages?phone=' + PHONE_B);
+  const convBA = (convsB.json && convsB.json.conversations || []).find(c => c.participants.includes(PHONE_A));
+  const reactServed = convBA && convBA.messages.find(m => m.id === reactMsgId);
+  check('3.8 MongoDB: el mensaje servido lleva su reacción con nombre', !!(reactServed && reactServed.reactions && reactServed.reactions.length === 1 && reactServed.reactions[0].name === 'Beto (prueba)' && reactServed.reactions[0].emoji === '👍'), reactServed);
+  const stkGroup = await api(PORT, 'POST', '/api/group-chats/gchat-vivo33/messages', { message: { stickerId: 'risa' } }, regA.token);
+  check('3.8 MongoDB: A manda un sticker en el grupo', !!(stkGroup.json && stkGroup.json.ok && stkGroup.json.message.stickerId === 'risa'), stkGroup.json && stkGroup.json.message);
+
   /* La publicación, el mensaje y el juego tienen que estar YA en
      MongoDB (no solo en la memoria del proceso) antes de reiniciar. */
   const postsInMongo = await waitMongoValue(uri, 'posts', v => Array.isArray(v) && v.some(p => p.id === postId));
@@ -371,7 +872,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir, WORDRED_TEST_FAIL_WRITES: '1' });
   health = await waitHealth(PORT);
-  check('3.7 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 3.7', !!(health && health.version === '3.7' && health.storage === 'mongodb'), health);
+  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 3.8', !!(health && health.version === '3.8' && health.storage === 'mongodb'), health);
   const delFail = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con MongoDB roto, DELETE devuelve 500 (no un éxito falso)', delFail.status === 500 && !!(delFail.json && delFail.json.ok === false), delFail);
   check('3.3 MongoDB: con MongoDB roto, DELETE explica el error real', !!(delFail.json && delFail.json.error && delFail.json.error.indexOf('No se pudo guardar el borrado') >= 0), delFail.json && delFail.json.error);
@@ -382,7 +883,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '3.7'), health);
+  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '3.8'), health);
   const delFailOk = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con las escrituras sanas, el borrado sí funciona (DELETE ok)', !!(delFailOk.json && delFailOk.json.ok), delFailOk);
   const feedFailOk = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
@@ -399,9 +900,18 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
 
   /* ---- REINICIO del servidor (mismo MongoDB, mismo DATA_DIR) ---- */
   await stopServer(proc);
+  /* v3.8: para probar la concesión de la verificación, la cuenta de A
+     tiene que tener al menos 7 días: se atrasa su createdAt en MongoDB
+     con el servidor parado (si no, la memoria lo pisaría). A ya tiene
+     foto, biografía y 5 publicaciones. */
+  const mcBack = new MongoClient(uri);
+  await mcBack.connect();
+  const backRes = await mcBack.db('wordred').collection('profiles').updateOne({ _id: 'data' }, { $set: { ['value.' + PHONE_A + '.createdAt']: Date.now() - 8 * 24 * 60 * 60 * 1000 } });
+  await mcBack.close();
+  check('3.8 MongoDB: la antigüedad de A se atrasó 8 días en MongoDB (para probar la verificación)', backRes.matchedCount === 1 && backRes.modifiedCount === 1, { matchedCount: backRes.matchedCount, modifiedCount: backRes.modifiedCount });
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 3.7 y storage mongodb', !!(health && health.version === '3.7' && health.storage === 'mongodb'), health);
+  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 3.8 y storage mongodb', !!(health && health.version === '3.8' && health.storage === 'mongodb'), health);
 
   const feedB2 = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, la publicación de A sigue ahí y B la sigue viendo', !!(feedB2.json && feedB2.json.ok && feedB2.json.posts.some(p => p.id === postId)), feedB2.json && feedB2.json.posts.length);
@@ -422,13 +932,41 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const commentB = await api(PORT, 'POST', '/api/posts/' + postId + '/comment', { text: 'Sigo viendo la publicación tras el reinicio' }, regB.token);
   check('3.3 MongoDB: tras reiniciar, la sesión de B sigue valiendo (comenta con su token viejo)', !!(commentB.json && commentB.json.ok), commentB);
 
+  /* ---- persistencia de 3.8 tras el reinicio ---- */
+  const svAfterRestart = await api(PORT, 'GET', '/api/story-views/' + storyId, null, regA.token);
+  check('3.8 MongoDB: tras reiniciar, la visita a la historia sigue ahí (cantidad 1, visitante B)', !!(svAfterRestart.json && svAfterRestart.json.ok && svAfterRestart.json.count === 1 && svAfterRestart.json.viewers[0].phone === PHONE_B), svAfterRestart.json);
+  const statsAfterRestart = await api(PORT, 'GET', '/api/posts/' + postId + '/stats', null, regA.token);
+  check('3.8 MongoDB: tras reiniciar, la vista de la publicación sigue ahí (1 vista)', !!(statsAfterRestart.json && statsAfterRestart.json.ok && statsAfterRestart.json.views === 1), statsAfterRestart.json);
+  const tourAfterRestart = await api(PORT, 'GET', '/api/tournaments/current', null, regA.token);
+  check('3.8 MongoDB: tras reiniciar, el torneo es el mismo (mismo id) y la tabla sigue (A 150, B 80)', !!(tourAfterRestart.json && tourAfterRestart.json.ok && tourAfterRestart.json.tournament.id === tourId && tourAfterRestart.json.tournament.leaderboard.length === 2 && tourAfterRestart.json.tournament.leaderboard[0].score === 150), tourAfterRestart.json && tourAfterRestart.json.tournament);
+  const cfAfterRestart = await api(PORT, 'GET', '/api/close-friends', null, regA.token);
+  check('3.8 MongoDB: tras reiniciar, la lista de cercanos sigue (B)', !!(cfAfterRestart.json && cfAfterRestart.json.ok && cfAfterRestart.json.closeFriends.some(f => f.phone === PHONE_B)), cfAfterRestart.json);
+  const convsAfterRestart = await api(PORT, 'GET', '/api/messages?phone=' + PHONE_A);
+  const convABAfter = (convsAfterRestart.json && convsAfterRestart.json.conversations || []).find(c => c.participants.includes(PHONE_B));
+  check('3.8 MongoDB: tras reiniciar, el mensaje temporal borrado SIGUE borrado', !!(convABAfter && !convABAfter.messages.some(m => m.id === oldMsgId) && convABAfter.messages.some(m => m.id === newMsgId)), convABAfter && convABAfter.messages.length);
+  const pollAfterRestart = await api(PORT, 'GET', '/api/stories', null, regA.token);
+  const pollStoryAfter = pollAfterRestart.json && pollAfterRestart.json.stories.find(s => s.id === pollStoryId);
+  check('3.8 MongoDB: tras reiniciar, el voto de la encuesta sigue (B, opción 1)', !!(pollStoryAfter && pollStoryAfter.poll && pollStoryAfter.poll.voters && pollStoryAfter.poll.voters.some(v => v.phone === PHONE_B && v.option === 1)), pollStoryAfter && pollStoryAfter.poll);
+  /* ---- verificación: concesión real (v3.8, idea 10) ---- */
+  const verStatusA = await api(PORT, 'GET', '/api/verification/status', null, regA.token);
+  check('3.8 MongoDB: A (foto, biografía, 8 días, 5 publicaciones) cumple TODOS los criterios', !!(verStatusA.json && verStatusA.json.ok && verStatusA.json.verified === false && verStatusA.json.missing.length === 0), verStatusA.json);
+  const verReqA = await api(PORT, 'POST', '/api/verification/request', {}, regA.token);
+  check('3.8 MongoDB: A pide la verificación y el servidor la CONCEDE (criterios reales)', !!(verReqA.json && verReqA.json.ok === true && verReqA.json.verified === true), verReqA.json);
+  const profAVer = await api(PORT, 'GET', '/api/profile/' + PHONE_A);
+  check('3.8 MongoDB: el perfil de A ya lleva verified true', !!(profAVer.json && profAVer.json.ok && profAVer.json.profile.verified === true), profAVer.json && profAVer.json.profile);
+  const verReqA2 = await api(PORT, 'POST', '/api/verification/request', {}, regA.token);
+  check('3.8 MongoDB: pedirla otra vez no la duplica (already true)', !!(verReqA2.json && verReqA2.json.ok === true && verReqA2.json.verified === true && verReqA2.json.already === true), verReqA2.json);
+  const feedVer = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
+  const profAInFeed = feedVer.json && feedVer.json.profiles.find(p => p.phone === PHONE_A);
+  check('3.8 MongoDB: la insignia viaja con el perfil en el inicio (verified true)', !!(profAInFeed && profAInFeed.verified === true), profAInFeed);
+
   /* Las colecciones que usa MongoDB existen. */
   const mc = new MongoClient(uri);
   await mc.connect();
   const collNames = (await mc.db('wordred').listCollections().toArray()).map(c => c.name).sort();
   await mc.close();
-  const expected = ['auth', 'blocked', 'events', 'friends', 'gameRatings', 'gameStats', 'groupChats', 'groups', 'listings', 'lives', 'media', 'messages', 'notifications', 'pages', 'posts', 'profileViews', 'profiles', 'ratings', 'reports', 'requests', 'salesGroups', 'stories'];
-  check('3.3 MongoDB: existen las 22 colecciones (una por conjunto de datos)', expected.every(c => collNames.includes(c)), collNames);
+  const expected = ['audioRooms', 'auth', 'blocked', 'closeFriends', 'conversationSettings', 'coupons', 'events', 'friends', 'gameRatings', 'gameStats', 'groupChats', 'groups', 'listings', 'liveGifts', 'lives', 'media', 'messages', 'muted', 'notifications', 'pages', 'posts', 'postViews', 'postVotes', 'profileViews', 'profiles', 'ratings', 'reports', 'requests', 'salesGroups', 'stories', 'storyPollVotes', 'storyReactions', 'storyViews', 'tournaments', 'wishlists'];
+  check('3.8 MongoDB: existen las 35 colecciones (una por conjunto de datos)', expected.every(c => collNames.includes(c)), collNames);
   await stopServer(proc);
 
   /* ---- modo respaldo JSON (sin MONGODB_URI) ---- */
@@ -436,7 +974,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT2 = 34532;
   const proc2 = startServer(PORT2, { DATA_DIR: jsonDir });
   const health2 = await waitHealth(PORT2);
-  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 3.7, storage json y mongo false', !!(health2 && health2.version === '3.7' && health2.storage === 'json' && health2.mongo === false), health2);
+  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 3.8, storage json y mongo false', !!(health2 && health2.version === '3.8' && health2.storage === 'json' && health2.mongo === false), health2);
   const regJ = await register(PORT2, '524444444444');
   check('3.3 JSON: el registro sigue funcionando sin MongoDB', regJ.ok, regJ);
   const postJ = await api(PORT2, 'POST', '/api/posts', { text: 'Publicación en modo JSON' }, regJ.token);
@@ -461,7 +999,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
 
   await mongod.stop();
   console.log('\n==============================');
-  console.log('Servidor WordRed 3.7 — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('Servidor WordRed 3.8 — ' + pass + ' PASS, ' + fail + ' FAIL');
   if (fail) { console.log('Fallos: ' + failures.join(' | ')); process.exit(1); }
 })().catch((e) => {
   console.error('ERROR en las pruebas: ' + (e && e.stack ? e.stack : e));
