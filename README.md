@@ -233,6 +233,17 @@ los demás seguía ahí. Escritura estricta (`saveJsonStrict`) y aviso
 `groupMessageDeleted` por WebSocket para que los demás teléfonos lo
 quiten en vivo. Nada más cambia en la 3.4.
 
+**Visitas al perfil (v3.7):** `POST /api/profile-views` registra
+quién vio el perfil de otra persona (la app 1.5.23 lo llama en segundo
+plano al abrir un perfil ajeno) y `GET /api/profile-views/me` devuelve
+las visitas del propio perfil (cantidad, último visitante y lista con
+nombre, foto y fecha). Un registro por visitante y perfil visto: si la
+misma persona vuelve, solo se actualiza la fecha. Verse el propio perfil
+no se registra, los invitados tampoco, y la lista solo se puede consultar
+para el propio perfil. Nueva colección `profileViews` (respaldo en
+`profile-views.json`); la escritura es estricta (`saveJsonStrict`) y al
+borrar una cuenta se borran también sus visitas. Nada más cambia en la 3.7.
+
 **Actualización de la aplicación (v3.5, URL con https en la v3.6):** `GET /api/app/latest`
 devuelve la última versión de WordRed (`versionName`, `versionCode`,
 `url` de descarga y `notes`) y `GET /app/WordRed.apk` sirve el APK

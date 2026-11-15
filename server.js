@@ -110,6 +110,14 @@
  * La app 1.5.19 también normaliza la URL a https y sigue las
  * redirecciones a mano. Nada más cambia en la 3.6.
  *
+ * v3.7: visitas al perfil — POST /api/profile-views registra quién vio
+ * el perfil de otra persona (un registro por visitante y perfil visto:
+ * si vuelve, solo se actualiza la fecha; verse el propio perfil no se
+ * registra y los invitados tampoco) y GET /api/profile-views/me
+ * devuelve las visitas del propio perfil (cantidad, último visitante y
+ * lista). Nueva colección `profileViews` (respaldo en
+ * profile-views.json). Nada más cambia en la 3.7.
+ *
  * Almacenamiento: MongoDB con MONGODB_URI; sin ella, JSON en disco
  * (carpeta data/).
  *
@@ -293,6 +301,7 @@ let media = loadJson('media.json', {});             // id -> {id, owner, name, t
 let lives = loadJson('lives.json', []);
 let gameStats = loadJson('games.json', { plays: {}, players: {} }); // {plays:{gameId:n}, players:{gameId:{phone:true}}} (v1.8)
 let gameRatings = loadJson('game-ratings.json', []); // [{gameId, phone, stars, comment, createdAt}] (v1.8)              // [{id, host, title, createdAt, endedAt, viewers:[], chat:[], reactions:{}}] (v1.5)
+let profileViews = loadJson('profile-views.json', {}); // v3.7: visto -> [{viewer, at}] (quién vio ese perfil)
 /* (v3.1: al arrancar, los lives que quedaron abiertos se marcan como
    terminados dentro de initStore, después de cargar los datos.) */
 const codeHits = {};                                // phone -> [timestamps]
@@ -320,6 +329,7 @@ function saveAll() {
   saveJson('media.json', media);
   saveJson('games.json', gameStats);
   saveJson('game-ratings.json', gameRatings);
+  saveJson('profile-views.json', profileViews);
   if (mongoReady) return flushPendingWrites();
   return undefined;
 }
@@ -363,7 +373,8 @@ const FILE_TO_COLL = {
   'events.json': 'events', 'pages.json': 'pages', 'messages.json': 'messages',
   'group-chats.json': 'groupChats', 'notifications.json': 'notifications', 'blocked.json': 'blocked', 'reports.json': 'reports',
   'auth.json': 'auth', 'media.json': 'media', 'lives.json': 'lives',
-  'games.json': 'gameStats', 'game-ratings.json': 'gameRatings'
+  'games.json': 'gameStats', 'game-ratings.json': 'gameRatings',
+  'profile-views.json': 'profileViews'
 };
 const DATASETS = [
   { file: 'profiles.json', get: () => profiles, set: v => { profiles = v; }, fallback: {} },
@@ -386,7 +397,8 @@ const DATASETS = [
   { file: 'media.json', get: () => media, set: v => { media = v; }, fallback: {} },
   { file: 'lives.json', get: () => lives, set: v => { lives = v; }, fallback: [] },
   { file: 'games.json', get: () => gameStats, set: v => { gameStats = v; }, fallback: { plays: {}, players: {} } },
-  { file: 'game-ratings.json', get: () => gameRatings, set: v => { gameRatings = v; }, fallback: [] }
+  { file: 'game-ratings.json', get: () => gameRatings, set: v => { gameRatings = v; }, fallback: [] },
+  { file: 'profile-views.json', get: () => profileViews, set: v => { profileViews = v; }, fallback: {} }
 ];
 /* Espera a que terminen las escrituras pendientes a MongoDB (con tope,
    para no dejar una petición colgada si MongoDB va lento). Nunca
@@ -679,7 +691,7 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.6', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.7', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v3.5: actualización de la aplicación. La última versión vive en
    app-version.json junto al APK (WordRed.apk) en el repo: al publicar
@@ -1598,6 +1610,9 @@ app.delete('/api/account', async (req, res) => {
   Object.keys(friends).forEach(f => { friends[f] = friends[f].filter(x => x !== phone); });
   delete friends[phone];
   requests = requests.filter(r => r.from !== phone && r.to !== phone);
+  /* v3.7: también se borran las visitas a su perfil y las que él hizo. */
+  delete profileViews[phone];
+  Object.keys(profileViews).forEach(function (k) { profileViews[k] = profileViews[k].filter(function (v) { return v.viewer !== phone; }); });
   messages = messages.filter(m => m.from !== phone && m.to !== phone);
   notifications = notifications.filter(n => n.to !== phone && n.from !== phone);
   posts.forEach(p => {
@@ -1733,6 +1748,41 @@ app.get('/api/friends', (req, res) => {
   const incoming = requests.filter(r => r.to === phone && r.status === 'pending');
   const outgoing = requests.filter(r => r.from === phone && r.status === 'pending');
   return res.json({ ok: true, friends: list, incoming, outgoing });
+});
+
+/* ---- visitas al perfil (v3.7) ----
+   Quién vio MI perfil: la app 1.5.23 registra una visita cuando se abre
+   el perfil de otra persona (en segundo plano, sin bloquear la apertura)
+   y en el perfil propio muestra un círculo con la foto de la última
+   persona que lo vio y el número de cuentas que lo vieron. Un registro
+   por visitante y perfil visto: si la misma persona vuelve a verlo,
+   solo se actualiza la fecha, no se duplica. Verse el propio perfil no
+   se registra y los invitados (sin sesión) tampoco. La lista solo se
+   puede consultar para el propio perfil, nunca para el de otro. */
+app.post('/api/profile-views', async (req, res) => {
+  const from = authPhone(req);
+  if (!from) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const viewed = normPhone(req.body && req.body.viewedPhone);
+  if (!profiles[viewed]) return res.status(404).json({ ok: false, error: 'Ese perfil no existe.' });
+  if (from === viewed) return res.json({ ok: true, recorded: false, count: (profileViews[viewed] || []).length });
+  if (!profileViews[viewed]) profileViews[viewed] = [];
+  const list = profileViews[viewed];
+  const old = list.find(function (v) { return v.viewer === from; });
+  if (old) old.at = Date.now();
+  else list.push({ viewer: from, at: Date.now() });
+  try { await saveJsonStrict('profile-views.json', profileViews); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar la visita.' }); }
+  return res.json({ ok: true, recorded: true, count: list.length });
+});
+app.get('/api/profile-views/me', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const list = (profileViews[phone] || []).slice().sort(function (a, b) { return b.at - a.at; });
+  const viewers = list.map(function (v) {
+    const p = profiles[v.viewer];
+    return { phone: v.viewer, name: p ? p.name : v.viewer, avatar: (p && p.photo) || '', at: v.at };
+  });
+  return res.json({ ok: true, count: viewers.length, lastViewer: viewers[0] || null, viewers: viewers });
 });
 
 /* ---- grupos ---- */
