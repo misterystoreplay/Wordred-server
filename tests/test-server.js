@@ -1,5 +1,5 @@
 'use strict';
-/* Pruebas del servidor WordRed 4.2 — los datos quedan PARA SIEMPRE en
+/* Pruebas del servidor WordRed 4.3 — los datos quedan PARA SIEMPRE en
    MongoDB (y el respaldo JSON sigue funcionando sin MONGODB_URI).
    Se arranca el servidor de verdad como proceso hijo (node server.js)
    contra un MongoDB en memoria (mongodb-memory-server) y se comprueba
@@ -128,7 +128,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   /* ---- modo MongoDB ---- */
   let proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   let health = await waitHealth(PORT);
-  check('4.2 MongoDB: /api/health dice version 4.2', !!(health && health.version === '4.2'), health);
+  check('4.3 MongoDB: /api/health dice version 4.3', !!(health && health.version === '4.3'), health);
   check('3.6 MongoDB: /api/health dice storage mongodb y mongo true', !!(health && health.storage === 'mongodb' && health.mongo === true), health);
 
   /* ---- actualización de la app (v3.5): GET /api/app/latest y
@@ -961,7 +961,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir, WORDRED_TEST_FAIL_WRITES: '1' });
   health = await waitHealth(PORT);
-  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 4.2', !!(health && health.version === '4.2' && health.storage === 'mongodb'), health);
+  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 4.3', !!(health && health.version === '4.3' && health.storage === 'mongodb'), health);
   const delFail = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con MongoDB roto, DELETE devuelve 500 (no un éxito falso)', delFail.status === 500 && !!(delFail.json && delFail.json.ok === false), delFail);
   check('3.3 MongoDB: con MongoDB roto, DELETE explica el error real', !!(delFail.json && delFail.json.error && delFail.json.error.indexOf('No se pudo guardar el borrado') >= 0), delFail.json && delFail.json.error);
@@ -972,7 +972,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.2'), health);
+  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.3'), health);
   const delFailOk = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con las escrituras sanas, el borrado sí funciona (DELETE ok)', !!(delFailOk.json && delFailOk.json.ok), delFailOk);
   const feedFailOk = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
@@ -1000,7 +1000,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.8 MongoDB: la antigüedad de A se atrasó 8 días en MongoDB (para probar la verificación)', backRes.matchedCount === 1 && backRes.modifiedCount === 1, { matchedCount: backRes.matchedCount, modifiedCount: backRes.modifiedCount });
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 4.2 y storage mongodb', !!(health && health.version === '4.2' && health.storage === 'mongodb'), health);
+  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 4.3 y storage mongodb', !!(health && health.version === '4.3' && health.storage === 'mongodb'), health);
 
   const feedB2 = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, la publicación de A sigue ahí y B la sigue viendo', !!(feedB2.json && feedB2.json.ok && feedB2.json.posts.some(p => p.id === postId)), feedB2.json && feedB2.json.posts.length);
@@ -1050,13 +1050,112 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const profAInFeed = feedVer.json && feedVer.json.profiles.find(p => p.phone === PHONE_A);
   check('3.8 MongoDB: la insignia viaja con el perfil en el inicio (verified true)', !!(profAInFeed && profAInFeed.verified === true), profAInFeed);
 
+
+  /* ---- 4.3: solicitudes de promoción y config del creador ---- */
+  /* Petición con cuerpo JSON + encabezado x-creator-key (api() no lleva
+     encabezados propios y apiHeaders() no lleva cuerpo). */
+  function apiCreator(port, method, p, body, key) {
+    return new Promise((resolve) => {
+      const data = body ? JSON.stringify(body) : '';
+      const headers = { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) };
+      if (key) headers['x-creator-key'] = key;
+      const req = http.request({ hostname: '127.0.0.1', port, path: p, method, headers }, (res) => {
+        let raw = '';
+        res.on('data', c => { raw += c; });
+        res.on('end', () => { let json = null; try { json = JSON.parse(raw); } catch (e) {} resolve({ status: res.statusCode, json, raw }); });
+      });
+      req.on('error', (e) => resolve({ status: 0, json: null, raw: String(e && e.message) }));
+      req.end(data);
+    });
+  }
+  const CREATOR_KEY_43 = 'clave-creador-prueba-43';
+  /* (a) El servidor principal NO tiene CREATOR_KEY: las rutas de creador
+     fallan cerradas con 503, nunca dejan pasar (ni con clave en el
+     encabezado, porque no hay con qué compararla). */
+  const pendNoKey = await api(PORT, 'GET', '/api/promotions/pending');
+  check('4.3 creador: sin CREATOR_KEY en el servidor, las pendientes responden 503', pendNoKey.status === 503, pendNoKey);
+  const pendKeyMain = await apiHeaders(PORT, 'GET', '/api/promotions/pending', { 'x-creator-key': CREATOR_KEY_43 });
+  check('4.3 creador: sin CREATOR_KEY configurada, ni siquiera una clave en el encabezado abre las pendientes (503)', pendKeyMain.status === 503, pendKeyMain);
+  const cfgNoKeyMain = await apiCreator(PORT, 'POST', '/api/creator-config', { order: ['historias'], sizes: { historias: 'm' } }, null);
+  check('4.3 creador: sin CREATOR_KEY configurada, guardar la config responde 503', cfgNoKeyMain.status === 503, cfgNoKeyMain);
+  /* (b) Servidor con clave (mismo MongoDB, su propio DATA_DIR). */
+  const dataDir43 = fs.mkdtempSync(path.join(os.tmpdir(), 'wordred-test43-'));
+  const PORT3 = 34533;
+  const proc3 = startServer(PORT3, { MONGODB_URI: uri, DATA_DIR: dataDir43, CREATOR_KEY: CREATOR_KEY_43 });
+  const health3 = await waitHealth(PORT3);
+  check('4.3 creador: el servidor con CREATOR_KEY arranca (health 4.3)', !!(health3 && health3.version === '4.3'), health3);
+  const reg43D = await register(PORT3, '526666666666');
+  const reg43E = await register(PORT3, '527777777777');
+  check('4.3 promociones: dos teléfonos se registran en el servidor con clave', reg43D.ok && reg43E.ok, { reg43D, reg43E });
+  const postD = await api(PORT3, 'POST', '/api/posts', { text: 'Publicación para promocionar (prueba 4.3)' }, reg43D.token);
+  const postDId = postD.json && postD.json.post && postD.json.post.id;
+  check('4.3 promociones: D crea su publicación', !!(postD.json && postD.json.ok && postDId), postD.json);
+  const reqNoTok = await api(PORT3, 'POST', '/api/promotions/request', { postId: postDId, tier: 100 });
+  check('4.3 promociones: pedir sin token responde 401', reqNoTok.status === 401, reqNoTok);
+  const reqBadPost = await api(PORT3, 'POST', '/api/promotions/request', { postId: 'no-existe', tier: 100 }, reg43D.token);
+  check('4.3 promociones: pedir con una publicación que no existe responde 404', reqBadPost.status === 404, reqBadPost);
+  const reqBadTier = await api(PORT3, 'POST', '/api/promotions/request', { postId: postDId, tier: 999 }, reg43D.token);
+  check('4.3 promociones: pedir con un nivel que no es $50/$100/$200/$500 responde 400', reqBadTier.status === 400, reqBadTier);
+  const reqOther = await api(PORT3, 'POST', '/api/promotions/request', { postId: postDId, tier: 100 }, reg43E.token);
+  check('4.3 promociones: pedir por una publicación de otra persona responde 403', reqOther.status === 403, reqOther);
+  const reqOk = await api(PORT3, 'POST', '/api/promotions/request', { postId: postDId, tier: 100 }, reg43D.token);
+  const reqId = reqOk.json && reqOk.json.request && reqOk.json.request.id;
+  check('4.3 promociones: el autor pide la verificación y queda pendiente', !!(reqOk.json && reqOk.json.ok && reqId && reqOk.json.request.status === 'pending'), reqOk.json);
+  const reqDup = await api(PORT3, 'POST', '/api/promotions/request', { postId: postDId, tier: 100 }, reg43D.token);
+  check('4.3 promociones: pedir dos veces por la misma publicación devuelve la misma solicitud (sin duplicar)', !!(reqDup.json && reqDup.json.ok && reqDup.json.request && reqDup.json.request.id === reqId && reqDup.json.deduped === true), reqDup.json);
+  const mineD = await api(PORT3, 'GET', '/api/promotions/mine', null, reg43D.token);
+  check('4.3 promociones: el autor ve su solicitud en «mías» (pendiente)', !!(mineD.json && mineD.json.ok && mineD.json.requests.some(r => r.id === reqId && r.status === 'pending')), mineD.json);
+  const pendNoKey3 = await api(PORT3, 'GET', '/api/promotions/pending');
+  check('4.3 creador: las pendientes sin clave responden 401', pendNoKey3.status === 401, pendNoKey3);
+  const pendWrong3 = await apiHeaders(PORT3, 'GET', '/api/promotions/pending', { 'x-creator-key': 'clave-mala' });
+  check('4.3 creador: las pendientes con clave incorrecta responden 401', pendWrong3.status === 401, pendWrong3);
+  const pendOk3 = await apiHeaders(PORT3, 'GET', '/api/promotions/pending', { 'x-creator-key': CREATOR_KEY_43 });
+  check('4.3 creador: las pendientes con la clave correcta listan la solicitud', !!(pendOk3.json && pendOk3.json.ok && pendOk3.json.requests.some(r => r.id === reqId)), pendOk3.json);
+  const apprNoKey = await apiCreator(PORT3, 'POST', '/api/promotions/' + reqId + '/approve', null, null);
+  check('4.3 creador: aprobar sin clave responde 401', apprNoKey.status === 401, apprNoKey);
+  const apprOk = await apiCreator(PORT3, 'POST', '/api/promotions/' + reqId + '/approve', null, CREATOR_KEY_43);
+  check('4.3 creador: aprobar con la clave marca la solicitud aprobada', !!(apprOk.json && apprOk.json.ok && apprOk.json.request && apprOk.json.request.status === 'approved'), apprOk.json);
+  const feedD = await api(PORT3, 'GET', '/api/feed?phone=526666666666');
+  check('4.3 promociones: tras aprobar, la publicación lleva promoted:true en el inicio', !!(feedD.json && feedD.json.ok && feedD.json.posts.some(p => p.id === postDId && p.promoted === true)), feedD.json && feedD.json.posts.length);
+  const mineD2 = await api(PORT3, 'GET', '/api/promotions/mine', null, reg43D.token);
+  check('4.3 promociones: tras aprobar, el autor ve su solicitud aprobada', !!(mineD2.json && mineD2.json.ok && mineD2.json.requests.some(r => r.id === reqId && r.status === 'approved')), mineD2.json);
+  const apprAgain = await apiCreator(PORT3, 'POST', '/api/promotions/' + reqId + '/approve', null, CREATOR_KEY_43);
+  check('4.3 creador: aprobar una solicitud ya decidida responde 400', apprAgain.status === 400, apprAgain);
+  /* Rechazo con una segunda publicación. */
+  const postE = await api(PORT3, 'POST', '/api/posts', { text: 'Publicación para rechazar (prueba 4.3)' }, reg43E.token);
+  const postEId = postE.json && postE.json.post && postE.json.post.id;
+  const reqE = await api(PORT3, 'POST', '/api/promotions/request', { postId: postEId, tier: 50 }, reg43E.token);
+  const reqEId = reqE.json && reqE.json.request && reqE.json.request.id;
+  check('4.3 promociones: E pide la verificación de su publicación', !!(reqE.json && reqE.json.ok && reqEId), reqE.json);
+  const rejOk = await apiCreator(PORT3, 'POST', '/api/promotions/' + reqEId + '/reject', null, CREATOR_KEY_43);
+  check('4.3 creador: rechazar con la clave marca la solicitud rechazada', !!(rejOk.json && rejOk.json.ok && rejOk.json.request && rejOk.json.request.status === 'rejected'), rejOk.json);
+  const feedE = await api(PORT3, 'GET', '/api/feed?phone=527777777777');
+  check('4.3 promociones: tras rechazar, la publicación sigue sin promocionar', !!(feedE.json && feedE.json.ok && feedE.json.posts.some(p => p.id === postEId && p.promoted !== true)), feedE.json && feedE.json.posts.length);
+  /* Config del creador. */
+  const cfgGetNone = await api(PORT3, 'GET', '/api/creator-config');
+  check('4.3 config: sin config guardada, leer responde 404', cfgGetNone.status === 404, cfgGetNone);
+  const cfgPostNoKey = await apiCreator(PORT3, 'POST', '/api/creator-config', { order: ['historias', 'publicar'], sizes: { historias: 'm', publicar: 'm' } }, null);
+  check('4.3 config: guardar sin clave responde 401', cfgPostNoKey.status === 401, cfgPostNoKey);
+  const cfgPostBad = await apiCreator(PORT3, 'POST', '/api/creator-config', { order: ['historias', 'noexiste'], sizes: { historias: 'm', noexiste: 'm' } }, CREATOR_KEY_43);
+  check('4.3 config: guardar un orden con apartados desconocidos responde 400', cfgPostBad.status === 400, cfgPostBad);
+  const cfgValid = { order: ['historias', 'publicar', 'clima', 'reloj', 'accesos'], sizes: { historias: 'm', publicar: 'm', clima: 's', reloj: 'l', accesos: 'm' } };
+  const cfgPostOk = await apiCreator(PORT3, 'POST', '/api/creator-config', cfgValid, CREATOR_KEY_43);
+  check('4.3 config: guardar una config válida con la clave responde ok', !!(cfgPostOk.json && cfgPostOk.json.ok), cfgPostOk.json);
+  const cfgGet = await api(PORT3, 'GET', '/api/creator-config');
+  check('4.3 config: leer devuelve el orden y los tamaños guardados', !!(cfgGet.json && cfgGet.json.ok && cfgGet.json.config && cfgGet.json.config.order.join(',') === cfgValid.order.join(',') && cfgGet.json.config.sizes.reloj === 'l'), cfgGet.json);
+  const cfgReset = await apiCreator(PORT3, 'POST', '/api/creator-config', { reset: true }, CREATOR_KEY_43);
+  check('4.3 config: restablecer con la clave responde ok', !!(cfgReset.json && cfgReset.json.ok), cfgReset.json);
+  const cfgGetAfter = await api(PORT3, 'GET', '/api/creator-config');
+  check('4.3 config: tras restablecer, leer vuelve a responder 404', cfgGetAfter.status === 404, cfgGetAfter);
+  await stopServer(proc3);
+
   /* Las colecciones que usa MongoDB existen. */
   const mc = new MongoClient(uri);
   await mc.connect();
   const collNames = (await mc.db('wordred').listCollections().toArray()).map(c => c.name).sort();
   await mc.close();
-  const expected = ['audioRooms', 'auth', 'blocked', 'closeFriends', 'conversationSettings', 'coupons', 'events', 'friends', 'gameRatings', 'gameStats', 'groupChats', 'groups', 'listings', 'liveGifts', 'lives', 'media', 'messages', 'muted', 'notifications', 'pages', 'posts', 'postViews', 'postVotes', 'profileViews', 'profiles', 'ratings', 'reports', 'requests', 'salesGroups', 'stories', 'storyPollVotes', 'storyReactions', 'storyViews', 'tournaments', 'wishlists'];
-  check('3.8 MongoDB: existen las 35 colecciones (una por conjunto de datos)', expected.every(c => collNames.includes(c)), collNames);
+  const expected = ['audioRooms', 'auth', 'blocked', 'closeFriends', 'conversationSettings', 'coupons', 'events', 'friends', 'gameRatings', 'gameStats', 'groupChats', 'groups', 'listings', 'liveGifts', 'lives', 'media', 'messages', 'muted', 'notifications', 'pages', 'posts', 'postViews', 'postVotes', 'profileViews', 'profiles', 'ratings', 'reports', 'requests', 'salesGroups', 'stories', 'storyPollVotes', 'storyReactions', 'storyViews', 'tournaments', 'wishlists', 'promotion_requests', 'creator_config'];
+  check('4.3 MongoDB: existen las 37 colecciones (una por conjunto de datos, con las 2 de la 4.3)', expected.every(c => collNames.includes(c)), collNames);
   await stopServer(proc);
 
   /* ---- modo respaldo JSON (sin MONGODB_URI) ---- */
@@ -1064,7 +1163,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT2 = 34532;
   const proc2 = startServer(PORT2, { DATA_DIR: jsonDir });
   const health2 = await waitHealth(PORT2);
-  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 4.2, storage json y mongo false', !!(health2 && health2.version === '4.2' && health2.storage === 'json' && health2.mongo === false), health2);
+  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 4.3, storage json y mongo false', !!(health2 && health2.version === '4.3' && health2.storage === 'json' && health2.mongo === false), health2);
   const regJ = await register(PORT2, '524444444444');
   check('3.3 JSON: el registro sigue funcionando sin MongoDB', regJ.ok, regJ);
   const postJ = await api(PORT2, 'POST', '/api/posts', { text: 'Publicación en modo JSON' }, regJ.token);
@@ -1094,7 +1193,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
 
   await mongod.stop();
   console.log('\n==============================');
-  console.log('Servidor WordRed 4.2 — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('Servidor WordRed 4.3 — ' + pass + ' PASS, ' + fail + ' FAIL');
   if (fail) { console.log('Fallos: ' + failures.join(' | ')); process.exit(1); }
 })().catch((e) => {
   console.error('ERROR en las pruebas: ' + (e && e.stack ? e.stack : e));
