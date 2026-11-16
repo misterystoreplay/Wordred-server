@@ -1021,7 +1021,7 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.9', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.0', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v3.5: actualización de la aplicación. La última versión vive en
    app-version.json junto al APK (WordRed.apk) en el repo: al publicar
@@ -1092,6 +1092,32 @@ app.get('/api/billboard', (req, res) => {
   var movies = readBillboard();
   if (!movies) return res.status(404).json({ ok: false, error: 'Sin cartelera por ahora.' });
   return res.json({ ok: true, movies: movies });
+});
+
+/* v4.0: cartelera de estrenos de juegos. Igual que la de cine (v3.9):
+   la lista vive en games.json en la raíz del repo (título, fecha de
+   estreno, portada y tráiler); al salir juegos nuevos se actualiza ese
+   archivo y la cartelera cambia sin una versión nueva de la app.
+   GET /api/games-billboard es público (sin autenticación). Se lee el
+   archivo en cada petición para que un cambio se note sin reiniciar
+   el servidor. Sin el archivo, con JSON roto o con la lista vacía
+   responde ok:false: la app no inventa juegos y usa su lista fija. */
+function readGamesBillboard() {
+  try {
+    var raw = fs.readFileSync(path.join(__dirname, 'games.json'), 'utf8');
+    var d = JSON.parse(raw);
+    var list = d && Array.isArray(d.games) ? d.games : null;
+    if (!list || !list.length) return null;
+    var clean = list.filter(function (g) { return g && g.title && g.date && g.poster && g.trailer; }).map(function (g) {
+      return { title: String(g.title), date: String(g.date), poster: String(g.poster), trailer: String(g.trailer), now: !!g.now };
+    });
+    return clean.length ? clean : null;
+  } catch (e) { return null; }
+}
+app.get('/api/games-billboard', (req, res) => {
+  var games = readGamesBillboard();
+  if (!games) return res.status(404).json({ ok: false, error: 'Sin cartelera de juegos por ahora.' });
+  return res.json({ ok: true, games: games });
 });
 
 /* v1.5.8 (servidor 3.0): página de inicio con Google en el navegador
