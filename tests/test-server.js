@@ -1,5 +1,5 @@
 'use strict';
-/* Pruebas del servidor WordRed 3.9 — los datos quedan PARA SIEMPRE en
+/* Pruebas del servidor WordRed 4.0 — los datos quedan PARA SIEMPRE en
    MongoDB (y el respaldo JSON sigue funcionando sin MONGODB_URI).
    Se arranca el servidor de verdad como proceso hijo (node server.js)
    contra un MongoDB en memoria (mongodb-memory-server) y se comprueba
@@ -128,7 +128,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   /* ---- modo MongoDB ---- */
   let proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   let health = await waitHealth(PORT);
-  check('3.9 MongoDB: /api/health dice version 3.9', !!(health && health.version === '3.9'), health);
+  check('3.9 MongoDB: /api/health dice version 3.9', !!(health && health.version === '4.0'), health);
   check('3.6 MongoDB: /api/health dice storage mongodb y mongo true', !!(health && health.storage === 'mongodb' && health.mongo === true), health);
 
   /* ---- actualización de la app (v3.5): GET /api/app/latest y
@@ -165,6 +165,19 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.9 cartelera: cada película trae portada https y tráiler de YouTube', !!(billboard.json && billboard.json.movies && billboard.json.movies.every(function (m) { return /^https:\/\//.test(m.poster) && /^https:\/\/www\.youtube\.com\/watch\?v=/.test(m.trailer); })), billboard.json);
   const billboardNoAuth = await api(PORT, 'GET', '/api/billboard');
   check('3.9 cartelera: el endpoint es público (sin token responde 200, no 401)', billboardNoAuth.status === 200 && !!(billboardNoAuth.json && billboardNoAuth.json.ok), { status: billboardNoAuth.status });
+
+  /* ---- cartelera de juegos (v4.0): GET /api/games-billboard es público
+     (sin autenticación) y devuelve la lista de games.json tal cual,
+     para que la app se actualice sola sin una versión nueva. La lista
+     esperada se lee de games.json (no se fija en el test, para que no
+     se quede vieja al agregar juegos). */
+  const gamesFile = JSON.parse(fs.readFileSync(path.join(SERVER_DIR, 'games.json'), 'utf8'));
+  check('4.0 cartelera juegos: games.json trae 6 juegos con título, fecha, portada y tráiler', !!(gamesFile && Array.isArray(gamesFile.games) && gamesFile.games.length === 6 && gamesFile.games.every(function (g) { return g.title && g.date && g.poster && g.trailer; })), gamesFile);
+  const gamesBillboard = await api(PORT, 'GET', '/api/games-billboard');
+  check('4.0 cartelera juegos: GET /api/games-billboard devuelve la lista de games.json (mismo orden y mismos datos)', !!(gamesBillboard.json && gamesBillboard.json.ok && Array.isArray(gamesBillboard.json.games) && gamesBillboard.json.games.length === gamesFile.games.length && gamesBillboard.json.games.every(function (g, i) { return g.title === gamesFile.games[i].title && g.date === gamesFile.games[i].date && g.poster === gamesFile.games[i].poster && g.trailer === gamesFile.games[i].trailer && g.now === !!gamesFile.games[i].now; })), gamesBillboard.json);
+  check('4.0 cartelera juegos: cada juego trae portada https y tráiler de YouTube', !!(gamesBillboard.json && gamesBillboard.json.games && gamesBillboard.json.games.every(function (g) { return /^https:\/\//.test(g.poster) && /^https:\/\/www\.youtube\.com\/watch\?v=/.test(g.trailer); })), gamesBillboard.json);
+  const gamesBillboardNoAuth = await api(PORT, 'GET', '/api/games-billboard');
+  check('4.0 cartelera juegos: el endpoint es público (sin token responde 200, no 401)', gamesBillboardNoAuth.status === 200 && !!(gamesBillboardNoAuth.json && gamesBillboardNoAuth.json.ok), { status: gamesBillboardNoAuth.status });
 
   const regA = await register(PORT, PHONE_A);
   check('3.3 MongoDB: el usuario A se registra (código + verificación)', regA.ok, regA);
@@ -885,7 +898,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir, WORDRED_TEST_FAIL_WRITES: '1' });
   health = await waitHealth(PORT);
-  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 3.9', !!(health && health.version === '3.9' && health.storage === 'mongodb'), health);
+  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 3.9', !!(health && health.version === '4.0' && health.storage === 'mongodb'), health);
   const delFail = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con MongoDB roto, DELETE devuelve 500 (no un éxito falso)', delFail.status === 500 && !!(delFail.json && delFail.json.ok === false), delFail);
   check('3.3 MongoDB: con MongoDB roto, DELETE explica el error real', !!(delFail.json && delFail.json.error && delFail.json.error.indexOf('No se pudo guardar el borrado') >= 0), delFail.json && delFail.json.error);
@@ -896,7 +909,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '3.9'), health);
+  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.0'), health);
   const delFailOk = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con las escrituras sanas, el borrado sí funciona (DELETE ok)', !!(delFailOk.json && delFailOk.json.ok), delFailOk);
   const feedFailOk = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
@@ -924,7 +937,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.8 MongoDB: la antigüedad de A se atrasó 8 días en MongoDB (para probar la verificación)', backRes.matchedCount === 1 && backRes.modifiedCount === 1, { matchedCount: backRes.matchedCount, modifiedCount: backRes.modifiedCount });
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 3.9 y storage mongodb', !!(health && health.version === '3.9' && health.storage === 'mongodb'), health);
+  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 3.9 y storage mongodb', !!(health && health.version === '4.0' && health.storage === 'mongodb'), health);
 
   const feedB2 = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, la publicación de A sigue ahí y B la sigue viendo', !!(feedB2.json && feedB2.json.ok && feedB2.json.posts.some(p => p.id === postId)), feedB2.json && feedB2.json.posts.length);
@@ -987,7 +1000,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT2 = 34532;
   const proc2 = startServer(PORT2, { DATA_DIR: jsonDir });
   const health2 = await waitHealth(PORT2);
-  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 3.9, storage json y mongo false', !!(health2 && health2.version === '3.9' && health2.storage === 'json' && health2.mongo === false), health2);
+  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 3.9, storage json y mongo false', !!(health2 && health2.version === '4.0' && health2.storage === 'json' && health2.mongo === false), health2);
   const regJ = await register(PORT2, '524444444444');
   check('3.3 JSON: el registro sigue funcionando sin MongoDB', regJ.ok, regJ);
   const postJ = await api(PORT2, 'POST', '/api/posts', { text: 'Publicación en modo JSON' }, regJ.token);
@@ -1012,7 +1025,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
 
   await mongod.stop();
   console.log('\n==============================');
-  console.log('Servidor WordRed 3.9 — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('Servidor WordRed 4.0 — ' + pass + ' PASS, ' + fail + ' FAIL');
   if (fail) { console.log('Fallos: ' + failures.join(' | ')); process.exit(1); }
 })().catch((e) => {
   console.error('ERROR en las pruebas: ' + (e && e.stack ? e.stack : e));
