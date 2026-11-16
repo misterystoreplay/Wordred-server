@@ -1,5 +1,5 @@
 'use strict';
-/* Pruebas del servidor WordRed 4.0 — los datos quedan PARA SIEMPRE en
+/* Pruebas del servidor WordRed 4.1 — los datos quedan PARA SIEMPRE en
    MongoDB (y el respaldo JSON sigue funcionando sin MONGODB_URI).
    Se arranca el servidor de verdad como proceso hijo (node server.js)
    contra un MongoDB en memoria (mongodb-memory-server) y se comprueba
@@ -128,7 +128,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   /* ---- modo MongoDB ---- */
   let proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   let health = await waitHealth(PORT);
-  check('3.9 MongoDB: /api/health dice version 3.9', !!(health && health.version === '4.0'), health);
+  check('4.1 MongoDB: /api/health dice version 4.1', !!(health && health.version === '4.1'), health);
   check('3.6 MongoDB: /api/health dice storage mongodb y mongo true', !!(health && health.storage === 'mongodb' && health.mongo === true), health);
 
   /* ---- actualización de la app (v3.5): GET /api/app/latest y
@@ -219,6 +219,56 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.3 MongoDB: A crea una publicación', !!(postRes.json && postRes.json.ok && postId), postRes);
   const feedB = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: la publicación de A la ve otro usuario (B) en su inicio', !!(feedB.json && feedB.json.ok && feedB.json.posts.some(p => p.id === postId)), feedB.json && feedB.json.posts.length);
+
+  /* ---- promociones (v4.1): el servidor conserva `promoted` en las
+     publicaciones para que la insignia «Promocionado» y el primer lugar
+     valgan en TODOS los teléfonos (en la 4.0 el campo se perdía al crear
+     la publicación y solo el teléfono que promocionaba lo veía). */
+  const promoCreate = await api(PORT, 'POST', '/api/posts', { text: 'Publicación promocionada (prueba 4.1)', promoted: true }, regA.token);
+  const promoPostId = promoCreate.json && promoCreate.json.post && promoCreate.json.post.id;
+  check('4.1 MongoDB: crear una publicación con promoted:true la devuelve con promoted true', !!(promoCreate.json && promoCreate.json.ok && promoPostId && promoCreate.json.post.promoted === true), promoCreate.json && promoCreate.json.post);
+  const feedPromoB = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
+  const promoInFeedB = feedPromoB.json && feedPromoB.json.posts && feedPromoB.json.posts.find(p => p.id === promoPostId);
+  check('4.1 MongoDB: otro usuario (B) ve la publicación promocionada con promoted true en su inicio', !!(feedPromoB.json && feedPromoB.json.ok && promoInFeedB && promoInFeedB.promoted === true), promoInFeedB);
+  const normalCreate = await api(PORT, 'POST', '/api/posts', { text: 'Publicación normal (prueba 4.1)' }, regA.token);
+  const normalPostId = normalCreate.json && normalCreate.json.post && normalCreate.json.post.id;
+  check('4.1 MongoDB: una publicación normal sin promoted se crea con promoted false (sin cambio de comportamiento)', !!(normalCreate.json && normalCreate.json.ok && normalPostId && normalCreate.json.post.promoted === false), normalCreate.json && normalCreate.json.post);
+  const promoBadStr = await api(PORT, 'POST', '/api/posts', { text: 'Promoción inválida (prueba 4.1)', promoted: 'si' }, regA.token);
+  check('4.1 MongoDB: crear con promoted no booleano ("si") se rechaza con 400', promoBadStr.status === 400 && !!(promoBadStr.json && promoBadStr.json.ok === false), promoBadStr);
+  const promoBadObj = await api(PORT, 'POST', '/api/posts', { text: 'Promoción inválida (prueba 4.1)', promoted: { tier: 100 } }, regA.token);
+  check('4.1 MongoDB: crear con promoted objeto se rechaza con 400', promoBadObj.status === 400 && !!(promoBadObj.json && promoBadObj.json.ok === false), promoBadObj);
+  /* Promocionar una publicación ya publicada: PUT con solo promoted. */
+  const promoPut = await api(PORT, 'PUT', '/api/posts/' + normalPostId, { promoted: true }, regA.token);
+  check('4.1 MongoDB: PUT con solo promoted:true activa la promoción en una publicación ya publicada', !!(promoPut.json && promoPut.json.ok && promoPut.json.post && promoPut.json.post.promoted === true), promoPut.json);
+  check('4.1 MongoDB: el PUT de solo-promoción NO gasta una edición (editsLeft sigue en 5)', !!(promoPut.json && promoPut.json.editsLeft === 5), promoPut.json);
+  const feedPromoPutB = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
+  const promoPutInFeedB = feedPromoPutB.json && feedPromoPutB.json.posts && feedPromoPutB.json.posts.find(p => p.id === normalPostId);
+  check('4.1 MongoDB: tras el PUT, B ve la publicación con promoted true en su inicio', !!(promoPutInFeedB && promoPutInFeedB.promoted === true), promoPutInFeedB);
+  const promoPutOff = await api(PORT, 'PUT', '/api/posts/' + normalPostId, { promoted: false }, regA.token);
+  check('4.1 MongoDB: PUT con promoted:false quita la promoción', !!(promoPutOff.json && promoPutOff.json.ok && promoPutOff.json.post && promoPutOff.json.post.promoted === false), promoPutOff.json);
+  const promoPutBad = await api(PORT, 'PUT', '/api/posts/' + normalPostId, { promoted: 1 }, regA.token);
+  check('4.1 MongoDB: PUT con promoted no booleano (1) se rechaza con 400 y el valor no cambia', promoPutBad.status === 400 && !!(promoPutBad.json && promoPutBad.json.ok === false), promoPutBad);
+  const feedPromoBadB = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
+  const promoBadInFeedB = feedPromoBadB.json && feedPromoBadB.json.posts && feedPromoBadB.json.posts.find(p => p.id === normalPostId);
+  check('4.1 MongoDB: tras el PUT inválido, la publicación sigue con promoted false', !!(promoBadInFeedB && promoBadInFeedB.promoted === false), promoBadInFeedB);
+  const promoPutOther = await api(PORT, 'PUT', '/api/posts/' + normalPostId, { promoted: true }, regB.token);
+  check('4.1 MongoDB: promocionar la publicación de otro da 403', promoPutOther.status === 403, promoPutOther);
+  const promoInMongo = await waitMongoValue(uri, 'posts', v => Array.isArray(v) && v.some(p => p.id === promoPostId && p.promoted === true));
+  check('4.1 MongoDB: la publicación promocionada está guardada con promoted true en la colección posts de MongoDB', !!promoInMongo);
+  /* Una promoción pagada nunca se bloquea por haber editado 5 veces:
+     se edita el texto 5 veces y el PUT de solo-promoción sigue valiendo. */
+  const promoLimitPost = await api(PORT, 'POST', '/api/posts', { text: 'Publicación con 5 ediciones (prueba 4.1)' }, regA.token);
+  const promoLimitId = promoLimitPost.json && promoLimitPost.json.post && promoLimitPost.json.post.id;
+  let promoLimitOk = !!(promoLimitPost.json && promoLimitPost.json.ok && promoLimitId);
+  for (let ei = 1; ei <= 5 && promoLimitOk; ei++) {
+    const e = await api(PORT, 'PUT', '/api/posts/' + promoLimitId, { text: 'Edición ' + ei + ' (prueba 4.1)' }, regA.token);
+    promoLimitOk = !!(e.json && e.json.ok && e.json.editsLeft === 5 - ei);
+  }
+  check('4.1 MongoDB: una publicación se puede editar 5 veces (editsLeft llega a 0)', promoLimitOk);
+  const promoLimit6th = await api(PORT, 'PUT', '/api/posts/' + promoLimitId, { text: 'Sexta edición (prueba 4.1)' }, regA.token);
+  check('4.1 MongoDB: la sexta edición de contenido se rechaza con 400', promoLimit6th.status === 400, promoLimit6th);
+  const promoLimitPut = await api(PORT, 'PUT', '/api/posts/' + promoLimitId, { promoted: true }, regA.token);
+  check('4.1 MongoDB: con 5 ediciones gastadas, el PUT de solo-promoción SÍ funciona (la promoción no se bloquea)', !!(promoLimitPut.json && promoLimitPut.json.ok && promoLimitPut.json.post && promoLimitPut.json.post.promoted === true && promoLimitPut.json.editsLeft === 0), promoLimitPut.json);
 
   /* ---- DELETE /api/posts/:id (v3.3): el borrado llega al servidor ----
      Antes no existía este endpoint: la app solo quitaba la publicación
@@ -898,7 +948,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir, WORDRED_TEST_FAIL_WRITES: '1' });
   health = await waitHealth(PORT);
-  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 3.9', !!(health && health.version === '4.0' && health.storage === 'mongodb'), health);
+  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 4.1', !!(health && health.version === '4.1' && health.storage === 'mongodb'), health);
   const delFail = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con MongoDB roto, DELETE devuelve 500 (no un éxito falso)', delFail.status === 500 && !!(delFail.json && delFail.json.ok === false), delFail);
   check('3.3 MongoDB: con MongoDB roto, DELETE explica el error real', !!(delFail.json && delFail.json.error && delFail.json.error.indexOf('No se pudo guardar el borrado') >= 0), delFail.json && delFail.json.error);
@@ -909,7 +959,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.0'), health);
+  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.1'), health);
   const delFailOk = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con las escrituras sanas, el borrado sí funciona (DELETE ok)', !!(delFailOk.json && delFailOk.json.ok), delFailOk);
   const feedFailOk = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
@@ -937,11 +987,12 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.8 MongoDB: la antigüedad de A se atrasó 8 días en MongoDB (para probar la verificación)', backRes.matchedCount === 1 && backRes.modifiedCount === 1, { matchedCount: backRes.matchedCount, modifiedCount: backRes.modifiedCount });
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 3.9 y storage mongodb', !!(health && health.version === '4.0' && health.storage === 'mongodb'), health);
+  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 4.1 y storage mongodb', !!(health && health.version === '4.1' && health.storage === 'mongodb'), health);
 
   const feedB2 = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, la publicación de A sigue ahí y B la sigue viendo', !!(feedB2.json && feedB2.json.ok && feedB2.json.posts.some(p => p.id === postId)), feedB2.json && feedB2.json.posts.length);
   check('3.3 MongoDB: tras reiniciar, la publicación borrada SIGUE borrada (no resucita)', !!(feedB2.json && feedB2.json.ok && !feedB2.json.posts.some(p => p.id === delPostId)), feedB2.json && feedB2.json.posts.length);
+  check('4.1 MongoDB: tras reiniciar, la publicación promocionada sigue con promoted true en el inicio de B', !!(feedB2.json && feedB2.json.ok && feedB2.json.posts.some(p => p.id === promoPostId && p.promoted === true)), feedB2.json && feedB2.json.posts.length);
   const msgsB2 = await api(PORT, 'GET', '/api/messages?phone=' + PHONE_B);
   const allMsgs = (msgsB2.json && msgsB2.json.conversations || []).flatMap(c => c.messages || []);
   check('3.3 MongoDB: tras reiniciar, el mensaje de A a B sigue ahí', allMsgs.some(m => m.id === msgId), allMsgs.length);
@@ -1000,13 +1051,18 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT2 = 34532;
   const proc2 = startServer(PORT2, { DATA_DIR: jsonDir });
   const health2 = await waitHealth(PORT2);
-  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 3.9, storage json y mongo false', !!(health2 && health2.version === '4.0' && health2.storage === 'json' && health2.mongo === false), health2);
+  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 4.1, storage json y mongo false', !!(health2 && health2.version === '4.1' && health2.storage === 'json' && health2.mongo === false), health2);
   const regJ = await register(PORT2, '524444444444');
   check('3.3 JSON: el registro sigue funcionando sin MongoDB', regJ.ok, regJ);
   const postJ = await api(PORT2, 'POST', '/api/posts', { text: 'Publicación en modo JSON' }, regJ.token);
   check('3.3 JSON: la publicación se crea sin MongoDB', !!(postJ.json && postJ.json.ok), postJ);
   const feedJ = await api(PORT2, 'GET', '/api/feed?phone=524444444444');
   check('3.3 JSON: la publicación se ve en el inicio sin MongoDB', !!(feedJ.json && feedJ.json.ok && feedJ.json.posts.some(p => p.id === (postJ.json && postJ.json.post && postJ.json.post.id))), feedJ.json && feedJ.json.posts.length);
+  const postJPromo = await api(PORT2, 'POST', '/api/posts', { text: 'Publicación promocionada en modo JSON', promoted: true }, regJ.token);
+  const postJPromoId = postJPromo.json && postJPromo.json.post && postJPromo.json.post.id;
+  check('4.1 JSON: crear con promoted:true en modo JSON la devuelve con promoted true', !!(postJPromo.json && postJPromo.json.ok && postJPromoId && postJPromo.json.post.promoted === true), postJPromo.json && postJPromo.json.post);
+  const feedJPromo = await api(PORT2, 'GET', '/api/feed?phone=524444444444');
+  check('4.1 JSON: la publicación promocionada se ve con promoted true en el inicio sin MongoDB', !!(feedJPromo.json && feedJPromo.json.ok && feedJPromo.json.posts.some(p => p.id === postJPromoId && p.promoted === true)), feedJPromo.json && feedJPromo.json.posts.length);
   check('3.3 JSON: sin MongoDB, los datos quedan en archivos JSON en disco', fs.existsSync(path.join(jsonDir, 'posts.json')) && fs.existsSync(path.join(jsonDir, 'auth.json')));
   /* Visitas al perfil en modo JSON (v3.7): mismo comportamiento con el
      respaldo en profile-views.json. */
@@ -1025,7 +1081,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
 
   await mongod.stop();
   console.log('\n==============================');
-  console.log('Servidor WordRed 4.0 — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('Servidor WordRed 4.1 — ' + pass + ' PASS, ' + fail + ' FAIL');
   if (fail) { console.log('Fallos: ' + failures.join(' | ')); process.exit(1); }
 })().catch((e) => {
   console.error('ERROR en las pruebas: ' + (e && e.stack ? e.stack : e));
