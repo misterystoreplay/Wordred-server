@@ -162,6 +162,15 @@
  * conversationSettings, coupons, más storyViews y postViews).
  * Nada más cambia en la 3.8.
  *
+ * v3.9: cartelera de estrenos de cine. Nuevo endpoint público
+ * GET /api/billboard (sin autenticación, como /api/app/latest) que
+ * devuelve la lista actual de películas (título, fecha de estreno,
+ * portada y tráiler). La lista vive en movies.json en la raíz del
+ * repo: al salir películas nuevas se actualiza ese archivo y la
+ * cartelera de la app cambia sin una versión nueva de la app. Sin
+ * el archivo o con la lista vacía responde ok:false: la app no
+ * inventa películas y usa su lista fija. Nada más cambia en la 3.9.
+ *
  * Almacenamiento: MongoDB con MONGODB_URI; sin ella, JSON en disco
  * (carpeta data/).
  *
@@ -1012,7 +1021,7 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.8', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '3.9', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v3.5: actualización de la aplicación. La última versión vive en
    app-version.json junto al APK (WordRed.apk) en el repo: al publicar
@@ -1057,6 +1066,32 @@ app.get('/app/WordRed.apk', (req, res) => {
   res.setHeader('Content-Type', 'application/vnd.android.package-archive');
   res.setHeader('Content-Disposition', 'attachment; filename="WordRed.apk"');
   return res.sendFile(apkPath);
+});
+
+/* v3.9: cartelera de estrenos de cine. La lista vive en movies.json
+   en la raíz del repo (título, fecha de estreno, portada y tráiler):
+   al salir películas nuevas se actualiza ese archivo y la cartelera
+   cambia sin una versión nueva de la app. GET /api/billboard es
+   público (sin autenticación, como /api/app/latest). Se lee el
+   archivo en cada petición para que un cambio se note sin reiniciar
+   el servidor. Sin el archivo, con JSON roto o con la lista vacía
+   responde ok:false: la app no inventa películas y usa su lista fija. */
+function readBillboard() {
+  try {
+    var raw = fs.readFileSync(path.join(__dirname, 'movies.json'), 'utf8');
+    var d = JSON.parse(raw);
+    var list = d && Array.isArray(d.movies) ? d.movies : null;
+    if (!list || !list.length) return null;
+    var clean = list.filter(function (m) { return m && m.title && m.date && m.poster && m.trailer; }).map(function (m) {
+      return { title: String(m.title), date: String(m.date), poster: String(m.poster), trailer: String(m.trailer), now: !!m.now };
+    });
+    return clean.length ? clean : null;
+  } catch (e) { return null; }
+}
+app.get('/api/billboard', (req, res) => {
+  var movies = readBillboard();
+  if (!movies) return res.status(404).json({ ok: false, error: 'Sin cartelera por ahora.' });
+  return res.json({ ok: true, movies: movies });
 });
 
 /* v1.5.8 (servidor 3.0): página de inicio con Google en el navegador
