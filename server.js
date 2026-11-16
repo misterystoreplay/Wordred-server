@@ -191,6 +191,23 @@
  * YouTube). Cada 3 meses se cambia ese archivo y los dramas rotan sin
  * una versión nueva de la app. Nada más cambia en la 4.2.
  *
+ * v4.3: WordRed Creador — (1) solicitudes de promoción: la app 1.5.53
+ * ya NO activa la promoción sola con «Ya pagué»; manda POST
+ * /api/promotions/request y el creador la aprueba o rechaza desde su
+ * app (GET /api/promotions/pending + POST /api/promotions/:id/approve
+ * y /reject, solo con la clave de creador en el encabezado
+ * x-creator-key). Aprobar pone post.promoted=true por el camino de
+ * siempre, sin gastar una de las 5 ediciones; rechazar deja la
+ * publicación sin promocionar. Quien promociona ve el estado de SU
+ * solicitud en GET /api/promotions/mine. Las solicitudes viven en la
+ * colección `promotion_requests`. (2) Configuración del creador: GET
+ * /api/creator-config (público) devuelve el orden y tamaño global de
+ * las secciones del Inicio; POST /api/creator-config (solo creador)
+ * lo guarda en la colección `creator_config` (un solo documento). La
+ * clave del creador se lee de la variable CREATOR_KEY (Render); sin
+ * ella o con clave incorrecta/faltante, las rutas de creador fallan
+ * cerradas (503/401) y NUNCA dejan pasar. Nada más cambia en la 4.3.
+ *
  * Almacenamiento: MongoDB con MONGODB_URI; sin ella, JSON en disco
  * (carpeta data/).
  *
@@ -388,6 +405,8 @@ let postVotes = loadJson('post-votes.json', {}); // v3.8: publicación -> [{vote
 let muted = loadJson('muted.json', {}); // v3.8: cuenta -> [teléfonos silenciados] (solo apaga avisos, no oculta)
 let conversationSettings = loadJson('conversation-settings.json', {}); // v3.8: "a|b" -> {disappearingHours} (mensajes temporales)
 let coupons = loadJson('coupons.json', []); // v3.8: [{code, seller, discountPct, listingId|null, expiresAt, createdAt}]
+let promoRequests = loadJson('promotion-requests.json', []); // v4.3: [{id, postId, userPhone, tier, goal, status:'pending'|'approved'|'rejected', createdAt, decidedAt}]
+let creatorConfig = loadJson('creator-config.json', null); // v4.3: {order:[ids de apartados], sizes:{id:'s'|'m'|'l'}, updatedAt} o null = predeterminado de la app
 /* (v3.1: al arrancar, los lives que quedaron abiertos se marcan como
    terminados dentro de initStore, después de cargar los datos.) */
 const codeHits = {};                                // phone -> [timestamps]
@@ -429,6 +448,8 @@ function saveAll() {
   saveJson('muted.json', muted);
   saveJson('conversation-settings.json', conversationSettings);
   saveJson('coupons.json', coupons);
+  saveJson('promotion-requests.json', promoRequests);
+  saveJson('creator-config.json', creatorConfig);
   if (mongoReady) return flushPendingWrites();
   return undefined;
 }
@@ -480,7 +501,8 @@ const FILE_TO_COLL = {
   'audio-rooms.json': 'audioRooms', 'tournaments.json': 'tournaments',
   'wishlists.json': 'wishlists', 'post-votes.json': 'postVotes',
   'muted.json': 'muted', 'conversation-settings.json': 'conversationSettings',
-  'coupons.json': 'coupons'
+  'coupons.json': 'coupons', 'promotion-requests.json': 'promotion_requests',
+  'creator-config.json': 'creator_config'
 };
 const DATASETS = [
   { file: 'profiles.json', get: () => profiles, set: v => { profiles = v; }, fallback: {} },
@@ -517,7 +539,9 @@ const DATASETS = [
   { file: 'post-votes.json', get: () => postVotes, set: v => { postVotes = v; }, fallback: {} },
   { file: 'muted.json', get: () => muted, set: v => { muted = v; }, fallback: {} },
   { file: 'conversation-settings.json', get: () => conversationSettings, set: v => { conversationSettings = v; }, fallback: {} },
-  { file: 'coupons.json', get: () => coupons, set: v => { coupons = v; }, fallback: [] }
+  { file: 'coupons.json', get: () => coupons, set: v => { coupons = v; }, fallback: [] },
+  { file: 'promotion-requests.json', get: () => promoRequests, set: v => { promoRequests = v; }, fallback: [] },
+  { file: 'creator-config.json', get: () => creatorConfig, set: v => { creatorConfig = v; }, fallback: null }
 ];
 /* Espera a que terminen las escrituras pendientes a MongoDB (con tope,
    para no dejar una petición colgada si MongoDB va lento). Nunca
@@ -1036,12 +1060,12 @@ const app = express();
    parser (Express guarda el cuerpo entero en memoria); el límite real es
    el disco del servidor. */
 app.use(express.json({ limit: '1gb' }));
-app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization'); if (req.method === 'OPTIONS') return res.sendStatus(204); next(); });
+app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Creator-Key'); if (req.method === 'OPTIONS') return res.sendStatus(204); next(); });
 /* v3.1: ninguna petición se atiende antes de que el almacenamiento esté
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.2', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.3', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v3.5: actualización de la aplicación. La última versión vive en
    app-version.json junto al APK (WordRed.apk) en el repo: al publicar
@@ -1728,6 +1752,144 @@ app.put('/api/posts/:id', (req, res) => {
   saveJson('posts.json', posts);
   return res.json({ ok: true, post, editsLeft: 5 - post.editCount });
 });
+
+/* ---- v4.3: solicitudes de promoción (WordRed Creador) ----
+   La app 1.5.53 ya NO activa la promoción sola con «Ya pagué»: manda
+   una solicitud y el creador la aprueba o rechaza desde su app. Las
+   solicitudes viven en la colección `promotion_requests` (o en
+   promotion-requests.json sin MongoDB). Aprobar pone post.promoted=true
+   por el camino de siempre, SIN gastar una de las 5 ediciones y sin
+   marcar la publicación como editada; rechazar la deja sin
+   promocionar. Si la escritura falla (MongoDB caído), el endpoint
+   devuelve 500 con un error claro: nunca se finge un éxito. */
+const PROMO_TIERS_43 = [50, 100, 200, 500];
+function promoRequestPublic(r) {
+  const post = posts.find(function (p) { return p.id === r.postId; });
+  const author = (profiles[r.userPhone] && profiles[r.userPhone].name) || r.userPhone;
+  return {
+    id: r.id, postId: r.postId, userPhone: r.userPhone, authorName: author,
+    postText: post ? String(post.text || '').slice(0, 80) : '',
+    tier: r.tier, goal: r.goal || 'views', status: r.status,
+    createdAt: r.createdAt, decidedAt: r.decidedAt || null
+  };
+}
+/* Clave del creador (v4.3): secreto compartido en la variable
+   CREATOR_KEY (Render). Se lee en cada petición para que las pruebas
+   puedan simular que no está configurada. Sin la variable, las rutas
+   de creador responden 503; con clave faltante o incorrecta, 401.
+   NUNCA dejan pasar. */
+function requireCreator(req, res) {
+  const key = String(process.env.CREATOR_KEY || '').trim();
+  if (!key) { res.status(503).json({ ok: false, error: 'La verificación del creador no está configurada en el servidor.' }); return false; }
+  const given = String(req.headers['x-creator-key'] || '').trim();
+  if (!given || given !== key) { res.status(401).json({ ok: false, error: 'Clave de creador no válida.' }); return false; }
+  return true;
+}
+app.post('/api/promotions/request', async (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const body = req.body || {};
+  const postId = String(body.postId || '');
+  const tier = parseInt(body.tier, 10);
+  const goal = body.goal === 'followers' ? 'followers' : 'views';
+  if (!postId) return res.status(400).json({ ok: false, error: 'Falta la publicación.' });
+  if (PROMO_TIERS_43.indexOf(tier) < 0) return res.status(400).json({ ok: false, error: 'Nivel de promoción no válido.' });
+  const post = posts.find(function (p) { return p.id === postId; });
+  if (!post) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
+  if (post.author !== phone) return res.status(403).json({ ok: false, error: 'Solo quien publicó puede promocionarla.' });
+  if (post.promoted) return res.status(400).json({ ok: false, error: 'La publicación ya está promocionada.' });
+  /* Sin duplicados: si ya hay una solicitud pendiente para esta
+     publicación, se devuelve esa (la app no vuelve a pedir). */
+  const existing = promoRequests.find(function (r) { return r.postId === postId && r.status === 'pending'; });
+  if (existing) return res.json({ ok: true, request: promoRequestPublic(existing), deduped: true });
+  const r = { id: uid('promoReq'), postId: postId, userPhone: phone, tier: tier, goal: goal, status: 'pending', createdAt: Date.now(), decidedAt: null };
+  promoRequests.push(r);
+  try { await saveJsonStrict('promotion-requests.json', promoRequests); await flushPendingWrites(); }
+  catch (e) { promoRequests = promoRequests.filter(function (x) { return x.id !== r.id; }); return res.status(500).json({ ok: false, error: 'No se pudo guardar la solicitud. Inténtalo de nuevo.' }); }
+  return res.json({ ok: true, request: promoRequestPublic(r) });
+});
+app.get('/api/promotions/mine', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const mine = promoRequests.filter(function (r) { return r.userPhone === phone; }).slice().sort(function (a, b) { return b.createdAt - a.createdAt; });
+  return res.json({ ok: true, requests: mine.map(promoRequestPublic) });
+});
+app.get('/api/promotions/pending', (req, res) => {
+  if (!requireCreator(req, res)) return;
+  const list = promoRequests.filter(function (r) { return r.status === 'pending'; }).slice().sort(function (a, b) { return a.createdAt - b.createdAt; });
+  return res.json({ ok: true, requests: list.map(promoRequestPublic) });
+});
+app.post('/api/promotions/:id/approve', async (req, res) => {
+  if (!requireCreator(req, res)) return;
+  const r = promoRequests.find(function (x) { return x.id === req.params.id; });
+  if (!r) return res.status(404).json({ ok: false, error: 'Solicitud no encontrada.' });
+  if (r.status !== 'pending') return res.status(400).json({ ok: false, error: 'Esta solicitud ya se decidió.' });
+  const post = posts.find(function (p) { return p.id === r.postId; });
+  if (!post) return res.status(404).json({ ok: false, error: 'La publicación ya no existe.' });
+  r.status = 'approved';
+  r.decidedAt = Date.now();
+  /* La promoción NO gasta una edición ni marca la publicación como
+     editada: se pone promoted=true directamente (mismo efecto que el
+     bypass promoOnly del PUT, sin pasar por él). */
+  post.promoted = true;
+  try {
+    await saveJsonStrict('promotion-requests.json', promoRequests);
+    await saveJsonStrict('posts.json', posts);
+    await flushPendingWrites();
+  } catch (e) {
+    r.status = 'pending'; r.decidedAt = null; post.promoted = false;
+    return res.status(500).json({ ok: false, error: 'No se pudo guardar la aprobación. Inténtalo de nuevo.' });
+  }
+  return res.json({ ok: true, request: promoRequestPublic(r), post: post });
+});
+app.post('/api/promotions/:id/reject', async (req, res) => {
+  if (!requireCreator(req, res)) return;
+  const r = promoRequests.find(function (x) { return x.id === req.params.id; });
+  if (!r) return res.status(404).json({ ok: false, error: 'Solicitud no encontrada.' });
+  if (r.status !== 'pending') return res.status(400).json({ ok: false, error: 'Esta solicitud ya se decidió.' });
+  r.status = 'rejected';
+  r.decidedAt = Date.now();
+  try { await saveJsonStrict('promotion-requests.json', promoRequests); await flushPendingWrites(); }
+  catch (e) { r.status = 'pending'; r.decidedAt = null; return res.status(500).json({ ok: false, error: 'No se pudo guardar el rechazo. Inténtalo de nuevo.' }); }
+  return res.json({ ok: true, request: promoRequestPublic(r) });
+});
+
+/* ---- v4.3: configuración del creador (orden y tamaño del Inicio) ----
+   GET es público: la app de cada teléfono lo descarga y lo aplica como
+   orden POR DEFECTO solo si ese teléfono nunca personalizó su Inicio
+   (una personalización explícita se conserva). POST es solo creador y
+   guarda un solo documento en la colección `creator_config`. Con
+   {reset:true} se borra y todos vuelven al predeterminado de la app. */
+const CREATOR_HOME_IDS_43 = ['historias', 'publicar', 'reloj', 'clima', 'accesos', 'calendario', 'mensajeria', 'fotos', 'calculadora', 'notas', 'bateria', 'tiempo'];
+function creatorConfigValid43(cfg) {
+  if (!cfg || typeof cfg !== 'object') return false;
+  if (!Array.isArray(cfg.order) || !cfg.order.length) return false;
+  if (!cfg.order.every(function (id) { return CREATOR_HOME_IDS_43.indexOf(id) >= 0; })) return false;
+  if (new Set(cfg.order).size !== cfg.order.length) return false;
+  if (!cfg.sizes || typeof cfg.sizes !== 'object') return false;
+  return cfg.order.every(function (id) { return ['s', 'm', 'l'].indexOf(cfg.sizes[id]) >= 0; });
+}
+app.get('/api/creator-config', (req, res) => {
+  if (!creatorConfig || !creatorConfigValid43(creatorConfig)) return res.status(404).json({ ok: false, error: 'Sin configuración del creador por ahora.' });
+  return res.json({ ok: true, config: { order: creatorConfig.order.slice(), sizes: Object.assign({}, creatorConfig.sizes), updatedAt: creatorConfig.updatedAt || null } });
+});
+app.post('/api/creator-config', async (req, res) => {
+  if (!requireCreator(req, res)) return;
+  const body = req.body || {};
+  if (body.reset === true) {
+    creatorConfig = null;
+    try { await saveJsonStrict('creator-config.json', creatorConfig); await flushPendingWrites(); }
+    catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo borrar la configuración. Inténtalo de nuevo.' }); }
+    return res.json({ ok: true, reset: true });
+  }
+  const cfg = { order: Array.isArray(body.order) ? body.order.slice() : [], sizes: (body.sizes && typeof body.sizes === 'object') ? body.sizes : {}, updatedAt: Date.now() };
+  if (!creatorConfigValid43(cfg)) return res.status(400).json({ ok: false, error: 'Configuración no válida: orden con apartados conocidos y tamaño s, m o l para cada uno.' });
+  creatorConfig = cfg;
+  try { await saveJsonStrict('creator-config.json', creatorConfig); await flushPendingWrites(); }
+  catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar la configuración. Inténtalo de nuevo.' }); }
+  return res.json({ ok: true, config: { order: creatorConfig.order.slice(), sizes: Object.assign({}, creatorConfig.sizes), updatedAt: creatorConfig.updatedAt } });
+});
+
 app.post('/api/posts/:id/like', (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
@@ -2250,6 +2412,7 @@ app.delete('/api/account', async (req, res) => {
   Object.keys(closeFriends).forEach(function (owner) { closeFriends[owner] = closeFriends[owner].filter(function (p) { return p !== phone; }); });
   Object.keys(conversationSettings).forEach(function (k) { if (k.split('|').includes(phone)) delete conversationSettings[k]; });
   coupons = coupons.filter(function (c) { return c.seller !== phone; });
+  promoRequests = promoRequests.filter(function (r) { return r.userPhone !== phone; });
   saveJson('story-poll-votes.json', storyPollVotes);
   saveJson('story-reactions.json', storyReactions);
   saveJson('close-friends.json', closeFriends);
@@ -2261,6 +2424,7 @@ app.delete('/api/account', async (req, res) => {
   saveJson('muted.json', muted);
   saveJson('conversation-settings.json', conversationSettings);
   saveJson('coupons.json', coupons);
+  saveJson('promotion-requests.json', promoRequests);
   messages = messages.filter(m => m.from !== phone && m.to !== phone);
   notifications = notifications.filter(n => n.to !== phone && n.from !== phone);
   posts.forEach(p => {
@@ -4307,4 +4471,4 @@ if (require.main === module) {
     server.listen(PORT, () => console.log('WordRed server en el puerto ' + PORT + (mongoReady ? ' (MongoDB: datos para siempre)' : ' (JSON en disco)') + (SMS_ENABLED ? ' (SMS por Twilio)' : ' (sin Twilio: códigos por [DEV])')));
   });
 }
-module.exports = { app, server, _internals: { get profiles() { return profiles; }, get posts() { return posts; }, get auth() { return auth; }, get listings() { return listings; }, get events() { return events; }, get pages() { return pages; }, get salesGroups() { return salesGroups; }, get ratings() { return ratings; }, get stories() { return stories; }, get blocked() { return blocked; }, get reports() { return reports; }, get messages() { return messages; }, get media() { return media; }, get gameStats() { return gameStats; }, get gameRatings() { return gameRatings; }, get gameRooms() { return gameRooms; }, cloudinaryConfig, saveAll, storeReady, flushPendingWrites, get storage() { return mongoReady ? 'mongodb' : 'json'; }, get mongoReady() { return mongoReady; } } };
+module.exports = { app, server, _internals: { get profiles() { return profiles; }, get posts() { return posts; }, get auth() { return auth; }, get listings() { return listings; }, get events() { return events; }, get pages() { return pages; }, get salesGroups() { return salesGroups; }, get ratings() { return ratings; }, get stories() { return stories; }, get blocked() { return blocked; }, get reports() { return reports; }, get messages() { return messages; }, get media() { return media; }, get gameStats() { return gameStats; }, get gameRatings() { return gameRatings; }, get gameRooms() { return gameRooms; }, get promoRequests() { return promoRequests; }, get creatorConfig() { return creatorConfig; }, cloudinaryConfig, saveAll, storeReady, flushPendingWrites, get storage() { return mongoReady ? 'mongodb' : 'json'; }, get mongoReady() { return mongoReady; } } };
