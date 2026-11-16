@@ -171,6 +171,21 @@
  * el archivo o con la lista vacía responde ok:false: la app no
  * inventa películas y usa su lista fija. Nada más cambia en la 3.9.
  *
+ * v4.0: cartelera de estrenos de juegos. Igual que la de cine (v3.9):
+ * GET /api/games-billboard es público y la lista vive en games.json
+ * en la raíz del repo (título, fecha de estreno, portada y tráiler).
+ * Nada más cambia en la 4.0.
+ *
+ * v4.1: promociones — POST /api/posts acepta y conserva `promoted`
+ * (booleano: true = publicación promocionada, insignia «Promocionado»
+ * + primer lugar en el inicio de TODOS los teléfonos; la app 1.5.47
+ * ya lo lee en post.promoted) y PUT /api/posts/:id acepta cambiarlo
+ * en una publicación ya publicada. Un valor que no sea booleano se
+ * rechaza con 400 y nunca se guarda; las publicaciones normales
+ * quedan con promoted:false. Activar o quitar la promoción NO gasta
+ * una de las 5 ediciones (una promoción pagada nunca se bloquea por
+ * haber editado el texto 5 veces). Nada más cambia en la 4.1.
+ *
  * Almacenamiento: MongoDB con MONGODB_URI; sin ella, JSON en disco
  * (carpeta data/).
  *
@@ -1021,7 +1036,7 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.0', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.1', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v3.5: actualización de la aplicación. La última versión vive en
    app-version.json junto al APK (WordRed.apk) en el repo: al publicar
@@ -1519,6 +1534,15 @@ function validateSongSrv(song) {
     auto: !!song.auto
   };
 }
+/* v4.1: promoción de una publicación — solo un booleano. Devuelve
+   undefined si no viene en la petición (no cambia nada), el booleano
+   si es válido, y null si el valor no es booleano (se rechaza con 400
+   en vez de guardarse como si fuera válido). */
+function validatePromotedSrv(v) {
+  if (v === undefined) return undefined;
+  if (typeof v !== 'boolean') return null;
+  return v;
+}
 app.post('/api/posts', async (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
@@ -1562,6 +1586,10 @@ app.post('/api/posts', async (req, res) => {
     photoPoll = validatePhotoPoll(body.photoPoll);
     if (!photoPoll) return res.status(400).json({ ok: false, error: 'La encuesta con foto necesita dos fotos válidas.' });
   }
+  /* v4.1: promoción — solo un booleano. Sin el campo la publicación
+     queda con promoted:false; un valor no booleano se rechaza. */
+  const promoted = validatePromotedSrv(body.promoted);
+  if (promoted === null) return res.status(400).json({ ok: false, error: 'Promoción no válida.' });
   const post = {
     id: body.id || uid('post'), author: phone, text: text.slice(0, 2000),
     media: body.media || '', mediaType: body.mediaType || '',
@@ -1580,6 +1608,7 @@ app.post('/api/posts', async (req, res) => {
     liveRecordingId: body.liveRecordingId || null,
     liveRecDurationMs: parseInt(body.liveRecDurationMs, 10) || 0,
     createdAt: body.createdAt || Date.now(), likes: {}, comments: [], shares: [], savedBy: [], isDemo: false,
+    promoted: promoted === true, // v4.1: true = publicación promocionada (insignia + primer lugar en todos los teléfonos)
     editCount: 0, editedAt: null, edited: false
   };
   if (posts.some(p => p.id === post.id)) return res.json({ ok: true, post });
@@ -1615,8 +1644,13 @@ app.put('/api/posts/:id', (req, res) => {
   const post = posts.find(p => p.id === req.params.id);
   if (!post) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
   if (post.author !== phone) return res.status(403).json({ ok: false, error: 'Solo quien publicó puede modificarla.' });
-  if ((post.editCount || 0) >= 5) return res.status(400).json({ ok: false, error: 'Esta publicación ya se editó 5 veces (el máximo). Ya no se puede modificar.' });
   const body = (req.body && req.body.post) || req.body;
+  /* v4.1: promoción — activar o quitar la promoción NO es editar el
+     contenido: una petición que solo cambia `promoted` no gasta una de
+     las 5 ediciones (una promoción pagada nunca se bloquea por haber
+     editado el texto 5 veces) ni marca la publicación como editada. */
+  const promoOnly = body.promoted !== undefined && Object.keys(body).every(function (k) { return k === 'promoted'; });
+  if (!promoOnly && (post.editCount || 0) >= 5) return res.status(400).json({ ok: false, error: 'Esta publicación ya se editó 5 veces (el máximo). Ya no se puede modificar.' });
   if (body.text !== undefined) {
     const text = String(body.text || '').trim();
     if (text.length > 2000) return res.status(400).json({ ok: false, error: 'La publicación es demasiado larga.' });
@@ -1641,10 +1675,18 @@ app.put('/api/posts/:id', (req, res) => {
   if (body.audioCover !== undefined) post.audioCover = String(body.audioCover || '').slice(0, 2000);
   if (body.song !== undefined) post.song = validateSongSrv(body.song);
   if (body.videoEdits !== undefined) post.videoEdits = validateVideoEditsSrv(body.videoEdits);
+  /* v4.1: promoción — solo un booleano; un valor no booleano se rechaza. */
+  if (body.promoted !== undefined) {
+    const pv = validatePromotedSrv(body.promoted);
+    if (pv === null) return res.status(400).json({ ok: false, error: 'Promoción no válida.' });
+    post.promoted = pv;
+  }
   if (!post.text && !post.media && !post.link && !post.sharedFrom && !post.poll) return res.status(400).json({ ok: false, error: 'La publicación no puede quedar vacía.' });
-  post.editCount = (post.editCount || 0) + 1;
-  post.editedAt = Date.now();
-  post.edited = true;
+  if (!promoOnly) {
+    post.editCount = (post.editCount || 0) + 1;
+    post.editedAt = Date.now();
+    post.edited = true;
+  }
   saveJson('posts.json', posts);
   return res.json({ ok: true, post, editsLeft: 5 - post.editCount });
 });
