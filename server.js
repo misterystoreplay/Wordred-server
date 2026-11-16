@@ -186,6 +186,11 @@
  * una de las 5 ediciones (una promoción pagada nunca se bloquea por
  * haber editado el texto 5 veces). Nada más cambia en la 4.1.
  *
+ * v4.2: dramas cortos — GET /api/kdramas es público y la lista vive en
+ * kdramas.json en la raíz del repo (serie y capítulos con su video de
+ * YouTube). Cada 3 meses se cambia ese archivo y los dramas rotan sin
+ * una versión nueva de la app. Nada más cambia en la 4.2.
+ *
  * Almacenamiento: MongoDB con MONGODB_URI; sin ella, JSON en disco
  * (carpeta data/).
  *
@@ -1036,7 +1041,7 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.1', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.2', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v3.5: actualización de la aplicación. La última versión vive en
    app-version.json junto al APK (WordRed.apk) en el repo: al publicar
@@ -1133,6 +1138,39 @@ app.get('/api/games-billboard', (req, res) => {
   var games = readGamesBillboard();
   if (!games) return res.status(404).json({ ok: false, error: 'Sin cartelera de juegos por ahora.' });
   return res.json({ ok: true, games: games });
+});
+
+/* v4.2: catálogo de dramas cortos (K-Dramas). Igual que las carteleras
+   de cine (v3.9) y juegos (v4.0): la lista vive en kdramas.json en la
+   raíz del repo (serie, capítulos con su video de YouTube); cada 3
+   meses se cambia ese archivo y los dramas rotan sin una versión nueva
+   de la app. GET /api/kdramas es público (sin autenticación). Se lee el
+   archivo en cada petición para que un cambio se note sin reiniciar
+   el servidor. Sin el archivo, con JSON roto o con la lista vacía
+   responde ok:false: la app no inventa dramas y usa su lista fija. */
+function readKdramas() {
+  try {
+    var raw = fs.readFileSync(path.join(__dirname, 'kdramas.json'), 'utf8');
+    var d = JSON.parse(raw);
+    var list = d && Array.isArray(d.kdramas) ? d.kdramas : null;
+    if (!list || !list.length) return null;
+    var clean = list.filter(function (s) {
+      return s && s.id && s.name && s.channel && s.poster && Array.isArray(s.eps) && s.eps.length &&
+        s.eps.every(function (e) { return e && typeof e.ep === 'number' && typeof e.videoId === 'string' && e.videoId.length === 11 && e.title && e.thumb; });
+    }).map(function (s) {
+      return {
+        id: String(s.id), name: String(s.name), year: s.year || null, channel: String(s.channel),
+        totalEps: s.totalEps || s.eps.length, source: s.source || '', poster: String(s.poster),
+        eps: s.eps.map(function (e) { return { ep: e.ep, videoId: String(e.videoId), title: String(e.title), ytTitle: String(e.ytTitle || e.title), thumb: String(e.thumb) }; })
+      };
+    });
+    return clean.length ? clean : null;
+  } catch (e) { return null; }
+}
+app.get('/api/kdramas', (req, res) => {
+  var kdramas = readKdramas();
+  if (!kdramas) return res.status(404).json({ ok: false, error: 'Sin dramas por ahora.' });
+  return res.json({ ok: true, kdramas: kdramas });
 });
 
 /* v1.5.8 (servidor 3.0): página de inicio con Google en el navegador
