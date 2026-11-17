@@ -191,6 +191,11 @@
  * YouTube). Cada 3 meses se cambia ese archivo y los dramas rotan sin
  * una versión nueva de la app. Nada más cambia en la 4.2.
  *
+ * v4.5: GET /api/kdramas deja pasar el campo `video` opcional de cada
+ * capítulo (URL https de Cloudinary). Antes el endpoint lo quitaba al
+ * limpiar la lista, así que los videos nunca llegaban al teléfono.
+ * Nada más cambia en la 4.5.
+ *
  * v4.4: la aprobación de promociones ya NO usa la clave de creador
  * (WordRed Creador no existe). Las rutas de dueño (GET
  * /api/promotions/pending + POST /api/promotions/:id/approve y
@@ -1087,7 +1092,7 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.4', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.5', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v3.5: actualización de la aplicación. La última versión vive en
    app-version.json junto al APK (WordRed.apk) en el repo: al publicar
@@ -1236,7 +1241,12 @@ app.get('/api/featured-game', (req, res) => {
    dramas y usa su lista fija.
    v4.4: los dramas ya no son videos de YouTube (DramaBox): son
    originales de WordRed, novela visual — cada serie trae sinopsis y
-   portada, y cada capítulo trae número, título, texto e imagen. */
+   portada, y cada capítulo trae número, título, texto e imagen.
+   v4.5: cada capítulo puede traer además un `video` opcional (URL
+   https de Cloudinary con el video generado del capítulo); el
+   endpoint lo deja pasar tal cual y la app lo reproduce. Sin video,
+   la app muestra la imagen con «Próximamente en video». Nada más
+   cambia en la 4.5. */
 function readKdramas() {
   try {
     var raw = fs.readFileSync(path.join(__dirname, 'kdramas.json'), 'utf8');
@@ -1249,7 +1259,7 @@ function readKdramas() {
     }).map(function (s) {
       return {
         id: String(s.id), name: String(s.name), synopsis: String(s.synopsis), poster: String(s.poster),
-        chapters: s.chapters.map(function (c) { return { n: c.n, title: String(c.title), text: String(c.text), image: String(c.image) }; })
+        chapters: s.chapters.map(function (c) { var ch = { n: c.n, title: String(c.title), text: String(c.text), image: String(c.image) }; if (c.video) ch.video = String(c.video); return ch; })
       };
     });
     return clean.length ? clean : null;
