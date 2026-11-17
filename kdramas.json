@@ -1,168 +1,382 @@
 {
   "kdramas": [
     {
-      "id": "el-contrato-de-la-heredera",
-      "name": "El contrato de la heredera",
-      "synopsis": "Valeria Mendoza, heredera de un imperio hotelero, debe casarse antes de cumplir treinta años para no perderlo todo. Su solución es un matrimonio de contrato con Andrés Rivera, un chef de barrio que necesita el dinero. Seis meses, reglas claras y cero sentimientos. O eso creían.",
-      "poster": "dramas/el-contrato-de-la-heredera-portada.jpg",
-      "chapters": [
+      "id": "after-i-died-he-went-mad",
+      "name": "After I Died He Went Mad",
+      "year": 2025,
+      "channel": "DramaBox - Stream Drama Shorts",
+      "totalEps": 52,
+      "source": "dramabox",
+      "dramaBoxId": "42000000463",
+      "synopsis": "El día de su boda, el padre de Lillian mató a los padres de Sebastian en un accidente. Cinco años después, a ella le queda una semana de vida y él sigue atormentándola sin saberlo.",
+      "poster": "https://i.ytimg.com/vi/EkcpMLry5ZM/hqdefault.jpg",
+      "eps": [
         {
-          "n": 1,
-          "title": "La cláusula 30",
-          "text": "Valeria Mendoza tenía veintiocho años, un imperio hotelero a sus pies y un problema que no se resolvía con dinero: el testamento de su abuelo. Para heredar el grupo debía estar casada antes de cumplir treinta, y faltaban seis meses. Su madre ya tenía una lista de candidatos: hijos de empresarios, apellidos correctos, sonrisas ensayadas. Valeria los rechazó a todos en una sola cena. Esa misma noche, buscando aire, entró a un pequeño restaurante de barrio donde el chef servía personalmente cada plato. Andrés Rivera le llevó la cuenta con una sonrisa que no pedía nada y le dijo que la cocina era el único lugar donde nadie fingía. Valeria lo miró fijamente y, sin pensarlo dos veces, le hizo una propuesta absurda: un matrimonio de contrato por seis meses, con sueldo, reglas claras y cero sentimientos. Andrés se rio. Después preguntó cuánto pagaba. Y Valeria supo que había encontrado a su esposo.",
-          "image": "dramas/el-contrato-de-la-heredera-cap1.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794894453/prygi28pbkflh8v2aiof.mp4"
+          "ep": 1,
+          "videoId": "EkcpMLry5ZM",
+          "title": "Episode1 After I Died He Went Mad",
+          "ytTitle": "Episode1 After I Died He Went Mad",
+          "thumb": "https://i.ytimg.com/vi/EkcpMLry5ZM/hqdefault.jpg"
         },
         {
-          "n": 2,
-          "title": "Firmado bajo presión",
-          "text": "El contrato tenía catorce cláusulas. Vivir bajo el mismo techo. Acompañarse a todos los eventos. No hacer preguntas personales. Y la más importante, escrita por Valeria con letra firme: no enamorarse. Andrés firmó con la misma pluma con la que anotaba sus recetas y se mudó al penthouse con una sola maleta y su cuchillo de chef. La primera semana fue un desastre elegante: él cocinaba a las seis de la mañana y ella tenía reuniones a las siete; él dejaba cilantro en la cocina y ella dejaba tacones en el pasillo. Pero en la primera cena familiar, Andrés se ganó a la abuela con un caldo que llevaba el sabor de la casa de su infancia. La madre de Valeria, en cambio, no dejaba de mirarlo como se mira un error. Al salir, Valeria le susurró: «Te portaste bien». Andrés sonrió: «Es el contrato, señora Mendoza». Y a Valeria le molestó que sonara tan bien.",
-          "image": "dramas/el-contrato-de-la-heredera-cap2.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794894482/z5yx0swa549xg9tjwtmg.mp4"
+          "ep": 2,
+          "videoId": "BA7AZXnX5XE",
+          "title": "Episode2 After I Died He Went Mad",
+          "ytTitle": "Episode2 After I Died He Went Mad",
+          "thumb": "https://i.ytimg.com/vi/BA7AZXnX5XE/hqdefault.jpg"
         },
         {
-          "n": 3,
-          "title": "Celos de mentira",
-          "text": "El exnovio de Valeria apareció en una gala benéfica con la intención de recuperarla frente a todos. Andrés, sin que nadie se lo pidiera, se puso de pie, le rodeó la cintura y dijo con una calma perfecta: «Mi esposa no baila con extraños». El salón entero los miró. Valeria sintió el corazón golpearle el vestido y, por primera vez, no supo si aquello era actuación. Esa noche, revisando los correos del grupo, descubrió algo peor: el abogado de la familia, el señor Campos, filtraba información a la prensa para que el matrimonio pareciera un fraude y anular la herencia. Valeria no durmió. A las tres de la mañana encontró a Andrés en la cocina, preparándole un té. «Mañana lo resolvemos», le dijo él. Y ella pensó que, de todos los hombres que había conocido, ese era el primero que la miraba como si el contrato no existiera. Valeria se quedó mirando la puerta por la que Andrés había salido, con el té ya frío entre las manos.",
-          "image": "dramas/el-contrato-de-la-heredera-cap3.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794894497/dlhbulpuuraqxadh2qer.mp4"
+          "ep": 3,
+          "videoId": "zMgO7V_c5uI",
+          "title": "Episode3 After I Died He Went Mad",
+          "ytTitle": "Episode3 After I Died He Went Mad",
+          "thumb": "https://i.ytimg.com/vi/zMgO7V_c5uI/hqdefault.jpg"
         },
         {
-          "n": 4,
-          "title": "El contrato roto",
-          "text": "Valeria llevó las pruebas del sabotaje a la junta y rompió el contrato delante de todos. Renunciar al matrimonio falso era la única forma de proteger a Andrés, aunque eso significara perder la herencia. Salió del edificio sin mirar atrás y volvió al pequeño restaurante de barrio, donde todo había empezado. Andrés la esperaba con la cocina apagada y una sola mesa puesta. «Me enamoré el día que te llevé la cuenta», le dijo, «y llevo seis meses pagando el precio de fingir que no». Valeria lloró por primera vez en años. Días después, el notario le entregó una segunda carta de su abuelo: la herencia nunca fue por casarse, sino por amar de verdad. La boda fue pequeña, en el restaurante, con la abuela de testigo y el caldo de la infancia en el menú. Sin contrato. Sin cláusulas. Solo ellos dos. La abuela lloró de risa cuando Andrés le pidió la receta del caldo para ponerla en la carta del restaurante.",
-          "image": "dramas/el-contrato-de-la-heredera-cap4.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794894521/yudtnoqppqquwupjfidl.mp4"
+          "ep": 4,
+          "videoId": "cNlgIftL9bM",
+          "title": "Episode4 After I Died He Went Mad",
+          "ytTitle": "Episode4 After I Died He Went Mad",
+          "thumb": "https://i.ytimg.com/vi/cNlgIftL9bM/hqdefault.jpg"
+        },
+        {
+          "ep": 5,
+          "videoId": "ailEWEF93dg",
+          "title": "Episode5 After I Died He Went Mad",
+          "ytTitle": "Episode5 After I Died He Went Mad",
+          "thumb": "https://i.ytimg.com/vi/ailEWEF93dg/hqdefault.jpg"
+        },
+        {
+          "ep": 6,
+          "videoId": "M7LTNpm1zzg",
+          "title": "Episode6 After I Died He Went Mad",
+          "ytTitle": "Episode6 After I Died He Went Mad",
+          "thumb": "https://i.ytimg.com/vi/M7LTNpm1zzg/hqdefault.jpg"
+        },
+        {
+          "ep": 7,
+          "videoId": "bLYQ9NEtKBU",
+          "title": "Episode 7 After I Died He Went Mad",
+          "ytTitle": "Episode 7 After I Died He Went Mad",
+          "thumb": "https://i.ytimg.com/vi/bLYQ9NEtKBU/hqdefault.jpg"
+        },
+        {
+          "ep": 8,
+          "videoId": "7ytt0wb180s",
+          "title": "Episode8 After I Died He Went Mad",
+          "ytTitle": "Episode8 After I Died He Went Mad",
+          "thumb": "https://i.ytimg.com/vi/7ytt0wb180s/hqdefault.jpg"
+        },
+        {
+          "ep": 9,
+          "videoId": "UJAugHlIcy0",
+          "title": "Episode9 After I Died He Went Mad",
+          "ytTitle": "Episode9 After I Died He Went Mad",
+          "thumb": "https://i.ytimg.com/vi/UJAugHlIcy0/hqdefault.jpg"
+        },
+        {
+          "ep": 10,
+          "videoId": "o3vgM2ZMCDM",
+          "title": "Episode10 After I Died He Went Mad",
+          "ytTitle": "Episode10 After I Died He Went Mad",
+          "thumb": "https://i.ytimg.com/vi/o3vgM2ZMCDM/hqdefault.jpg"
+        },
+        {
+          "ep": 11,
+          "videoId": "bro-8qwGTxs",
+          "title": "Episode11 After I Died He Went Mad",
+          "ytTitle": "Episode11 After I Died He Went Mad",
+          "thumb": "https://i.ytimg.com/vi/bro-8qwGTxs/hqdefault.jpg"
         }
       ]
     },
     {
-      "id": "la-venganza-de-camila",
-      "name": "La venganza de Camila",
-      "synopsis": "Cinco años después de que su prometido y su mejor amiga la dejaran en la ruina, Camila Torres vuelve a la ciudad como directora de la empresa rival. Su plan es perfecto. Lo que no planeó fue a Mateo, el hermano de quien la traicionó.",
-      "poster": "dramas/la-venganza-de-camila-portada.jpg",
-      "chapters": [
+      "id": "from-dumped-wife-to-christmas-billionaire",
+      "name": "From Dumped Wife to Christmas Billionaire",
+      "year": 2025,
+      "channel": "DramaBox - Stream Drama Shorts",
+      "totalEps": 58,
+      "source": "dramabox",
+      "dramaBoxId": "42000000464",
+      "synopsis": "Humillada en público, abandonada por su esposo infiel y despedida en Nochebuena, una mesera-mecánica gana la lotería y se levanta desde cero: venganza, poder y un amor nuevo.",
+      "poster": "https://i.ytimg.com/vi/ApxSymjKLrU/hqdefault.jpg",
+      "eps": [
         {
-          "n": 1,
-          "title": "Cinco años después",
-          "text": "Camila Torres bajó del avión con otro apellido, otro peinado y la misma rabia guardada bajo llave. Cinco años atrás, su prometido Rodrigo le había robado la empresa que ella levantó y su mejor amiga Fernanda había firmado cada papel de la traición. La dejaron sin dinero, sin nombre y sin nadie que le creyera. Ahora volvía como Camila Andrade, directora general de Grupo Andrade, la competencia que Rodrigo no podía ignorar. En su primera gala de negocios, Rodrigo le ofreció una copa sin reconocerla. Fernanda la miró dos veces y sonrió, segura de que era otra mujer con un vestido parecido. Camila brindó con ellos y pensó: «No saben quién soy. Perfecto». Esa noche, en su departamento vacío, abrió la carpeta con el plan: contratos, fechas, nombres. Todo estaba listo. Lo único que no tenía escrito era hasta dónde estaba dispuesta a llegar. Guardó la carpeta en el cajón y se prometió que, pasara lo que pasara, esta vez no se iría sin terminar lo que empezó.",
-          "image": "dramas/la-venganza-de-camila-cap1.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794895073/pkqsph7znj8qjax5xlif.mp4"
+          "ep": 1,
+          "videoId": "ApxSymjKLrU",
+          "title": "Episode1 From Dumped Wife to Christmas Billionaire",
+          "ytTitle": "Episode1 From Dumped Wife to Christmas Billionaire",
+          "thumb": "https://i.ytimg.com/vi/ApxSymjKLrU/hqdefault.jpg"
         },
         {
-          "n": 2,
-          "title": "El plan en marcha",
-          "text": "El plan empezó con un contrato que Grupo Andrade le arrebató a la empresa de Rodrigo en una licitación limpia, impecable, imposible de impugnar. Fernanda exigió saber quién era la nueva directora; Rodrigo, en cambio, pidió una reunión para negociar. Camila aceptó con una condición: el proyecto lo llevaría Mateo, el hermano menor de Rodrigo, un arquitecto idealista que diseñaba casas para gente sin casa. Trabajar con Mateo no estaba en el plan. Él llegaba temprano, preguntaba por las personas antes que por los números y defendía cada decisión con una honestidad que a Camila le dolía mirar. Una tarde, revisando planos, Mateo le dijo: «Usted diseña empresas como yo diseño casas: pensando en quién va a vivir dentro». Camila bajó la mirada. Por primera vez en cinco años, alguien le hablaba sin querer nada a cambio. Esa noche, Camila repasó los planos una vez más y descubrió que, por primera vez, le importaba que el edificio quedara bien.",
-          "image": "dramas/la-venganza-de-camila-cap2.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794894539/gpjmxytsdkkwwebmh7uc.mp4"
+          "ep": 2,
+          "videoId": "desCcD97LjM",
+          "title": "Episode2 From Dumped Wife to Christmas Billionaire",
+          "ytTitle": "Episode2 From Dumped Wife to Christmas Billionaire",
+          "thumb": "https://i.ytimg.com/vi/desCcD97LjM/hqdefault.jpg"
         },
         {
-          "n": 3,
-          "title": "La cena equivocada",
-          "text": "Mateo la invitó a cenar para agradecerle el proyecto. Camila aceptó porque una cena era información, y la información era el plan. Pero en el restaurante, entre platos sencillos y risas que no ensayaba desde hacía años, Mateo le contó algo que no estaba en ninguna carpeta: cuando ella lo perdió todo, él fue el único que dijo en la familia que aquello había sido una injusticia. Nadie le hizo caso. Camila sintió que el plan se le resbalaba de las manos. Esa misma noche, Fernanda la llamó por teléfono: había reconocido su voz en una entrevista y quería verla. Camila colgó sin contestar y miró por la ventana. La venganza estaba a un paso de cumplirse y, sin embargo, lo único que quería era quedarse en esa cena equivocada, con la persona equivocada, que resultaba ser la correcta. Al llegar a casa se quitó los tacones, se sentó en el suelo de la cocina y se rio sola por primera vez en cinco años.",
-          "image": "dramas/la-venganza-de-camila-cap3.jpg"
+          "ep": 3,
+          "videoId": "Z5YPRs3dlws",
+          "title": "Episode3 From Dumped Wife to Christmas Billionaire",
+          "ytTitle": "Episode3 From Dumped Wife to Christmas Billionaire",
+          "thumb": "https://i.ytimg.com/vi/Z5YPRs3dlws/hqdefault.jpg"
         },
         {
-          "n": 4,
-          "title": "Venganza o perdón",
-          "text": "Camila tenía los documentos que hundían a Rodrigo y a Fernanda: firmas, transferencias, fechas. En la junta decisiva, con todos mirándola, sacó la carpeta. Pero antes de abrirla, Mateo entró a la sala y le pidió cinco minutos. «No te conviertas en ellos», le dijo en voz baja. «Expón la verdad, pero no destruyas a los inocentes que trabajan ahí». Camila respiró hondo y cambió el plan en ese instante: entregó las pruebas a los auditores, no a la prensa, y renunció a quedarse con la empresa de Rodrigo. La verdad salió a la luz y cada quien pagó lo suyo, pero nadie más perdió su trabajo. Al salir del edificio, Mateo la esperaba con dos cafés. «¿Y ahora?», preguntó él. Camila sonrió, libre por fin: «Ahora empiezo de nuevo. ¿Me acompañas?». Y por primera vez en cinco años, caminó sin mirar atrás. Meses después, Camila inauguró una fundación para mujeres que empezaban de cero, y Mateo diseñó su primera sede.",
-          "image": "dramas/la-venganza-de-camila-cap4.jpg"
+          "ep": 4,
+          "videoId": "Mclt5iV-qpk",
+          "title": "Episode4 From Dumped Wife to Christmas Billionaire",
+          "ytTitle": "Episode4 From Dumped Wife to Christmas Billionaire",
+          "thumb": "https://i.ytimg.com/vi/Mclt5iV-qpk/hqdefault.jpg"
+        },
+        {
+          "ep": 5,
+          "videoId": "dd-XqTapWnw",
+          "title": "Episode5 From Dumped Wife to Christmas Billionaire",
+          "ytTitle": "Episode5 From Dumped Wife to Christmas Billionaire",
+          "thumb": "https://i.ytimg.com/vi/dd-XqTapWnw/hqdefault.jpg"
+        },
+        {
+          "ep": 6,
+          "videoId": "EmHakE1pQuM",
+          "title": "Episode6 From Dumped Wife to Christmas Billionaire",
+          "ytTitle": "Episode6 From Dumped Wife to Christmas Billionaire",
+          "thumb": "https://i.ytimg.com/vi/EmHakE1pQuM/hqdefault.jpg"
+        },
+        {
+          "ep": 7,
+          "videoId": "W44DRJwU0ww",
+          "title": "Episode7 From Dumped Wife to Christmas Billionaire",
+          "ytTitle": "Episode7 From Dumped Wife to Christmas Billionaire",
+          "thumb": "https://i.ytimg.com/vi/W44DRJwU0ww/hqdefault.jpg"
+        },
+        {
+          "ep": 8,
+          "videoId": "ClYgB9l_SGI",
+          "title": "Episode8 From Dumped Wife to Christmas Billionaire",
+          "ytTitle": "Episode8 From Dumped Wife to Christmas Billionaire",
+          "thumb": "https://i.ytimg.com/vi/ClYgB9l_SGI/hqdefault.jpg"
+        },
+        {
+          "ep": 9,
+          "videoId": "t0HnM9MNCjg",
+          "title": "Episode9 From Dumped Wife to Christmas Billionaire",
+          "ytTitle": "Episode9 From Dumped Wife to Christmas Billionaire",
+          "thumb": "https://i.ytimg.com/vi/t0HnM9MNCjg/hqdefault.jpg"
         }
       ]
     },
     {
-      "id": "la-doble-vida-de-elena",
-      "name": "La doble vida de Elena",
-      "synopsis": "De día, Elena Ruiz es la asistente invisible de un grupo editorial. De noche, es Luna, la novelista romántica más leída del país. Todo funciona hasta que su jefe, Daniel Vega, se obsesiona con contratar a Luna... sin saber que la tiene a dos escritorios de distancia.",
-      "poster": "dramas/la-doble-vida-de-elena-portada.jpg",
-      "chapters": [
+      "id": "serve-me-ball-girl-heiress",
+      "name": "Serve Me! Ball Girl Heiress",
+      "year": 2025,
+      "channel": "DramaBox - Stream Drama Shorts",
+      "totalEps": 66,
+      "source": "dramabox",
+      "dramaBoxId": "41000120780",
+      "synopsis": "Ingrid Voss debe terminar su pasantía de verano en el club campestre sin que nadie descubra que es la heredera del imperio Voss. Ahí conoce a Jordan Temple, segundo hijo de Temple Holdings.",
+      "poster": "https://i.ytimg.com/vi/fk4-O-fCjXk/hqdefault.jpg",
+      "eps": [
         {
-          "n": 1,
-          "title": "La asistente invisible",
-          "text": "Elena Ruiz tenía veintiséis años y un talento especial para pasar desapercibida. En el grupo editorial Vega, llevaba el café, ordenaba los manuscritos y arreglaba las agendas de todos, y nadie recordaba su apellido. Lo que nadie sabía era que cada noche, cuando la oficina se quedaba vacía, Elena se convertía en Luna, la novelista romántica más leída del país. Su última novela, «El jardín de las despedidas», llevaba diez semanas en el primer lugar. Esa mañana, su jefe, Daniel Vega, entró a la oficina agitando el periódico: «¡Luna es un fenómeno y nadie sabe quién es!». Elena asintió desde su escritorio, invisible como siempre, mientras en su bolso vibraba el teléfono: su editora le pedía el final de la próxima novela. Elena sonrió para sus adentros. El secreto estaba a salvo. O eso creía. Antes de dormir, Elena escribió tres páginas más y las guardó en el cajón, donde nadie las buscaría jamás.",
-          "image": "dramas/la-doble-vida-de-elena-cap1.jpg"
+          "ep": 1,
+          "videoId": "fk4-O-fCjXk",
+          "title": "Episode1 Serve Me! Ball Girl Heiress",
+          "ytTitle": "Episode1 Serve Me! Ball Girl Heiress",
+          "thumb": "https://i.ytimg.com/vi/fk4-O-fCjXk/hqdefault.jpg"
         },
         {
-          "n": 2,
-          "title": "El jefe lector",
-          "text": "Daniel Vega anunció en la reunión que fichar a Luna era la prioridad del año: una firma exclusiva, una campaña enorme y una presentación que la sacara del anonimato. Y le encargó la misión a la persona en la que menos pensaba: Elena. «Tú eres la única que nunca me falla», le dijo, sin imaginar que le pedía que se encontrara a sí misma. Elena pasó la semana inventando excusas: Luna no daba entrevistas, Luna odiaba las cámaras, Luna estaba de viaje. Pero Daniel no se rendía: cada día dejaba en su escritorio una nota nueva con ideas para convencer a la autora. Una tarde, Elena lo encontró leyendo su novela en el despacho, con los pies sobre la mesa y una sonrisa boba. «Esta mujer escribe como si me conociera», murmuró él. Elena se dio la vuelta para que no le viera la cara. Lo hacía. Lo conocía mejor que nadie.",
-          "image": "dramas/la-doble-vida-de-elena-cap2.jpg"
+          "ep": 2,
+          "videoId": "EgS5zciakGw",
+          "title": "Episode2 Serve Me! Ball Girl Heiress",
+          "ytTitle": "Episode2 Serve Me! Ball Girl Heiress",
+          "thumb": "https://i.ytimg.com/vi/EgS5zciakGw/hqdefault.jpg"
         },
         {
-          "n": 3,
-          "title": "Casi descubierta",
-          "text": "La presentación del nuevo libro de Luna fue en una librería pequeña, con antifaz y voz baja para que nadie reconociera a la autora. Elena firmó doscientos ejemplares sin que nadie sospechara quién era. Pero al salir, se topó con Daniel en la puerta. Había venido a ver a Luna y se quedó mirándola fijamente: esa voz, esa forma de sostener el bolígrafo, esa risa nerviosa. «¿Nos conocemos?», preguntó. Elena inventó una tos, se despidió deprisa y dejó caer su cuaderno en la huida. Daniel lo recogió. En la primera página había una frase subrayada, la misma que abría la novela de Luna. Daniel se quedó quieto en mitad de la calle, con el cuaderno en la mano y el corazón latiéndole como si acabara de entenderlo todo. Esa noche no durmió. Y Elena, tampoco. Elena llegó a casa con el corazón en la garganta y se pasó la noche mirando el teléfono, esperando que sonara.",
-          "image": "dramas/la-doble-vida-de-elena-cap3.jpg"
+          "ep": 3,
+          "videoId": "0fALRS-v080",
+          "title": "Episode3 Serve Me! Ball Girl Heiress",
+          "ytTitle": "Episode3 Serve Me! Ball Girl Heiress",
+          "thumb": "https://i.ytimg.com/vi/0fALRS-v080/hqdefault.jpg"
         },
         {
-          "n": 4,
-          "title": "Luna se revela",
-          "text": "El día de la presentación oficial, la sala estaba llena y Daniel esperaba en primera fila con el contrato de Luna en la mano. Las luces bajaron y una voz anunció a la autora. Elena subió al escenario con el antifaz puesto, miró al público y, despacio, se lo quitó. El silencio duró tres segundos. Daniel se puso de pie sin darse cuenta, con el contrato temblándole entre las manos. «Soy Elena Ruiz», dijo ella, «la asistente invisible. Y también soy Luna». La sala estalló en aplausos. Después, en el camerino, Daniel no le habló del contrato. Le habló de la novela, del capítulo que lo hizo llorar y de la asistente que llevaba dos años sin ver. «¿Cenamos?», preguntó al fin. «Sin agenda, sin manuscritos». Elena sonrió: «Solo si me dejas pagar yo esta vez». Y Luna, por fin, dejó de esconderse. Al día siguiente, el periódico publicó la foto de Luna sin antifaz y la editorial recibió mil pedidos en una hora.",
-          "image": "dramas/la-doble-vida-de-elena-cap4.jpg"
+          "ep": 4,
+          "videoId": "dF6basEJ21w",
+          "title": "Episode4 Serve Me! Ball Girl Heiress",
+          "ytTitle": "Episode4 Serve Me! Ball Girl Heiress",
+          "thumb": "https://i.ytimg.com/vi/dF6basEJ21w/hqdefault.jpg"
+        },
+        {
+          "ep": 5,
+          "videoId": "3WdPhKjpS5I",
+          "title": "Episode5 Serve Me! Ball Girl Heiress",
+          "ytTitle": "Episode5 Serve Me! Ball Girl Heiress",
+          "thumb": "https://i.ytimg.com/vi/3WdPhKjpS5I/hqdefault.jpg"
+        },
+        {
+          "ep": 6,
+          "videoId": "4cVj20Jb544",
+          "title": "Episode6 Serve Me! Ball Girl Heiress",
+          "ytTitle": "Episode6 Serve Me! Ball Girl Heiress",
+          "thumb": "https://i.ytimg.com/vi/4cVj20Jb544/hqdefault.jpg"
+        },
+        {
+          "ep": 7,
+          "videoId": "h5x2y5IMlbE",
+          "title": "Episode7 Serve Me! Ball Girl Heiress",
+          "ytTitle": "Episode7 Serve Me! Ball Girl Heiress",
+          "thumb": "https://i.ytimg.com/vi/h5x2y5IMlbE/hqdefault.jpg"
+        },
+        {
+          "ep": 8,
+          "videoId": "fLbFLD3GScc",
+          "title": "Episode8 Serve Me! Ball Girl Heiress",
+          "ytTitle": "Episode8 Serve Me! Ball Girl Heiress",
+          "thumb": "https://i.ytimg.com/vi/fLbFLD3GScc/hqdefault.jpg"
         }
       ]
     },
     {
-      "id": "cartas-a-medianoche",
-      "name": "Cartas a medianoche",
-      "synopsis": "Cada medianoche, Lucía Herrera encuentra una carta bajo su puerta que describe exactamente lo que le pasará al día siguiente. Cuando una carta advierte un peligro, sigue las pistas hasta la librería de Gabriel, un hombre que escribe el futuro... o que lo recuerda.",
-      "poster": "dramas/cartas-a-medianoche-portada.jpg",
-      "chapters": [
+      "id": "my-world-ends-with-you",
+      "name": "My World Ends with You",
+      "year": 2025,
+      "channel": "DramaBox - Stream Drama Shorts",
+      "totalEps": 60,
+      "source": "dramabox",
+      "dramaBoxId": "41000113788",
+      "synopsis": "Para vengar la muerte de su padre por una negligencia médica, Luca se venga de Scarlett, la hija del doctor, encerrándola en un hospital mental. Pero su corazón le dice otra cosa.",
+      "poster": "https://i.ytimg.com/vi/_VDSRmUI3NM/hqdefault.jpg",
+      "eps": [
         {
-          "n": 1,
-          "title": "La primera carta",
-          "text": "Lucía Herrera encontró la primera carta bajo su puerta un martes a medianoche. No tenía remitente y la letra era cuidadosa, como de otra época. Decía: «Mañana se te caerá el café, discutirás con tu jefa y conocerás a alguien que huele a libros viejos». Lucía se rio y guardó la carta en un cajón. Al día siguiente se le cayó el café, discutió con su jefa y, en la librería de la esquina, chocó con un hombre que olía a libros viejos. Se quedó helada en mitad de la calle, con la carta quemándole en la memoria. Esa noche no durmió esperando la medianoche. Y la carta llegó, puntual como un tren: «Mañana lloverá y olvidarás el paraguas. Alguien te lo prestará». Lucía miró por la ventana: el cielo estaba despejado. A la mañana siguiente, llovió. Y alguien le prestó un paraguas. Lucía guardó las dos cartas en el cajón de su mesa de noche, una junto a la otra, como si fueran un par.",
-          "image": "dramas/cartas-a-medianoche-cap1.jpg"
+          "ep": 1,
+          "videoId": "_VDSRmUI3NM",
+          "title": "Episode1 My World Ends with You",
+          "ytTitle": "Episode1 My World Ends with You",
+          "thumb": "https://i.ytimg.com/vi/_VDSRmUI3NM/hqdefault.jpg"
         },
         {
-          "n": 2,
-          "title": "El remitente",
-          "text": "Lucía decidió atrapar al remitente. Revisó el papel de las cartas: era de una papelería antigua que ya no existía, con una marca de agua en forma de luna. La pista la llevó a la librería más vieja del barrio, un lugar de madera oscura y escaleras que crujían. El dueño, Gabriel, tenía unos treinta años, gafas redondas y la costumbre de terminar las frases de los demás. Negó ser el autor de las cartas, pero conocía detalles que nadie más sabía: el nombre de su gato, la canción que tarareaba al cocinar, el miedo que le tenía a los truenos. «Las cartas no predicen el futuro», le dijo, mirándola por encima de las gafas. «Solo recuerdan lo que va a pasar». Lucía salió de la librería con más preguntas que respuestas y una certeza nueva: Gabriel mentía. Y mentía muy mal. De camino a casa, Lucía se detuvo en la esquina y miró atrás: la librería seguía encendida, como un faro.",
-          "image": "dramas/cartas-a-medianoche-cap2.jpg"
+          "ep": 2,
+          "videoId": "3BI4-XI08Vg",
+          "title": "Episode2 My World Ends with You",
+          "ytTitle": "Episode2 My World Ends with You",
+          "thumb": "https://i.ytimg.com/vi/3BI4-XI08Vg/hqdefault.jpg"
         },
         {
-          "n": 3,
-          "title": "Lo que la carta no dijo",
-          "text": "La carta de aquella medianoche era distinta: más corta, con la letra temblorosa. «Mañana alguien que quieres estará en peligro. No llegues tarde». Lucía leyó la frase veinte veces. ¿Alguien que quieres? ¿Su madre, su hermana, Gabriel? Pasó el día llamando a todos, y todos estaban bien. Al atardecer, corriendo a la librería, vio a Gabriel cruzando la calle sin mirar, con la cabeza en un libro, mientras un camión se acercaba. Lucía gritó su nombre y lo empujó a la acera justo a tiempo. Los dos quedaron en el suelo, respirando agitados, con el libro abierto en una página subrayada. Era su letra. Era su historia. «La carta no decía quién», susurró Gabriel, tomándole la mano. «Por eso escribo cada noche. Para que nunca llegues tarde». Y Lucía entendió que el peligro nunca había sido el camión. Esa noche, Lucía no durmió. Se quedó mirando el techo, pensando en cuántas cartas más harían falta para decirlo todo.",
-          "image": "dramas/cartas-a-medianoche-cap3.jpg"
+          "ep": 3,
+          "videoId": "9pEBMaiTqPY",
+          "title": "Episode3 My World Ends with You",
+          "ytTitle": "Episode3 My World Ends with You",
+          "thumb": "https://i.ytimg.com/vi/9pEBMaiTqPY/hqdefault.jpg"
         },
         {
-          "n": 4,
-          "title": "La última carta",
-          "text": "Gabriel lo confesó todo en la trastienda de la librería, entre cajas de libros y olor a lluvia. Escribía las cartas desde que eran niños: Lucía le enseñó a leer en la biblioteca del barrio y él, a cambio, le prometió escribirle el futuro. Cuando ella se mudó, él siguió escribiendo, carta tras carta, año tras año, esperando el día en que volviera. «Nunca fueron predicciones», dijo, sacando un sobre viejo. «Eran promesas. Yo me aseguraba de que pasaran». Lucía abrió el sobre: dentro había una sola frase, escrita por él con doce años: «Cuando vuelvas, te voy a querer». Se miraron como dos niños que por fin se encuentran. Y esa medianoche, por primera vez, la carta la escribió Lucía: «Mañana te voy a querer yo también». La dejó bajo la puerta de la librería. Gabriel la leyó al amanecer. Y sonrió. A la mañana siguiente, Lucía encontró una carta nueva bajo su puerta y, por primera vez, no tuvo miedo de leerla.",
-          "image": "dramas/cartas-a-medianoche-cap4.jpg"
+          "ep": 4,
+          "videoId": "WOeMsehCq9Q",
+          "title": "Episode4 My World Ends with You",
+          "ytTitle": "Episode4 My World Ends with You",
+          "thumb": "https://i.ytimg.com/vi/WOeMsehCq9Q/hqdefault.jpg"
+        },
+        {
+          "ep": 5,
+          "videoId": "E5S9xZXF8mU",
+          "title": "Episode5 My World Ends with You",
+          "ytTitle": "Episode5 My World Ends with You",
+          "thumb": "https://i.ytimg.com/vi/E5S9xZXF8mU/hqdefault.jpg"
+        },
+        {
+          "ep": 6,
+          "videoId": "xkQ1ayeDs6c",
+          "title": "Episode6 My World Ends with You",
+          "ytTitle": "Episode6 My World Ends with You",
+          "thumb": "https://i.ytimg.com/vi/xkQ1ayeDs6c/hqdefault.jpg"
+        },
+        {
+          "ep": 7,
+          "videoId": "V722DWKbOgs",
+          "title": "Episode7 My World Ends with You",
+          "ytTitle": "Episode7 My World Ends with You",
+          "thumb": "https://i.ytimg.com/vi/V722DWKbOgs/hqdefault.jpg"
         }
       ]
     },
     {
-      "id": "la-otra-yo",
-      "name": "La otra yo",
-      "synopsis": "Mariana Solís limpia habitaciones en el hotel más lujoso de la ciudad. Un día la confunden con Isabella Duarte, la hija perdida de la familia dueña. Acepta hacerse pasar por ella una semana para saldar una deuda. Pero hay una foto vieja que lo cambia todo.",
-      "poster": "dramas/la-otra-yo-portada.jpg",
-      "chapters": [
+      "id": "love-you-to-death",
+      "name": "Love You To Death",
+      "year": 2025,
+      "channel": "DramaBox - Stream Drama Shorts",
+      "totalEps": 49,
+      "source": "dramabox",
+      "dramaBoxId": "42000000481",
+      "synopsis": "Brooke, porrista ejemplar, se rebela contra su vida perfecta y se enamora del alumno nuevo, Nate. Todo parece perfecto hasta que descubre su lado oscuro.",
+      "poster": "https://i.ytimg.com/vi/8yPb8can7WE/hqdefault.jpg",
+      "eps": [
         {
-          "n": 1,
-          "title": "La confusión",
-          "text": "Mariana Solís llevaba tres años limpiando habitaciones en el hotel más lujoso de la ciudad. Conocía cada pasillo, cada llave y cada secreto que los huéspedes dejaban atrás. Una mañana, mientras limpiaba la suite presidencial, llegó la familia Duarte buscando a Isabella, su hija perdida hacía veinte años. La abuela entró a la suite, vio a Mariana y se llevó las manos a la boca: era idéntica a su hija. La misma cara, el mismo lunar junto al ojo, el mismo dije en forma de luna que Mariana llevaba desde niña. «Isabella», susurró la abuela, con las manos temblando. Mariana retrocedió con el trapo en la mano: «Señora, yo solo limpio aquí». Pero la familia ya la miraba como se mira un milagro. Y Mariana, por primera vez en su vida, sintió que su cara era una puerta. Mariana terminó su turno sin decir una palabra y se fue a casa con el dije apretado en el puño, como si fuera a escaparse.",
-          "image": "dramas/la-otra-yo-cap1.jpg"
+          "ep": 1,
+          "videoId": "8yPb8can7WE",
+          "title": "Episode1 Love You To Death",
+          "ytTitle": "Episode1 Love You To Death",
+          "thumb": "https://i.ytimg.com/vi/8yPb8can7WE/hqdefault.jpg"
         },
         {
-          "n": 2,
-          "title": "Una semana",
-          "text": "Diego, el abogado de la familia, le hizo la propuesta en la cocina del hotel, lejos de todos: una semana haciéndose pasar por Isabella, con cenas, fotos y una presentación formal, a cambio de saldar la deuda del hospital de su madre. Mariana dijo que no. Después pensó en su madre, en las cuentas y en la voz de la abuela diciendo su nombre. Dijo que sí, con una condición: nadie le preguntaría por el pasado que no recordaba. La primera cena familiar fue un examen: nombres, fechas, anécdotas de una niña que ella nunca fue. Mariana respondió con sonrisas y silencios, y la familia la abrazó como si nunca se hubiera ido. Esa noche, en su cuarto de empleada, se miró al espejo. Por fuera era Isabella. Por dentro seguía siendo Mariana. Y no sabía cuál de las dos le daba más miedo perder. En el espejo del cuarto de empleada se practicó la sonrisa de Isabella hasta que dejó de parecerle prestada.",
-          "image": "dramas/la-otra-yo-cap2.jpg"
+          "ep": 2,
+          "videoId": "HkZptxzotHY",
+          "title": "Episode2 Love You To Death",
+          "ytTitle": "Episode2 Love You To Death",
+          "thumb": "https://i.ytimg.com/vi/HkZptxzotHY/hqdefault.jpg"
         },
         {
-          "n": 3,
-          "title": "La foto vieja",
-          "text": "En el tercer día, la abuela le enseñó el álbum familiar. Página tras página, Mariana vio crecer a una niña que era ella: la misma cara, el mismo pelo, la misma risa. Hasta que llegó a una foto que la dejó sin aire: la niña, de unos cinco años, llevaba puesto el dije en forma de luna. El mismo dije que Mariana llevaba desde niña, el que su madre decía haberle comprado en un mercado. «Esa foto es de la noche en que te perdimos», dijo la abuela, con la voz rota. «Te soltaste de mi mano en el mercado y cuando miré ya no estabas». Mariana tocó la foto con la yema de los dedos y sintió un recuerdo que no era suyo: un mercado, muchas luces, una mano que se suelta. Se levantó sin decir nada y fue a buscar a su madre. Necesitaba escuchar la verdad de la única persona que la había criado.",
-          "image": "dramas/la-otra-yo-cap3.jpg"
+          "ep": 3,
+          "videoId": "yWwRwJiYIVE",
+          "title": "Episode3 Love You To Death",
+          "ytTitle": "Episode3 Love You To Death",
+          "thumb": "https://i.ytimg.com/vi/yWwRwJiYIVE/hqdefault.jpg"
         },
         {
-          "n": 4,
-          "title": "La verdad",
-          "text": "Su madre lloró antes de hablar. Hacía veinte años había encontrado a una niña perdida en el mercado, sin nadie que la reclamara, y la había criado como suya sin contarle nunca la verdad. El dije era de la niña; la foto, también. Mariana no se enojó. La abrazó largo rato y entendió que tenía dos madres y dos vidas, y que ninguna cancelaba a la otra. Al día siguiente, en la presentación formal, Mariana se puso de pie frente a toda la familia y dijo la verdad completa: era Isabella Duarte, y también era Mariana Solís, y no pensaba renunciar a ninguna de las dos. La abuela lloró. Su madre, desde la última fila, sonrió. Y Diego, el abogado, la esperaba en la puerta del hotel con dos cafés y una pregunta que llevaba una semana guardando: «¿Cenamos? Esta vez sin contratos». Mariana sonrió: «Esta vez, sí». Y cada domingo, Mariana volvía a limpiar su propio cuarto, porque había cosas que no quería dejar de ser.",
-          "image": "dramas/la-otra-yo-cap4.jpg"
+          "ep": 4,
+          "videoId": "DABTpGymoCc",
+          "title": "Episode4 Love You To Death",
+          "ytTitle": "Episode4 Love You To Death",
+          "thumb": "https://i.ytimg.com/vi/DABTpGymoCc/hqdefault.jpg"
+        },
+        {
+          "ep": 5,
+          "videoId": "KsqXy3BhQKY",
+          "title": "Episode5 Love You To Death",
+          "ytTitle": "Episode5 Love You To Death",
+          "thumb": "https://i.ytimg.com/vi/KsqXy3BhQKY/hqdefault.jpg"
+        },
+        {
+          "ep": 6,
+          "videoId": "WVsd68WAxfc",
+          "title": "Episode6 Love You To Death",
+          "ytTitle": "Episode6 Love You To Death",
+          "thumb": "https://i.ytimg.com/vi/WVsd68WAxfc/hqdefault.jpg"
+        },
+        {
+          "ep": 7,
+          "videoId": "__Njkdf4OFY",
+          "title": "Episode7 Love You To Death",
+          "ytTitle": "Episode7 Love You To Death",
+          "thumb": "https://i.ytimg.com/vi/__Njkdf4OFY/hqdefault.jpg"
+        },
+        {
+          "ep": 8,
+          "videoId": "Pfb8rOmGxXQ",
+          "title": "Episode8 Love You To Death",
+          "ytTitle": "Episode8 Love You To Death",
+          "thumb": "https://i.ytimg.com/vi/Pfb8rOmGxXQ/hqdefault.jpg"
+        },
+        {
+          "ep": 9,
+          "videoId": "PGp5semdtHQ",
+          "title": "Episode9 Love You To Death",
+          "ytTitle": "Episode9 Love You To Death",
+          "thumb": "https://i.ytimg.com/vi/PGp5semdtHQ/hqdefault.jpg"
+        },
+        {
+          "ep": 10,
+          "videoId": "6UQiWAi1JwI",
+          "title": "Episode10 Love You To Death",
+          "ytTitle": "Episode10 Love You To Death",
+          "thumb": "https://i.ytimg.com/vi/6UQiWAi1JwI/hqdefault.jpg"
         }
       ]
     }

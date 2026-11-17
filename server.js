@@ -196,6 +196,11 @@
  * limpiar la lista, así que los videos nunca llegaban al teléfono.
  * Nada más cambia en la 4.5.
  *
+ * v4.6: GET /api/kdramas acepta dos formas de catálogo: series de
+ * DramaBox (portada, totalEps y eps con videoId de YouTube) y dramas
+ * originales de WordRed (sinopsis y capítulos con texto e imagen).
+ * Nada más cambia en la 4.6.
+ *
  * v4.4: la aprobación de promociones ya NO usa la clave de creador
  * (WordRed Creador no existe). Las rutas de dueño (GET
  * /api/promotions/pending + POST /api/promotions/:id/approve y
@@ -1092,7 +1097,7 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.5', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.6', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v3.5: actualización de la aplicación. La última versión vive en
    app-version.json junto al APK (WordRed.apk) en el repo: al publicar
@@ -1246,21 +1251,49 @@ app.get('/api/featured-game', (req, res) => {
    https de Cloudinary con el video generado del capítulo); el
    endpoint lo deja pasar tal cual y la app lo reproduce. Sin video,
    la app muestra la imagen con «Próximamente en video». Nada más
-   cambia en la 4.5. */
+   cambia en la 4.5.
+   v4.6: los dramas vuelven a ser series cortas de DramaBox (videos de
+   YouTube): cada serie trae portada, total de capítulos y la lista de
+   capítulos gratis con su videoId; los capítulos de miembros no traen
+   videoId y la app los muestra como texto «Disponible en DramaBox».
+   readKdramas() acepta AMBAS formas (la de DramaBox y la de los
+   dramas originales con texto e imagen), así el catálogo se puede
+   cambiar en kdramas.json sin tocar el servidor. Nada más cambia
+   en la 4.6. */
 function readKdramas() {
   try {
     var raw = fs.readFileSync(path.join(__dirname, 'kdramas.json'), 'utf8');
     var d = JSON.parse(raw);
     var list = d && Array.isArray(d.kdramas) ? d.kdramas : null;
     if (!list || !list.length) return null;
+    /* v4.6: dos formas válidas. (1) DramaBox: serie con portada, total
+       de capítulos y capítulos gratis con su videoId de YouTube
+       (los capítulos de miembros no traen videoId). (2) Originales de
+       WordRed: serie con sinopsis y capítulos con texto e imagen
+       (video opcional). Se limpian los campos y se pasa cada serie tal
+       cual es; una serie que no cumpla ninguna forma se descarta. */
     var clean = list.filter(function (s) {
-      return s && s.id && s.name && s.synopsis && s.poster && Array.isArray(s.chapters) && s.chapters.length &&
+      if (!s || !s.id || !s.name || !s.poster) return false;
+      var isDramaBox = Array.isArray(s.eps) && s.eps.length && typeof s.totalEps === 'number' && s.totalEps >= s.eps.length &&
+        s.eps.every(function (e) { return e && typeof e.ep === 'number' && e.videoId && e.title && e.thumb; });
+      var isOriginal = s.synopsis && Array.isArray(s.chapters) && s.chapters.length &&
         s.chapters.every(function (c) { return c && typeof c.n === 'number' && c.title && typeof c.text === 'string' && c.text.length > 100 && c.image; });
+      return isDramaBox || isOriginal;
     }).map(function (s) {
-      return {
-        id: String(s.id), name: String(s.name), synopsis: String(s.synopsis), poster: String(s.poster),
-        chapters: s.chapters.map(function (c) { var ch = { n: c.n, title: String(c.title), text: String(c.text), image: String(c.image) }; if (c.video) ch.video = String(c.video); return ch; })
-      };
+      var out = { id: String(s.id), name: String(s.name), poster: String(s.poster) };
+      if (s.synopsis) out.synopsis = String(s.synopsis);
+      if (s.year) out.year = Number(s.year);
+      if (s.channel) out.channel = String(s.channel);
+      if (s.source) out.source = String(s.source);
+      if (s.dramaBoxId) out.dramaBoxId = String(s.dramaBoxId);
+      if (Array.isArray(s.eps) && s.eps.length) {
+        out.totalEps = Number(s.totalEps);
+        out.eps = s.eps.map(function (e) { return { ep: Number(e.ep), videoId: String(e.videoId), title: String(e.title), ytTitle: String(e.ytTitle || e.title), thumb: String(e.thumb) }; });
+      }
+      if (Array.isArray(s.chapters) && s.chapters.length) {
+        out.chapters = s.chapters.map(function (c) { var ch = { n: c.n, title: String(c.title), text: String(c.text), image: String(c.image) }; if (c.video) ch.video = String(c.video); return ch; });
+      }
+      return out;
     });
     return clean.length ? clean : null;
   } catch (e) { return null; }
