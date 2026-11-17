@@ -1,5 +1,5 @@
 'use strict';
-/* Pruebas del servidor WordRed 4.7 — los datos quedan PARA SIEMPRE en
+/* Pruebas del servidor WordRed 4.8 — los datos quedan PARA SIEMPRE en
    MongoDB (y el respaldo JSON sigue funcionando sin MONGODB_URI).
    Se arranca el servidor de verdad como proceso hijo (node server.js)
    contra un MongoDB en memoria (mongodb-memory-server) y se comprueba
@@ -142,7 +142,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   /* ---- modo MongoDB ---- */
   let proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   let health = await waitHealth(PORT);
-  check('4.4 MongoDB: /api/health dice version 4.7', !!(health && health.version === '4.7'), health);
+  check('4.4 MongoDB: /api/health dice version 4.8', !!(health && health.version === '4.8'), health);
   check('3.6 MongoDB: /api/health dice storage mongodb y mongo true', !!(health && health.storage === 'mongodb' && health.mongo === true), health);
 
   /* ---- actualización de la app (v3.5): GET /api/app/latest y
@@ -206,8 +206,8 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
      video por video en ~/workspace/kd150/verify61.jsonl). DramaBox no
      aporta nada en español (su pista de audio no se puede elegir en la
      app) y los originales de la 1.5.60 ya no están en la sección. */
-  check('4.6 dramas: kdramas.json trae el mezclado (16 series: 14 ReelShort + 2 ShortMax, 1 entrada gratis por serie, sin chapters)', !!(kdramasFile && Array.isArray(kdramasFile.kdramas) && kdramasFile.kdramas.length === 16 && kdramasFile.kdramas.filter(function (s) { return s.source === 'ReelShort'; }).length === 14 && kdramasFile.kdramas.filter(function (s) { return s.source === 'ShortMax'; }).length === 2 && kdramasFile.kdramas.every(function (s) { return s.id && s.name && s.synopsis && s.poster && s.totalEps >= 1 && !s.chapters && Array.isArray(s.eps) && s.eps.length === 1 && typeof s.eps[0].videoId === 'string' && s.eps[0].videoId.length === 11 && typeof s.eps[0].thumb === 'string' && s.eps[0].thumb.indexOf('https://i.ytimg.com/vi/') === 0; })), kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.map(function (s) { return s.source + ':' + s.name + ' (1 gratis de ' + s.totalEps + ')'; }));
-  check('4.6 dramas: las 16 entradas gratis traen su videoId de YouTube (11 caracteres) y su miniatura', !!(kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.length === 16 && kdramasFile.kdramas.every(function (s) { return s.eps.length === 1 && s.eps[0].videoId.length === 11 && s.eps[0].thumb === 'https://i.ytimg.com/vi/' + s.eps[0].videoId + '/hqdefault.jpg'; })), null);
+  check('4.6 dramas: kdramas.json trae el mezclado (48 series: 46 ReelShort + 2 ShortMax, 1 entrada gratis por serie, sin chapters)', !!(kdramasFile && Array.isArray(kdramasFile.kdramas) && kdramasFile.kdramas.length === 48 && kdramasFile.kdramas.filter(function (s) { return s.source === 'ReelShort'; }).length === 46 && kdramasFile.kdramas.filter(function (s) { return s.source === 'ShortMax'; }).length === 2 && kdramasFile.kdramas.every(function (s) { return s.id && s.name && s.synopsis && s.poster && s.totalEps >= 1 && !s.chapters && Array.isArray(s.eps) && s.eps.length === 1 && typeof s.eps[0].videoId === 'string' && s.eps[0].videoId.length === 11 && typeof s.eps[0].thumb === 'string' && s.eps[0].thumb.indexOf('https://i.ytimg.com/vi/') === 0; })), kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.map(function (s) { return s.source + ':' + s.name + ' (1 gratis de ' + s.totalEps + ')'; }));
+  check('4.6 dramas: las 48 entradas gratis traen su videoId de YouTube (11 caracteres) y su miniatura', !!(kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.length === 48 && kdramasFile.kdramas.every(function (s) { return s.eps.length === 1 && s.eps[0].videoId.length === 11 && s.eps[0].thumb === 'https://i.ytimg.com/vi/' + s.eps[0].videoId + '/hqdefault.jpg'; })), null);
   check('4.6 dramas: las portadas son las miniaturas de YouTube de cada serie (i.ytimg.com/vi/<videoId>/hqdefault.jpg)', !!(kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.every(function (s) { return s.poster === 'https://i.ytimg.com/vi/' + s.eps[0].videoId + '/hqdefault.jpg'; })), null);
   const kdramasRes = await api(PORT, 'GET', '/api/kdramas');
   check('4.6 dramas: GET /api/kdramas devuelve la lista de kdramas.json (mismo orden y mismos datos)', !!(kdramasRes.json && kdramasRes.json.ok && Array.isArray(kdramasRes.json.kdramas) && kdramasRes.json.kdramas.length === kdramasFile.kdramas.length && kdramasRes.json.kdramas.every(function (s, i) { var o = kdramasFile.kdramas[i]; return s.id === o.id && s.name === o.name && s.synopsis === o.synopsis && s.poster === o.poster && s.source === o.source && s.totalEps === o.totalEps && Array.isArray(s.eps) && s.eps.length === o.eps.length && s.eps.every(function (e, j) { var p = o.eps[j]; return e.ep === p.ep && e.videoId === p.videoId && e.title === p.title && e.thumb === p.thumb; }); })), kdramasRes.json);
@@ -289,6 +289,29 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.3 MongoDB: A crea una publicación', !!(postRes.json && postRes.json.ok && postId), postRes);
   const feedB = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: la publicación de A la ve otro usuario (B) en su inicio', !!(feedB.json && feedB.json.ok && feedB.json.posts.some(p => p.id === postId)), feedB.json && feedB.json.posts.length);
+
+  /* ---- medios con reanudación (v4.8): GET /api/media/status, finish
+     idempotente y POST /api/posts que nunca acepta medio local ---- */
+  const st48 = await api(PORT, 'POST', '/api/media/start', { name: 'prueba48.txt', type: 'text/plain' }, regA.token);
+  const up48 = st48.json && st48.json.uploadId;
+  check('4.8 MongoDB: se abre una subida de medios', !!(st48.json && st48.json.ok && up48), st48.json);
+  const ch48 = await api(PORT, 'POST', '/api/media/chunk', { uploadId: up48, data: Buffer.from('HOLA-48').toString('base64') }, regA.token);
+  check('4.8 MongoDB: el trozo se guarda y el servidor dice cuántos bytes lleva', !!(ch48.json && ch48.json.ok && ch48.json.received === 7), ch48.json);
+  const status48 = await api(PORT, 'GET', '/api/media/status?uploadId=' + encodeURIComponent(up48), null, regA.token);
+  check('4.8 MongoDB: GET /api/media/status dice los bytes recibidos y que aún no terminó', !!(status48.json && status48.json.ok && status48.json.received === 7 && status48.json.finished === false), status48.json);
+  const fin48 = await api(PORT, 'POST', '/api/media/finish', { uploadId: up48 }, regA.token);
+  const url48 = fin48.json && fin48.json.url;
+  check('4.8 MongoDB: finish guarda y devuelve la URL', !!(fin48.json && fin48.json.ok && typeof url48 === 'string' && url48.length > 0), fin48.json);
+  const fin48b = await api(PORT, 'POST', '/api/media/finish', { uploadId: up48 }, regA.token);
+  check('4.8 MongoDB: un segundo finish con el mismo uploadId devuelve la MISMA URL (no 404)', !!(fin48b.json && fin48b.json.ok && fin48b.json.url === url48), fin48b.json);
+  const status48b = await api(PORT, 'GET', '/api/media/status?uploadId=' + encodeURIComponent(up48), null, regA.token);
+  check('4.8 MongoDB: tras cerrar, /api/media/status dice finished y la misma URL', !!(status48b.json && status48b.json.ok && status48b.json.finished === true && status48b.json.url === url48), status48b.json);
+  const postBlob48 = await api(PORT, 'POST', '/api/posts', { text: 'Video roto', media: 'blob:null/281f7dec-0000-0000-0000-000000000000' }, regA.token);
+  check('4.8 MongoDB: POST /api/posts con media blob: responde 400 «Medio no válido.»', postBlob48.status === 400 && !!(postBlob48.json && postBlob48.json.error === 'Medio no válido.'), postBlob48);
+  const postContent48 = await api(PORT, 'POST', '/api/posts', { text: 'Video roto 2', mediaList: [{ src: 'content://com.wordred.app.fileprovider/apk-files/media/v.mp4', type: 'video' }] }, regA.token);
+  check('4.8 MongoDB: POST /api/posts con mediaList content: responde 400 «Medio no válido.»', postContent48.status === 400 && !!(postContent48.json && postContent48.json.error === 'Medio no válido.'), postContent48);
+  const postOk48 = await api(PORT, 'POST', '/api/posts', { text: 'Video bueno', media: 'https://res.cloudinary.com/bekxop7h/video/upload/v1/wordred/bueno.mp4', mediaType: 'video' }, regA.token);
+  check('4.8 MongoDB: POST /api/posts con media https sí se publica', !!(postOk48.json && postOk48.json.ok && postOk48.json.post && postOk48.json.post.id), postOk48.json);
 
   /* ---- promociones (v4.1): el servidor conserva `promoted` en las
      publicaciones para que la insignia «Promocionado» y el primer lugar
@@ -1018,7 +1041,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir, WORDRED_TEST_FAIL_WRITES: '1' });
   health = await waitHealth(PORT);
-  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 4.6', !!(health && health.version === '4.7' && health.storage === 'mongodb'), health);
+  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 4.6', !!(health && health.version === '4.8' && health.storage === 'mongodb'), health);
   const delFail = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con MongoDB roto, DELETE devuelve 500 (no un éxito falso)', delFail.status === 500 && !!(delFail.json && delFail.json.ok === false), delFail);
   check('3.3 MongoDB: con MongoDB roto, DELETE explica el error real', !!(delFail.json && delFail.json.error && delFail.json.error.indexOf('No se pudo guardar el borrado') >= 0), delFail.json && delFail.json.error);
@@ -1029,7 +1052,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.7'), health);
+  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.8'), health);
   const delFailOk = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con las escrituras sanas, el borrado sí funciona (DELETE ok)', !!(delFailOk.json && delFailOk.json.ok), delFailOk);
   const feedFailOk = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
@@ -1057,7 +1080,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.8 MongoDB: la antigüedad de A se atrasó 8 días en MongoDB (para probar la verificación)', backRes.matchedCount === 1 && backRes.modifiedCount === 1, { matchedCount: backRes.matchedCount, modifiedCount: backRes.modifiedCount });
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 4.7 y storage mongodb', !!(health && health.version === '4.7' && health.storage === 'mongodb'), health);
+  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 4.8 y storage mongodb', !!(health && health.version === '4.8' && health.storage === 'mongodb'), health);
 
   const feedB2 = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, la publicación de A sigue ahí y B la sigue viendo', !!(feedB2.json && feedB2.json.ok && feedB2.json.posts.some(p => p.id === postId)), feedB2.json && feedB2.json.posts.length);
@@ -1138,7 +1161,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT3 = 34533;
   const proc3 = startServer(PORT3, { MONGODB_URI: uri, DATA_DIR: dataDir44, OWNER_EMAIL: OWNER_EMAIL_44 });
   const health3 = await waitHealth(PORT3);
-  check('4.4 dueño: el servidor con OWNER_EMAIL arranca (health 4.7)', !!(health3 && health3.version === '4.7'), health3);
+  check('4.4 dueño: el servidor con OWNER_EMAIL arranca (health 4.8)', !!(health3 && health3.version === '4.8'), health3);
   const reg44D = await register(PORT3, '526666666666');
   const reg44E = await register(PORT3, '527777777777');
   check('4.4 promociones: dos teléfonos se registran en el servidor del dueño', reg44D.ok && reg44E.ok, { reg44D, reg44E });
@@ -1228,7 +1251,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT2 = 34532;
   const proc2 = startServer(PORT2, { DATA_DIR: jsonDir });
   const health2 = await waitHealth(PORT2);
-  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 4.7, storage json y mongo false', !!(health2 && health2.version === '4.7' && health2.storage === 'json' && health2.mongo === false), health2);
+  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 4.8, storage json y mongo false', !!(health2 && health2.version === '4.8' && health2.storage === 'json' && health2.mongo === false), health2);
   const regJ = await register(PORT2, '524444444444');
   check('3.3 JSON: el registro sigue funcionando sin MongoDB', regJ.ok, regJ);
   const postJ = await api(PORT2, 'POST', '/api/posts', { text: 'Publicación en modo JSON' }, regJ.token);
@@ -1268,12 +1291,12 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const proc4 = startServerDir(PORT4, origDir, { DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'wordred-test46-origdata-')) });
   const health4 = await waitHealth(PORT4);
   const kdOrig = await api(PORT4, 'GET', '/api/kdramas');
-  check('4.6 dramas: con un kdramas.json de dramas originales, GET /api/kdramas lo sirve (forma antigua aceptada)', !!(health4 && health4.version === '4.7' && kdOrig.json && kdOrig.json.ok && kdOrig.json.kdramas.length === 1 && kdOrig.json.kdramas[0].chapters && kdOrig.json.kdramas[0].chapters[0].text && kdOrig.json.kdramas[0].chapters[0].text.length > 100), kdOrig.json);
+  check('4.6 dramas: con un kdramas.json de dramas originales, GET /api/kdramas lo sirve (forma antigua aceptada)', !!(health4 && health4.version === '4.8' && kdOrig.json && kdOrig.json.ok && kdOrig.json.kdramas.length === 1 && kdOrig.json.kdramas[0].chapters && kdOrig.json.kdramas[0].chapters[0].text && kdOrig.json.kdramas[0].chapters[0].text.length > 100), kdOrig.json);
   await stopServer(proc4);
 
   await mongod.stop();
   console.log('\n==============================');
-  console.log('Servidor WordRed 4.7 — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('Servidor WordRed 4.8 — ' + pass + ' PASS, ' + fail + ' FAIL');
   if (fail) { console.log('Fallos: ' + failures.join(' | ')); process.exit(1); }
 })().catch((e) => {
   console.error('ERROR en las pruebas: ' + (e && e.stack ? e.stack : e));
