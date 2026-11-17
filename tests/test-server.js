@@ -1,5 +1,5 @@
 'use strict';
-/* Pruebas del servidor WordRed 4.4 — los datos quedan PARA SIEMPRE en
+/* Pruebas del servidor WordRed 4.5 — los datos quedan PARA SIEMPRE en
    MongoDB (y el respaldo JSON sigue funcionando sin MONGODB_URI).
    Se arranca el servidor de verdad como proceso hijo (node server.js)
    contra un MongoDB en memoria (mongodb-memory-server) y se comprueba
@@ -128,7 +128,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   /* ---- modo MongoDB ---- */
   let proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   let health = await waitHealth(PORT);
-  check('4.4 MongoDB: /api/health dice version 4.4', !!(health && health.version === '4.4'), health);
+  check('4.4 MongoDB: /api/health dice version 4.5', !!(health && health.version === '4.5'), health);
   check('3.6 MongoDB: /api/health dice storage mongodb y mongo true', !!(health && health.storage === 'mongodb' && health.mongo === true), health);
 
   /* ---- actualización de la app (v3.5): GET /api/app/latest y
@@ -192,8 +192,15 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
      'assets/...' resolvía a 'assets/assets/...' y el archivo no
      existía: las portadas de dramas y del juego no se veían). */
   check('1.5.55 rutas: las portadas y las imágenes de los dramas van sin el prefijo assets/ (dramas/...)', !!(kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.every(function (s) { return /^dramas\/.+\.jpg$/.test(s.poster || '') && s.chapters.every(function (c) { return /^dramas\/.+\.jpg$/.test(c.image || ''); }); }) && JSON.stringify(kdramasFile).indexOf('assets/') < 0), null);
+  /* 1.5.56: 6 capítulos ya tienen video (los 4 de El contrato de la
+     heredera + los 2 primeros de La venganza de Camila), subidos a
+     Cloudinary; los otros 14 todavía no (el cap. 2 de Camila se
+     recuperó de su URL remota tras fallar la generación). El video es
+     opcional: un capítulo sin video muestra su imagen con
+     «Próximamente en video». */
+  check('1.5.56 videos: kdramas.json trae 6 capítulos con video de Cloudinary (4 del primer drama + 2 del segundo) y 14 sin video', (function () { var v = []; kdramasFile.kdramas.forEach(function (s) { s.chapters.forEach(function (c) { if (c.video) v.push([s.id, c.n, c.video]); }); }); return v.length === 6 && v.every(function (x) { return /^https:\/\/res\.cloudinary\.com\/bekxop7h\/video\/upload\/.+\.mp4$/.test(x[2]); }) && v.filter(function (x) { return x[0] === 'el-contrato-de-la-heredera'; }).length === 4 && v.filter(function (x) { return x[0] === 'la-venganza-de-camila'; }).length === 2; })());
   const kdramasRes = await api(PORT, 'GET', '/api/kdramas');
-  check('4.4 dramas: GET /api/kdramas devuelve la lista de kdramas.json (mismo orden y mismos datos)', !!(kdramasRes.json && kdramasRes.json.ok && Array.isArray(kdramasRes.json.kdramas) && kdramasRes.json.kdramas.length === kdramasFile.kdramas.length && kdramasRes.json.kdramas.every(function (s, i) { return s.id === kdramasFile.kdramas[i].id && s.name === kdramasFile.kdramas[i].name && s.poster === kdramasFile.kdramas[i].poster && s.chapters.length === kdramasFile.kdramas[i].chapters.length && s.chapters.every(function (c, j) { return c.n === kdramasFile.kdramas[i].chapters[j].n && c.title === kdramasFile.kdramas[i].chapters[j].title && c.image === kdramasFile.kdramas[i].chapters[j].image; }); })), kdramasRes.json);
+  check('4.4 dramas: GET /api/kdramas devuelve la lista de kdramas.json (mismo orden y mismos datos)', !!(kdramasRes.json && kdramasRes.json.ok && Array.isArray(kdramasRes.json.kdramas) && kdramasRes.json.kdramas.length === kdramasFile.kdramas.length && kdramasRes.json.kdramas.every(function (s, i) { return s.id === kdramasFile.kdramas[i].id && s.name === kdramasFile.kdramas[i].name && s.poster === kdramasFile.kdramas[i].poster && s.chapters.length === kdramasFile.kdramas[i].chapters.length && s.chapters.every(function (c, j) { return c.n === kdramasFile.kdramas[i].chapters[j].n && c.title === kdramasFile.kdramas[i].chapters[j].title && c.image === kdramasFile.kdramas[i].chapters[j].image && (c.video || '') === (kdramasFile.kdramas[i].chapters[j].video || ''); }); })), kdramasRes.json);
   const kdramasNoAuth = await api(PORT, 'GET', '/api/kdramas');
   check('4.4 dramas: el endpoint es público (sin token responde 200, no 401)', kdramasNoAuth.status === 200 && !!(kdramasNoAuth.json && kdramasNoAuth.json.ok), { status: kdramasNoAuth.status });
 
@@ -997,7 +1004,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir, WORDRED_TEST_FAIL_WRITES: '1' });
   health = await waitHealth(PORT);
-  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 4.4', !!(health && health.version === '4.4' && health.storage === 'mongodb'), health);
+  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 4.4', !!(health && health.version === '4.5' && health.storage === 'mongodb'), health);
   const delFail = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con MongoDB roto, DELETE devuelve 500 (no un éxito falso)', delFail.status === 500 && !!(delFail.json && delFail.json.ok === false), delFail);
   check('3.3 MongoDB: con MongoDB roto, DELETE explica el error real', !!(delFail.json && delFail.json.error && delFail.json.error.indexOf('No se pudo guardar el borrado') >= 0), delFail.json && delFail.json.error);
@@ -1008,7 +1015,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.4'), health);
+  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.5'), health);
   const delFailOk = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con las escrituras sanas, el borrado sí funciona (DELETE ok)', !!(delFailOk.json && delFailOk.json.ok), delFailOk);
   const feedFailOk = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
@@ -1036,7 +1043,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.8 MongoDB: la antigüedad de A se atrasó 8 días en MongoDB (para probar la verificación)', backRes.matchedCount === 1 && backRes.modifiedCount === 1, { matchedCount: backRes.matchedCount, modifiedCount: backRes.modifiedCount });
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 4.4 y storage mongodb', !!(health && health.version === '4.4' && health.storage === 'mongodb'), health);
+  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 4.5 y storage mongodb', !!(health && health.version === '4.5' && health.storage === 'mongodb'), health);
 
   const feedB2 = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, la publicación de A sigue ahí y B la sigue viendo', !!(feedB2.json && feedB2.json.ok && feedB2.json.posts.some(p => p.id === postId)), feedB2.json && feedB2.json.posts.length);
@@ -1117,7 +1124,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT3 = 34533;
   const proc3 = startServer(PORT3, { MONGODB_URI: uri, DATA_DIR: dataDir44, OWNER_EMAIL: OWNER_EMAIL_44 });
   const health3 = await waitHealth(PORT3);
-  check('4.4 dueño: el servidor con OWNER_EMAIL arranca (health 4.4)', !!(health3 && health3.version === '4.4'), health3);
+  check('4.4 dueño: el servidor con OWNER_EMAIL arranca (health 4.5)', !!(health3 && health3.version === '4.5'), health3);
   const reg44D = await register(PORT3, '526666666666');
   const reg44E = await register(PORT3, '527777777777');
   check('4.4 promociones: dos teléfonos se registran en el servidor del dueño', reg44D.ok && reg44E.ok, { reg44D, reg44E });
@@ -1207,7 +1214,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT2 = 34532;
   const proc2 = startServer(PORT2, { DATA_DIR: jsonDir });
   const health2 = await waitHealth(PORT2);
-  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 4.4, storage json y mongo false', !!(health2 && health2.version === '4.4' && health2.storage === 'json' && health2.mongo === false), health2);
+  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 4.5, storage json y mongo false', !!(health2 && health2.version === '4.5' && health2.storage === 'json' && health2.mongo === false), health2);
   const regJ = await register(PORT2, '524444444444');
   check('3.3 JSON: el registro sigue funcionando sin MongoDB', regJ.ok, regJ);
   const postJ = await api(PORT2, 'POST', '/api/posts', { text: 'Publicación en modo JSON' }, regJ.token);
@@ -1237,7 +1244,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
 
   await mongod.stop();
   console.log('\n==============================');
-  console.log('Servidor WordRed 4.4 — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('Servidor WordRed 4.5 — ' + pass + ' PASS, ' + fail + ' FAIL');
   if (fail) { console.log('Fallos: ' + failures.join(' | ')); process.exit(1); }
 })().catch((e) => {
   console.error('ERROR en las pruebas: ' + (e && e.stack ? e.stack : e));
