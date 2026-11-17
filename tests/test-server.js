@@ -1,5 +1,5 @@
 'use strict';
-/* Pruebas del servidor WordRed 4.6 — los datos quedan PARA SIEMPRE en
+/* Pruebas del servidor WordRed 4.7 — los datos quedan PARA SIEMPRE en
    MongoDB (y el respaldo JSON sigue funcionando sin MONGODB_URI).
    Se arranca el servidor de verdad como proceso hijo (node server.js)
    contra un MongoDB en memoria (mongodb-memory-server) y se comprueba
@@ -142,7 +142,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   /* ---- modo MongoDB ---- */
   let proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   let health = await waitHealth(PORT);
-  check('4.4 MongoDB: /api/health dice version 4.6', !!(health && health.version === '4.6'), health);
+  check('4.4 MongoDB: /api/health dice version 4.7', !!(health && health.version === '4.7'), health);
   check('3.6 MongoDB: /api/health dice storage mongodb y mongo true', !!(health && health.storage === 'mongodb' && health.mongo === true), health);
 
   /* ---- actualización de la app (v3.5): GET /api/app/latest y
@@ -199,25 +199,23 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
      app. La lista esperada se lee de kdramas.json (no se fija en el
      test, para que no se quede vieja al rotar los dramas). */
   const kdramasFile = JSON.parse(fs.readFileSync(path.join(SERVER_DIR, 'kdramas.json'), 'utf8'));
-  /* 1.5.58 (servidor 4.6): el catálogo vuelve a ser series cortas de
-     DramaBox — 5 series, cada una con portada (miniatura de YouTube),
-     total de capítulos y la lista de capítulos GRATIS con su videoId
-     (los capítulos de miembros no traen videoId: totalEps es mayor que
-     los gratis). Los conteos de gratis son los verificados con yt-dlp
-     (11 + 9 + 8 + 7 + 10 = 45); si DramaBox libera más capítulos, los
-     conteos crecen y este test se actualiza, no se fija en piedra. */
-  check('4.6 dramas: kdramas.json trae 5 series DramaBox con portada, totalEps y capítulos gratis con videoId', !!(kdramasFile && Array.isArray(kdramasFile.kdramas) && kdramasFile.kdramas.length === 5 && kdramasFile.kdramas.every(function (s) { return s.id && s.name && s.poster && typeof s.totalEps === 'number' && s.totalEps > 0 && Array.isArray(s.eps) && s.eps.length > 0 && s.totalEps >= s.eps.length && s.source === 'dramabox'; })), kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.map(function (s) { return s.name + ':' + (s.eps || []).length + '/' + s.totalEps; }));
-  check('4.6 dramas: 45 capítulos gratis en total (11 + 9 + 8 + 7 + 10), cada uno con ep, videoId de YouTube y miniatura', (function () { var n = 0; return !!(kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.every(function (s) { return s.eps.every(function (e, i) { n++; return e.ep === i + 1 && /^[A-Za-z0-9_-]{11}$/.test(e.videoId || '') && e.title && /^https:\/\/i\.ytimg\.com\/vi\/[A-Za-z0-9_-]{11}\/hqdefault\.jpg$/.test(e.thumb || ''); }); }) && n === 45); })(), null);
-  check('4.6 dramas: las portadas son miniaturas de YouTube del primer capítulo gratis', !!(kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.every(function (s) { return s.poster === 'https://i.ytimg.com/vi/' + s.eps[0].videoId + '/hqdefault.jpg'; })), null);
+  /* 1.5.60 (servidor 4.7: pasa los subtítulos del capítulo): el catálogo vuelve a ser los 5
+     dramas originales — cada uno con sinopsis, portada e imagen de
+     escena por capítulo (texto largo); los capítulos con video traen su
+     URL de Cloudinary y subtítulos es/en/pt. Los capítulos 5-20 llegan
+     uno por día; este test exige al menos 4 capítulos por drama y 6 o
+     más con video (los 6 de la 1.5.57 más los nuevos de la 1.5.60). */
+  check('4.6 dramas: kdramas.json trae los 5 dramas originales con sinopsis, portada y capítulos con texto e imagen', !!(kdramasFile && Array.isArray(kdramasFile.kdramas) && kdramasFile.kdramas.length === 5 && kdramasFile.kdramas.every(function (s) { return s.id && s.name && s.synopsis && s.poster && Array.isArray(s.chapters) && s.chapters.length >= 4 && s.chapters.every(function (c) { return typeof c.n === 'number' && c.title && typeof c.text === 'string' && c.text.length > 100 && c.image && (!c.video || (typeof c.video === 'string' && c.video.indexOf('https://res.cloudinary.com/') === 0)) && (!c.subtitles || (typeof c.subtitles.es === 'string' && c.subtitles.es.indexOf('https://') === 0 && typeof c.subtitles.en === 'string' && c.subtitles.en.indexOf('https://') === 0 && typeof c.subtitles.pt === 'string' && c.subtitles.pt.indexOf('https://') === 0)); }); })), kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.map(function (s) { return s.name + ':' + (s.chapters || []).length + ' caps, ' + (s.chapters || []).filter(function (c) { return c.video; }).length + ' con video'; }));
+  check('4.6 dramas: 6 o más capítulos con video de Cloudinary, cada uno con subtítulos es/en/pt', (function () { var n = 0; return !!(kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.every(function (s) { return (s.chapters || []).every(function (c) { if (!c.video) return true; n++; return typeof c.video === 'string' && c.video.indexOf('https://res.cloudinary.com/') === 0 && c.subtitles && typeof c.subtitles.es === 'string' && c.subtitles.es.indexOf('https://') === 0 && typeof c.subtitles.en === 'string' && c.subtitles.en.indexOf('https://') === 0 && typeof c.subtitles.pt === 'string' && c.subtitles.pt.indexOf('https://') === 0; }); }) && n >= 6); })(), null);
+  check('4.6 dramas: las portadas son las imágenes de los dramas originales (dramas/<id>-portada.jpg)', !!(kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.every(function (s) { return s.poster === 'dramas/' + s.id + '-portada.jpg'; })), null);
   const kdramasRes = await api(PORT, 'GET', '/api/kdramas');
-  check('4.6 dramas: GET /api/kdramas devuelve la lista de kdramas.json (mismo orden y mismos datos)', !!(kdramasRes.json && kdramasRes.json.ok && Array.isArray(kdramasRes.json.kdramas) && kdramasRes.json.kdramas.length === kdramasFile.kdramas.length && kdramasRes.json.kdramas.every(function (s, i) { return s.id === kdramasFile.kdramas[i].id && s.name === kdramasFile.kdramas[i].name && s.poster === kdramasFile.kdramas[i].poster && s.totalEps === kdramasFile.kdramas[i].totalEps && s.eps.length === kdramasFile.kdramas[i].eps.length && s.eps.every(function (e, j) { return e.ep === kdramasFile.kdramas[i].eps[j].ep && e.videoId === kdramasFile.kdramas[i].eps[j].videoId && e.title === kdramasFile.kdramas[i].eps[j].title && e.thumb === kdramasFile.kdramas[i].eps[j].thumb; }); })), kdramasRes.json);
+  check('4.6 dramas: GET /api/kdramas devuelve la lista de kdramas.json (mismo orden y mismos datos)', !!(kdramasRes.json && kdramasRes.json.ok && Array.isArray(kdramasRes.json.kdramas) && kdramasRes.json.kdramas.length === kdramasFile.kdramas.length && kdramasRes.json.kdramas.every(function (s, i) { return s.id === kdramasFile.kdramas[i].id && s.name === kdramasFile.kdramas[i].name && s.synopsis === kdramasFile.kdramas[i].synopsis && s.poster === kdramasFile.kdramas[i].poster && s.chapters.length === kdramasFile.kdramas[i].chapters.length && s.chapters.every(function (c, j) { var o = kdramasFile.kdramas[i].chapters[j]; return c.n === o.n && c.title === o.title && c.text === o.text && c.image === o.image && c.video === o.video && JSON.stringify(c.subtitles || null) === JSON.stringify(o.subtitles || null); }); })), kdramasRes.json);
   const kdramasNoAuth = await api(PORT, 'GET', '/api/kdramas');
   check('4.6 dramas: el endpoint es público (sin token responde 200, no 401)', kdramasNoAuth.status === 200 && !!(kdramasNoAuth.json && kdramasNoAuth.json.ok), { status: kdramasNoAuth.status });
-  /* 4.6: readKdramas() sigue aceptando la forma de los dramas
-     originales (sinopsis + capítulos con texto e imagen), por si el
-     catálogo vuelve a ellos: se comprueba con un kdramas.json temporal
-     en un servidor aparte (ver el bloque de pruebas de JSON al final
-     del archivo). */
+  /* 4.6: readKdramas() sigue aceptando la forma DramaBox (totalEps +
+     eps con videoId) además de los originales: se comprueba con un
+     kdramas.json temporal en un servidor aparte (ver el bloque de
+     pruebas de JSON al final del archivo). */
 
   /* ---- juego destacado (v4.4): GET /api/featured-game es público y
      devuelve la ficha de featured-game.json (datos del juego + sus 8
@@ -1019,7 +1017,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir, WORDRED_TEST_FAIL_WRITES: '1' });
   health = await waitHealth(PORT);
-  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 4.6', !!(health && health.version === '4.6' && health.storage === 'mongodb'), health);
+  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 4.6', !!(health && health.version === '4.7' && health.storage === 'mongodb'), health);
   const delFail = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con MongoDB roto, DELETE devuelve 500 (no un éxito falso)', delFail.status === 500 && !!(delFail.json && delFail.json.ok === false), delFail);
   check('3.3 MongoDB: con MongoDB roto, DELETE explica el error real', !!(delFail.json && delFail.json.error && delFail.json.error.indexOf('No se pudo guardar el borrado') >= 0), delFail.json && delFail.json.error);
@@ -1030,7 +1028,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.6'), health);
+  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.7'), health);
   const delFailOk = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con las escrituras sanas, el borrado sí funciona (DELETE ok)', !!(delFailOk.json && delFailOk.json.ok), delFailOk);
   const feedFailOk = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
@@ -1058,7 +1056,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.8 MongoDB: la antigüedad de A se atrasó 8 días en MongoDB (para probar la verificación)', backRes.matchedCount === 1 && backRes.modifiedCount === 1, { matchedCount: backRes.matchedCount, modifiedCount: backRes.modifiedCount });
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 4.6 y storage mongodb', !!(health && health.version === '4.6' && health.storage === 'mongodb'), health);
+  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 4.7 y storage mongodb', !!(health && health.version === '4.7' && health.storage === 'mongodb'), health);
 
   const feedB2 = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, la publicación de A sigue ahí y B la sigue viendo', !!(feedB2.json && feedB2.json.ok && feedB2.json.posts.some(p => p.id === postId)), feedB2.json && feedB2.json.posts.length);
@@ -1139,7 +1137,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT3 = 34533;
   const proc3 = startServer(PORT3, { MONGODB_URI: uri, DATA_DIR: dataDir44, OWNER_EMAIL: OWNER_EMAIL_44 });
   const health3 = await waitHealth(PORT3);
-  check('4.4 dueño: el servidor con OWNER_EMAIL arranca (health 4.6)', !!(health3 && health3.version === '4.6'), health3);
+  check('4.4 dueño: el servidor con OWNER_EMAIL arranca (health 4.7)', !!(health3 && health3.version === '4.7'), health3);
   const reg44D = await register(PORT3, '526666666666');
   const reg44E = await register(PORT3, '527777777777');
   check('4.4 promociones: dos teléfonos se registran en el servidor del dueño', reg44D.ok && reg44E.ok, { reg44D, reg44E });
@@ -1229,7 +1227,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT2 = 34532;
   const proc2 = startServer(PORT2, { DATA_DIR: jsonDir });
   const health2 = await waitHealth(PORT2);
-  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 4.6, storage json y mongo false', !!(health2 && health2.version === '4.6' && health2.storage === 'json' && health2.mongo === false), health2);
+  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 4.7, storage json y mongo false', !!(health2 && health2.version === '4.7' && health2.storage === 'json' && health2.mongo === false), health2);
   const regJ = await register(PORT2, '524444444444');
   check('3.3 JSON: el registro sigue funcionando sin MongoDB', regJ.ok, regJ);
   const postJ = await api(PORT2, 'POST', '/api/posts', { text: 'Publicación en modo JSON' }, regJ.token);
@@ -1269,12 +1267,12 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const proc4 = startServerDir(PORT4, origDir, { DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'wordred-test46-origdata-')) });
   const health4 = await waitHealth(PORT4);
   const kdOrig = await api(PORT4, 'GET', '/api/kdramas');
-  check('4.6 dramas: con un kdramas.json de dramas originales, GET /api/kdramas lo sirve (forma antigua aceptada)', !!(health4 && health4.version === '4.6' && kdOrig.json && kdOrig.json.ok && kdOrig.json.kdramas.length === 1 && kdOrig.json.kdramas[0].chapters && kdOrig.json.kdramas[0].chapters[0].text && kdOrig.json.kdramas[0].chapters[0].text.length > 100), kdOrig.json);
+  check('4.6 dramas: con un kdramas.json de dramas originales, GET /api/kdramas lo sirve (forma antigua aceptada)', !!(health4 && health4.version === '4.7' && kdOrig.json && kdOrig.json.ok && kdOrig.json.kdramas.length === 1 && kdOrig.json.kdramas[0].chapters && kdOrig.json.kdramas[0].chapters[0].text && kdOrig.json.kdramas[0].chapters[0].text.length > 100), kdOrig.json);
   await stopServer(proc4);
 
   await mongod.stop();
   console.log('\n==============================');
-  console.log('Servidor WordRed 4.6 — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('Servidor WordRed 4.7 — ' + pass + ' PASS, ' + fail + ' FAIL');
   if (fail) { console.log('Fallos: ' + failures.join(' | ')); process.exit(1); }
 })().catch((e) => {
   console.error('ERROR en las pruebas: ' + (e && e.stack ? e.stack : e));
