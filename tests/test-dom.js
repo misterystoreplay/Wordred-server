@@ -238,9 +238,9 @@ window.fetch = async (url, opts) => {
   // igual que la de pruebas local.
   if (u.indexOf('http://127.0.0.1:3000') !== 0 && u.indexOf('https://wordred-server.onrender.com') !== 0) throw new Error('fetch fallido (sin servidor)');
   if (u.includes('/api/health')) return ok({ ok: true, version: '1.4' });
-  /* v1.5.19 punto 2: la última versión es la instalada (1.5.62): las
+  /* v1.5.19 punto 2: la última versión es la instalada (1.5.63): las
      revisiones en segundo plano no encuentran nada nuevo. */
-  if (u.includes('/api/app/latest')) return ok({ ok: true, versionName: '1.5.62', versionCode: 77, url: 'https://wordred-server.onrender.com/app/WordRed.apk', notes: '' });
+  if (u.includes('/api/app/latest')) return ok({ ok: true, versionName: '1.5.63', versionCode: 78, url: 'https://wordred-server.onrender.com/app/WordRed.apk', notes: '' });
   /* 1.5.40: la cartelera del servidor (GET /api/billboard): 2 películas
      distintas de la lista fija, para comprobar que la app pinta lo que
      devuelve el servidor y no la lista que lleva dentro. */
@@ -4002,28 +4002,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const elF17 = shF17 && shF17.ok ? window.document.querySelector('#feed .post[data-post="' + shF17.post.id + '"]') : null;
     check('v1.5.17 video chiquito: en un repost video+foto la foto distinta sí sigue viéndose', !!c17d && c17d.videos === 1 && !!elF17 && !!elF17.querySelector('.medialist img[src="https://srv/fotoF17.jpg"]'), JSON.stringify(c17d));
     // (14) v1.5.17 punto 2: buscar actualización en Ajustes.
-    check('v1.5.17 actualización: en Ajustes, hasta arriba, está el apartado de buscar actualización', (function () { window.__wrOpenSettings(); const h = window.document.querySelector('#settingsOverlay h3.sectitle'); return h && h.textContent === 'Actualización' && $('checkUpdateBtn') && /Buscar/.test($('checkUpdateBtn').textContent) && /1\.5\.62/.test($('updateCurrentVersion').textContent); })());
+    check('v1.5.17 actualización: en Ajustes, hasta arriba, está el apartado de buscar actualización', (function () { window.__wrOpenSettings(); const h = window.document.querySelector('#settingsOverlay h3.sectitle'); return h && h.textContent === 'Actualización' && $('checkUpdateBtn') && /Buscar/.test($('checkUpdateBtn').textContent) && /1\.5\.63/.test($('updateCurrentVersion').textContent); })());
     const origRetry17 = C17.serverFetchWithRetry;
     C17.serverFetchWithRetry = async function (state, path) {
-      if (path === '/api/app/latest') return { ok: true, data: { ok: true, versionName: '1.5.63', versionCode: 78, url: 'https://wordred-server.onrender.com/app/WordRed.apk', notes: 'Prueba de actualización' } };
+      if (path === '/api/app/latest') return { ok: true, data: { ok: true, versionName: '1.5.64', versionCode: 79, url: 'https://wordred-server.onrender.com/app/WordRed.apk', notes: 'Prueba de actualización' } };
       return origRetry17.apply(this, arguments);
     };
     st17.notifications = st17.notifications.filter(function (n) { return n.type !== 'update'; });
     calls.notifications = [];
     calls.installApk = [];
     await T17.checkAppUpdate({ silent: true });
-    check('v1.5.17 actualización: con versión nueva aparece el aviso en la campana', st17.notifications.some(function (n) { return n.type === 'update' && n.refId === '78'; }));
+    check('v1.5.17 actualización: con versión nueva aparece el aviso en la campana', st17.notifications.some(function (n) { return n.type === 'update' && n.refId === '79'; }));
     check('v1.5.17 actualización: con versión nueva llega la notificación del celular', calls.notifications.filter(function (n) { return /actualización/.test(n.x || ''); }).length === 1, JSON.stringify(calls.notifications));
     await T17.checkAppUpdate({ silent: true });
     check('v1.5.17 actualización: la segunda revisión no repite ni la campana ni la notificación del celular', st17.notifications.filter(function (n) { return n.type === 'update'; }).length === 1 && calls.notifications.filter(function (n) { return /actualización/.test(n.x || ''); }).length === 1);
     T17.openUpdateDialog(T17.getAppUpdateInfo());
-    check('v1.5.17 actualización: el diálogo muestra la versión nueva y el botón Instalar', $('updateOverlay').classList.contains('on') && /1\.5\.63/.test($('updateBody').textContent) && !$('updateInstallBtn').classList.contains('hidden'));
+    check('v1.5.17 actualización: el diálogo muestra la versión nueva y el botón Instalar', $('updateOverlay').classList.contains('on') && /1\.5\.64/.test($('updateBody').textContent) && !$('updateInstallBtn').classList.contains('hidden'));
     check('v1.5.17 actualización: el diálogo lleva transparencia atrás', /rgba\(26,\s*12,\s*15/.test($('updateOverlay').querySelector('.glass').style.background));
     window.__wrInstallUpdate();
     check('v1.5.17 actualización: Instalar descarga el APK real del servidor', calls.installApk.length === 1 && calls.installApk[0] === 'https://wordred-server.onrender.com/app/WordRed.apk', JSON.stringify(calls.installApk));
     // (14b) v1.5.19: si el servidor devuelve la URL con http, Instalar descarga por https.
     C17.serverFetchWithRetry = async function (state, path) {
-      if (path === '/api/app/latest') return { ok: true, data: { ok: true, versionName: '1.5.63', versionCode: 78, url: 'http://wordred-server.onrender.com/app/WordRed.apk', notes: 'Prueba http' } };
+      if (path === '/api/app/latest') return { ok: true, data: { ok: true, versionName: '1.5.64', versionCode: 79, url: 'http://wordred-server.onrender.com/app/WordRed.apk', notes: 'Prueba http' } };
       return origRetry17.apply(this, arguments);
     };
     calls.installApk = [];
@@ -4032,7 +4032,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     window.__wrInstallUpdate();
     check('v1.5.19 actualización: si el servidor devuelve la URL con http, Instalar descarga por https', calls.installApk.length === 1 && calls.installApk[0] === 'https://wordred-server.onrender.com/app/WordRed.apk', JSON.stringify(calls.installApk));
     C17.serverFetchWithRetry = async function (state, path) {
-      if (path === '/api/app/latest') return { ok: true, data: { ok: true, versionName: '1.5.62', versionCode: 77, url: 'https://wordred-server.onrender.com/app/WordRed.apk', notes: '' } };
+      if (path === '/api/app/latest') return { ok: true, data: { ok: true, versionName: '1.5.63', versionCode: 78, url: 'https://wordred-server.onrender.com/app/WordRed.apk', notes: '' } };
       return origRetry17.apply(this, arguments);
     };
     await T17.checkAppUpdate({ silent: false });
@@ -4049,7 +4049,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     st17.notifications = [
       { id: 'u-old', type: 'update', from: me17, to: me17, text: 'Hay una actualización disponible: WordRed 1.5.30.', refId: '45', createdAt: Date.now() - 86400000, read: false },
       { id: 'u-cur', type: 'update', from: me17, to: me17, text: 'Hay una actualización disponible: WordRed 1.5.45.', refId: '60', createdAt: Date.now() - 3600000, read: false },
-      { id: 'u-new', type: 'update', from: me17, to: me17, text: 'Hay una actualización disponible: WordRed 1.5.63.', refId: '78', createdAt: Date.now(), read: false },
+      { id: 'u-new', type: 'update', from: me17, to: me17, text: 'Hay una actualización disponible: WordRed 1.5.64.', refId: '79', createdAt: Date.now(), read: false },
       { id: 'n-like', type: 'like', from: '5522222222', to: me17, text: 'A Bruno le gusta tu publicación.', refId: 'post1', createdAt: Date.now(), read: false },
     ];
     T17.updateBadges();
@@ -5837,7 +5837,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check('v1.5.43 preguntas: Ajustes ya no trae la lista de preguntas suelta dentro', !$('settingsOverlay').querySelector('#faqList') && !$('settingsOverlay').querySelector('#faqTitle1542'));
     click($('settingsFaqBtn1542')); await tick();
     check('v1.5.43 preguntas: el botón «?» abre el panel de preguntas', $('faqOverlay1543').classList.contains('on'));
-    check('1.5.62 preguntas: el panel trae las 29 preguntas (1.5.62: subida que reanuda, buscador y dramas entre Shorts e historias; 1.5.61: dramas mezclados, pantalla completa y resplandor del cargador), con las nuevas de la cartelera y «Tu tiempo hoy» (la de los Reels salió en la rotación)', qa('#faqOverlay1543 #faqList .faqItem').length === 29 && $('faqList').textContent.indexOf('¿Qué es la cartelera «Próximos estrenos»?') >= 0 && $('faqList').textContent.indexOf('¿Cómo quedaron los Reels?') < 0 && $('faqList').textContent.indexOf('¿Dónde quedó «Tu tiempo hoy»?') >= 0 && $('faqList').textContent.indexOf('¿Qué hay de nuevo en la 1.5.62?') >= 0 && $('faqList').textContent.indexOf('¿Qué hay de nuevo en la 1.5.61?') >= 0 && $('faqList').textContent.indexOf('¿Qué hay de nuevo en la 1.5.60?') < 0, 'items=' + qa('#faqList .faqItem').length);
+    check('1.5.63 preguntas: el panel trae las 29 preguntas (1.5.63: portadas verticales de dramas; 1.5.62: subida que reanuda, buscador y dramas entre Shorts e historias), con las nuevas de la cartelera y «Tu tiempo hoy» (la de los Reels salió en la rotación)', qa('#faqOverlay1543 #faqList .faqItem').length === 29 && $('faqList').textContent.indexOf('¿Qué es la cartelera «Próximos estrenos»?') >= 0 && $('faqList').textContent.indexOf('¿Cómo quedaron los Reels?') < 0 && $('faqList').textContent.indexOf('¿Dónde quedó «Tu tiempo hoy»?') >= 0 && $('faqList').textContent.indexOf('¿Qué hay de nuevo en la 1.5.63?') >= 0 && $('faqList').textContent.indexOf('¿Qué hay de nuevo en la 1.5.62?') >= 0 && $('faqList').textContent.indexOf('¿Qué hay de nuevo en la 1.5.61?') < 0, 'items=' + qa('#faqList .faqItem').length);
     var faqQ43 = q('#faqList .faqQ');
     if (faqQ43) faqQ43.click();
     check('v1.5.43 preguntas: tocar una pregunta muestra su respuesta dentro del panel', !!q('#faqList .faqItem.open'));
@@ -6570,12 +6570,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check('1.5.49 K-Dramas: la sección está en el Inicio, fija justo debajo de «+ Agregar apartado»', !!kdSec49 && kdSec49.parentElement === $('homeWidgets1536') && kdSec49.previousElementSibling === $('homeAddBtn1536'));
     check('1.5.49 K-Dramas: la sección NO lleva data-widget (no es un apartado editable)', !!kdSec49 && !kdSec49.hasAttribute('data-widget'));
     var kdTiles49 = qa('#kdramaReels1549 .reelTile');
-    check('1.5.62 Dramas: hay 48 portadas, una por serie, con su miniatura de YouTube y la insignia de su aplicación', kdTiles49.length === 48 && kdTiles49.every(function (t) { var im = t.querySelector('img'); return !!im && /^https:\/\/i\.ytimg\.com\/vi\/[A-Za-z0-9_-]{11}\/hqdefault\.jpg$/.test(im.getAttribute('src')) && !!t.querySelector('.kdBadge1549') && (t.querySelector('.kdBadge1549').textContent === 'ReelShort' || t.querySelector('.kdBadge1549').textContent === 'ShortMax') && t.textContent.indexOf('1 capítulo gratis de ') >= 0; }), 'tiles=' + kdTiles49.length);
+    check('1.5.63 Dramas: hay 48 portadas verticales, una por serie, con su fotograma del video y la insignia de su aplicación', kdTiles49.length === 48 && kdTiles49.every(function (t) { var im = t.querySelector('img'); return !!im && /^https:\/\/res\.cloudinary\.com\/bekxop7h\/image\/upload\/v[0-9]+\/wordred\/dramas\/[A-Za-z0-9_-]{11}-cover(-720)?\.jpg$/.test(im.getAttribute('src')) && !!t.querySelector('.kdBadge1549') && (t.querySelector('.kdBadge1549').textContent === 'ReelShort' || t.querySelector('.kdBadge1549').textContent === 'ShortMax') && im.getAttribute('data-kd-kind') === 'dramaTile' && /^https:\/\/i\.ytimg\.com\/vi\/[A-Za-z0-9_-]{11}\/hqdefault\.jpg$/.test(im.getAttribute('data-kd-fallback') || '') && t.textContent.indexOf('1 capítulo gratis de ') >= 0; }), 'tiles=' + kdTiles49.length);
     check('1.5.62 Dramas: el catálogo trae 46 series de ReelShort y 2 de ShortMax, cada una con 1 entrada gratis', (function () { var c = T26.getKdramaCatalog1549(); return c.length === 48 && c.filter(function (s) { return s.source === 'ReelShort'; }).length === 46 && c.filter(function (s) { return s.source === 'ShortMax'; }).length === 2 && c[0].name === 'La doble vida de mi esposo multimillonario' && c[47].name === 'Enamorada del diablo' && c.every(function (s) { return Array.isArray(s.eps) && s.eps.length === 1 && s.eps[0].videoId.length === 11; }); })());
     check('1.5.61 Dramas: cada entrada gratis lleva su videoId, título y miniatura de YouTube', T26.getKdramaCatalog1549().every(function (s) { return s.eps.every(function (e) { return e.ep >= 1 && e.ep <= s.totalEps && !!e.title && /^https:\/\/i\.ytimg\.com\/vi\/[A-Za-z0-9_-]{11}\/hqdefault\.jpg$/.test(e.thumb || ''); }); }));
     check('1.5.61 Dramas: ningún drama original ni de DramaBox queda en el catálogo (sin chapters ni «DramaBox»)', T26.getKdramaCatalog1549().every(function (s) { return !s.chapters && JSON.stringify(s).indexOf('DramaBox') < 0; }) && JSON.stringify(T26.getKdramaCatalog1549()).indexOf('El contrato de la heredera') < 0);
-    check('1.5.62 FAQ: la novedad es la 1.5.62 (subida que reanuda, buscador, dramas entre Shorts e historias) y la 1.5.60 ya no está', (function () { var f = T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.62?'; })[0]; return !!f && f.a.length <= 400 && f.a.indexOf('buscador') >= 0 && f.a.indexOf('continúa donde se quedó') >= 0 && T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.60?'; }).length === 0; })());
-    // --- 1.5.53 promociones: la sincronización activa o rechaza; config del creador ---
+    check('1.5.63 FAQ: la novedad es la 1.5.63 (portadas verticales de dramas, mismo tamaño que los reels) y la 1.5.61 ya no está', (function () { var f = T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.63?'; })[0]; return !!f && f.a.length <= 400 && f.a.indexOf('verticales') >= 0 && f.a.indexOf('mismo tamaño') >= 0 && T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.61?'; }).length === 0; })());
+    // --- 1.5.63 portadas verticales: el drama se ve del mismo tamaño que los reels y llena su recuadro ---
+    check('1.5.63 respaldo: si la portada vertical no carga, la tarjeta intenta la miniatura de YouTube (una sola vez)', (function () { var im = kdTiles49[0].querySelector('img'); if (!im) return false; var clone = im.cloneNode(false); var fb = clone.getAttribute('data-kd-fallback'); if (!fb || !/^https:\/\/i\.ytimg\.com\/vi\/[A-Za-z0-9_-]{11}\/hqdefault\.jpg$/.test(fb)) return false; window.__wrKdPosterFallback1563(clone); if (clone.getAttribute('src') !== fb) return false; window.__wrKdPosterFallback1563(clone); return clone.getAttribute('src') === fb; })());
+    check('1.5.63 historias: la tarjeta de drama en la fila tiene la misma caja que un reel (mismas clases, portada vertical)', (function () { T26.renderStories(); var tiles = window.document.querySelectorAll('#storiesRow .homeReel1549'); var drama = null; var other = null; for (var k = 0; k < tiles.length; k++) { if (tiles[k].getAttribute('data-kd-story1562')) drama = tiles[k]; else if (!other) other = tiles[k]; } if (!drama || !other) return false; var dRect = drama.querySelector('.homeReelRect1560'); var oRect = other.querySelector('.homeReelRect1560'); if (!dRect || !oRect) return false; var dImg = dRect.querySelector('img'); return dRect.className === oRect.className && !!dImg && /^https:\/\/res\.cloudinary\.com\/bekxop7h\/image\/upload\/v[0-9]+\/wordred\/dramas\/[A-Za-z0-9_-]{11}-cover(-720)?\.jpg$/.test(dImg.getAttribute('src')) && dImg.getAttribute('data-kd-fallback') && dImg.getAttribute('data-kd-fallback').indexOf('hqdefault.jpg') >= 0; })());
+    check('1.5.63 shorts: la tarjeta de drama llena el mismo escenario que un Short (100%×100%, cover, portada vertical)', (function () { var feed = T26.core.shortsFeed(st26, st26.me); var withDrama = T26.kdInterleaveDramas1562(feed); var d = null; withDrama.forEach(function (it) { if (!d && it.kind === 'drama') d = it; }); if (!d) return false; window.__wrOpenShort(d.id); var im = window.document.querySelector('#shortsBody img[data-kd-kind="short"]'); if (!im) return false; return im.style.width === '100%' && im.style.height === '100%' && im.style.objectFit === 'cover' && /^https:\/\/res\.cloudinary\.com\/bekxop7h\/image\/upload\/v[0-9]+\/wordred\/dramas\/[A-Za-z0-9_-]{11}-cover(-720)?\.jpg$/.test(im.getAttribute('src')); })());
+    check('1.5.63 shorts: los botones de acción siguen ocultos solo en la tarjeta de drama', (function () { var like = $('shortsLike'); return !!like && like.style.display === 'none'; })());    // --- 1.5.53 promociones: la sincronización activa o rechaza; config del creador ---
     var savedPosts53 = st26.posts.slice();
     var savedPromo53 = st26.promotions1547;
     var savedHw53 = st26.homeWidgets1536 ? JSON.parse(JSON.stringify(st26.homeWidgets1536)) : null;
@@ -6932,7 +6936,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     var kdTiles55 = qa('#kdramaReels1549 .reelTile');
     check('1.5.58 dramas: las 5 portadas son las miniaturas de YouTube de cada serie', kdTiles55.length === 5 && kdTiles55.every(function (t) { var im = t.querySelector('img'); return !!im && /^https:\/\/i\.ytimg\.com\/vi\/[A-Za-z0-9_-]{11}\/hqdefault\.jpg$/.test(im.getAttribute('src')); }), 'tiles=' + kdTiles55.length);
     var kdTile55 = kdTiles55[0];
-    kdTile55.querySelector('img').dispatchEvent(new window.Event('error'));
+    kdTile55.querySelector('img').dispatchEvent(new window.Event('error')); // 1.5.63: 1er error -> intenta la miniatura
+    kdTile55.querySelector('img').dispatchEvent(new window.Event('error')); // 1.5.63: 2do error (la miniatura tampoco carga) -> respaldo rojo
     check('1.5.58 dramas: si la portada no carga, la tarjeta muestra el nombre bien visible (sin hueco vacío)', kdTile55.classList.contains('kdNoImg1555') && kdTile55.textContent.indexOf('After I Died He Went Mad') >= 0 && !kdTile55.querySelector('img'));
     // (b) El visor abre con el video de YouTube y sin texto; si la imagen falla, se ve el nombre de la serie.
     T26.openKdrama1549(0, 0);
@@ -7381,8 +7386,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     T26.go('feed');
     await tick();
     // --- 1.5.59: FAQ (la novedad es la 1.5.59, la 1.5.57 ya no está) ---
-    check('1.5.61 FAQ: la novedad es la 1.5.61 (≤400 caracteres, dice dramas mezclados, pantalla completa y cargador) y la 1.5.59 ya no está', (function () { var f = T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.61?'; })[0]; return !!f && f.a.length <= 400 && f.a.indexOf('ReelShort') >= 0 && f.a.indexOf('pantalla completa') >= 0 && f.a.indexOf('cargador') >= 0 && T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.59?'; }).length === 0; })());
-    check('1.5.62 FAQ: la entrada de la 1.5.61 quedó corta (≤400 caracteres, sigue diciendo dramas mezclados, pantalla completa y resplandor) y la de la 1.5.60 ya no está', (function () { var f = T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.61?'; })[0]; var f60 = T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.60?'; })[0]; return !!f && f.a.length <= 400 && f.a.indexOf('ReelShort') >= 0 && f.a.indexOf('pantalla completa') >= 0 && f.a.indexOf('resplandor') >= 0 && !f60; })());
+    check('1.5.63 FAQ: la novedad es la 1.5.63 (≤400 caracteres, dice portadas verticales y mismo tamaño) y la 1.5.61 ya no está', (function () { var f = T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.63?'; })[0]; return !!f && f.a.length <= 400 && f.a.indexOf('verticales') >= 0 && f.a.indexOf('mismo tamaño') >= 0 && T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.61?'; }).length === 0; })());
+    check('1.5.63 FAQ: la entrada de la 1.5.62 quedó corta (≤400 caracteres, sigue diciendo buscador y continúa donde se quedó) y la de la 1.5.61 ya no está', (function () { var f = T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.62?'; })[0]; var f61 = T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.61?'; })[0]; return !!f && f.a.length <= 400 && f.a.indexOf('buscador') >= 0 && f.a.indexOf('continúa donde se quedó') >= 0 && !f61; })());
     // --- 1.5.58 publicar atómico: nada se muestra como publicado hasta que el servidor confirma; si falla, error claro + borrador + Reintentar ---
     T26.go('feed');
     await tick();
@@ -7453,6 +7458,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     console.log('FAIL: excepción — ' + (e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n') : e));
   }
   console.log('\n==============================');
-  console.log('WordRed DOM v1.5.62 (jsdom) — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('WordRed DOM v1.5.63 (jsdom) — ' + pass + ' PASS, ' + fail + ' FAIL');
   process.exit(fail ? 1 : 0);
 })();
