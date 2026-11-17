@@ -1,5 +1,5 @@
 'use strict';
-/* Pruebas del servidor WordRed 4.3 — los datos quedan PARA SIEMPRE en
+/* Pruebas del servidor WordRed 4.4 — los datos quedan PARA SIEMPRE en
    MongoDB (y el respaldo JSON sigue funcionando sin MONGODB_URI).
    Se arranca el servidor de verdad como proceso hijo (node server.js)
    contra un MongoDB en memoria (mongodb-memory-server) y se comprueba
@@ -128,7 +128,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   /* ---- modo MongoDB ---- */
   let proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   let health = await waitHealth(PORT);
-  check('4.3 MongoDB: /api/health dice version 4.3', !!(health && health.version === '4.3'), health);
+  check('4.4 MongoDB: /api/health dice version 4.4', !!(health && health.version === '4.4'), health);
   check('3.6 MongoDB: /api/health dice storage mongodb y mongo true', !!(health && health.storage === 'mongodb' && health.mongo === true), health);
 
   /* ---- actualización de la app (v3.5): GET /api/app/latest y
@@ -185,12 +185,42 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
      app. La lista esperada se lee de kdramas.json (no se fija en el
      test, para que no se quede vieja al rotar los dramas). */
   const kdramasFile = JSON.parse(fs.readFileSync(path.join(SERVER_DIR, 'kdramas.json'), 'utf8'));
-  check('4.2 dramas: kdramas.json trae 5 dramas con sus capítulos gratis verificados (11, 8, 14, 7 y 9)', !!(kdramasFile && Array.isArray(kdramasFile.kdramas) && kdramasFile.kdramas.length === 5 && kdramasFile.kdramas[0].eps.length === 11 && kdramasFile.kdramas[1].eps.length === 8 && kdramasFile.kdramas[2].eps.length === 14 && kdramasFile.kdramas[3].eps.length === 7 && kdramasFile.kdramas[4].eps.length === 9 && kdramasFile.kdramas.every(function (s) { return s.id && s.name && s.channel && s.poster && Array.isArray(s.eps) && s.eps.length >= 1; })), kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.map(function (s) { return s.name + ':' + (s.eps || []).length; }));
-  check('4.2 dramas: cada capítulo trae videoId de YouTube (11 caracteres), título y miniatura https', !!(kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.every(function (s) { return s.eps.every(function (e) { return typeof e.videoId === 'string' && e.videoId.length === 11 && e.title && /^https:\/\//.test(e.thumb); }); })), null);
+  check('4.4 dramas: kdramas.json trae 5 dramas originales con 4 capítulos cada uno', !!(kdramasFile && Array.isArray(kdramasFile.kdramas) && kdramasFile.kdramas.length === 5 && kdramasFile.kdramas.every(function (s) { return s.id && s.name && s.synopsis && s.poster && Array.isArray(s.chapters) && s.chapters.length === 4; })), kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.map(function (s) { return s.name + ':' + (s.chapters || []).length; }));
+  check('4.4 dramas: cada capítulo trae número, título, texto largo e imagen vertical del APK', !!(kdramasFile && kdramasFile.kdramas && kdramasFile.kdramas.every(function (s) { return s.chapters.every(function (c, i) { return c.n === i + 1 && c.title && typeof c.text === 'string' && c.text.split(/\s+/).filter(Boolean).length >= 100 && /^assets\/dramas\/.+\.jpg$/.test(c.image || ''); }); })), null);
   const kdramasRes = await api(PORT, 'GET', '/api/kdramas');
-  check('4.2 dramas: GET /api/kdramas devuelve la lista de kdramas.json (mismo orden y mismos datos)', !!(kdramasRes.json && kdramasRes.json.ok && Array.isArray(kdramasRes.json.kdramas) && kdramasRes.json.kdramas.length === kdramasFile.kdramas.length && kdramasRes.json.kdramas.every(function (s, i) { return s.id === kdramasFile.kdramas[i].id && s.name === kdramasFile.kdramas[i].name && s.poster === kdramasFile.kdramas[i].poster && s.eps.length === kdramasFile.kdramas[i].eps.length && s.eps.every(function (e, j) { return e.videoId === kdramasFile.kdramas[i].eps[j].videoId; }); })), kdramasRes.json);
+  check('4.4 dramas: GET /api/kdramas devuelve la lista de kdramas.json (mismo orden y mismos datos)', !!(kdramasRes.json && kdramasRes.json.ok && Array.isArray(kdramasRes.json.kdramas) && kdramasRes.json.kdramas.length === kdramasFile.kdramas.length && kdramasRes.json.kdramas.every(function (s, i) { return s.id === kdramasFile.kdramas[i].id && s.name === kdramasFile.kdramas[i].name && s.poster === kdramasFile.kdramas[i].poster && s.chapters.length === kdramasFile.kdramas[i].chapters.length && s.chapters.every(function (c, j) { return c.n === kdramasFile.kdramas[i].chapters[j].n && c.title === kdramasFile.kdramas[i].chapters[j].title && c.image === kdramasFile.kdramas[i].chapters[j].image; }); })), kdramasRes.json);
   const kdramasNoAuth = await api(PORT, 'GET', '/api/kdramas');
-  check('4.2 dramas: el endpoint es público (sin token responde 200, no 401)', kdramasNoAuth.status === 200 && !!(kdramasNoAuth.json && kdramasNoAuth.json.ok), { status: kdramasNoAuth.status });
+  check('4.4 dramas: el endpoint es público (sin token responde 200, no 401)', kdramasNoAuth.status === 200 && !!(kdramasNoAuth.json && kdramasNoAuth.json.ok), { status: kdramasNoAuth.status });
+
+  /* ---- juego destacado (v4.4): GET /api/featured-game es público y
+     devuelve la ficha de featured-game.json (datos del juego + sus 8
+     capturas reales) con las estadísticas reales del juego; GET
+     /app/Fantore-Resurreccion.apk sirve el APK del juego. Las
+     calificaciones usan el sistema de juegos que ya existe (POST
+     /api/games/:id/rate, una por cuenta). */
+  const featuredFile = JSON.parse(fs.readFileSync(path.join(SERVER_DIR, 'featured-game.json'), 'utf8'));
+  check('4.4 fantore: featured-game.json trae el juego (paquete, versión 2.0, logo e icono reales) y las 8 capturas en orden', !!(featuredFile && featuredFile.game && featuredFile.game.id === 'fantore-resurreccion' && featuredFile.game.package === 'com.misterystore.fantoreresurreccion' && featuredFile.game.version === '2.0' && featuredFile.game.logo === 'assets/fantore/logo.png' && Array.isArray(featuredFile.screenshots) && featuredFile.screenshots.length === 8 && featuredFile.screenshots[0] === 'assets/fantore/cap1.jpg' && featuredFile.screenshots[7] === 'assets/fantore/cap8.jpg'), featuredFile);
+  const featuredRes = await api(PORT, 'GET', '/api/featured-game');
+  check('4.4 fantore: GET /api/featured-game devuelve la ficha y las 8 capturas', !!(featuredRes.json && featuredRes.json.ok && featuredRes.json.game && featuredRes.json.game.id === 'fantore-resurreccion' && Array.isArray(featuredRes.json.screenshots) && featuredRes.json.screenshots.length === 8), featuredRes.json);
+  check('4.4 fantore: sin calificaciones, la media es 0 y el conteo es 0 (nunca se inventan)', !!(featuredRes.json && featuredRes.json.stats && featuredRes.json.stats.ratingAvg === 0 && featuredRes.json.stats.ratingCount === 0), featuredRes.json && featuredRes.json.stats);
+  check('4.4 fantore: el endpoint es público (sin token responde 200, no 401)', featuredRes.status === 200, { status: featuredRes.status });
+  const fantoreApk = await downloadApk(PORT, '/app/Fantore-Resurreccion.apk');
+  const fantoreApkSize = fs.existsSync(path.join(SERVER_DIR, 'Fantore-Resurreccion.apk')) ? fs.statSync(path.join(SERVER_DIR, 'Fantore-Resurreccion.apk')).size : 0;
+  check('4.4 fantore: GET /app/Fantore-Resurreccion.apk sirve el APK real del juego (tipo APK, bytes exactos)', fantoreApk.status === 200 && /application\/vnd\.android\.package-archive/.test(fantoreApk.contentType || '') && fantoreApk.bytes === fantoreApkSize && fantoreApkSize > 100000, { status: fantoreApk.status, contentType: fantoreApk.contentType, bytes: fantoreApk.bytes, size: fantoreApkSize });
+  const regF1 = await register(PORT, '525555555555');
+  const regF2 = await register(PORT, '526666666666');
+  const rateF1 = await api(PORT, 'POST', '/api/games/fantore-resurreccion/rate', { stars: 5 }, regF1.token);
+  check('4.4 fantore: un usuario califica con 5 estrellas (media 5, conteo 1)', !!(rateF1.json && rateF1.json.ok && rateF1.json.stats && rateF1.json.stats.ratingAvg === 5 && rateF1.json.stats.ratingCount === 1), rateF1.json);
+  const rateF2 = await api(PORT, 'POST', '/api/games/fantore-resurreccion/rate', { stars: 3 }, regF2.token);
+  check('4.4 fantore: otro usuario califica con 3 (media 4, conteo 2)', !!(rateF2.json && rateF2.json.ok && rateF2.json.stats && rateF2.json.stats.ratingAvg === 4 && rateF2.json.stats.ratingCount === 2), rateF2.json);
+  const rateAgain = await api(PORT, 'POST', '/api/games/fantore-resurreccion/rate', { stars: 4 }, regF1.token);
+  check('4.4 fantore: volver a calificar actualiza la propia (no duplica: media 3.5, conteo 2)', !!(rateAgain.json && rateAgain.json.ok && rateAgain.json.stats && rateAgain.json.stats.ratingAvg === 3.5 && rateAgain.json.stats.ratingCount === 2), rateAgain.json);
+  const featuredAfter = await api(PORT, 'GET', '/api/featured-game');
+  check('4.4 fantore: GET /api/featured-game ya refleja las calificaciones reales', !!(featuredAfter.json && featuredAfter.json.stats && featuredAfter.json.stats.ratingAvg === 3.5 && featuredAfter.json.stats.ratingCount === 2), featuredAfter.json && featuredAfter.json.stats);
+  const rateNoAuth = await api(PORT, 'POST', '/api/games/fantore-resurreccion/rate', { stars: 5 });
+  check('4.4 fantore: calificar sin sesión da 401', rateNoAuth.status === 401, rateNoAuth);
+  const rateBad = await api(PORT, 'POST', '/api/games/fantore-resurreccion/rate', { stars: 9 }, regF1.token);
+  check('4.4 fantore: calificar con 9 estrellas da 400', rateBad.status === 400, rateBad);
 
   const regA = await register(PORT, PHONE_A);
   check('3.3 MongoDB: el usuario A se registra (código + verificación)', regA.ok, regA);
@@ -961,7 +991,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir, WORDRED_TEST_FAIL_WRITES: '1' });
   health = await waitHealth(PORT);
-  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 4.3', !!(health && health.version === '4.3' && health.storage === 'mongodb'), health);
+  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 4.4', !!(health && health.version === '4.4' && health.storage === 'mongodb'), health);
   const delFail = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con MongoDB roto, DELETE devuelve 500 (no un éxito falso)', delFail.status === 500 && !!(delFail.json && delFail.json.ok === false), delFail);
   check('3.3 MongoDB: con MongoDB roto, DELETE explica el error real', !!(delFail.json && delFail.json.error && delFail.json.error.indexOf('No se pudo guardar el borrado') >= 0), delFail.json && delFail.json.error);
@@ -972,7 +1002,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.3'), health);
+  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.4'), health);
   const delFailOk = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con las escrituras sanas, el borrado sí funciona (DELETE ok)', !!(delFailOk.json && delFailOk.json.ok), delFailOk);
   const feedFailOk = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
@@ -1000,7 +1030,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.8 MongoDB: la antigüedad de A se atrasó 8 días en MongoDB (para probar la verificación)', backRes.matchedCount === 1 && backRes.modifiedCount === 1, { matchedCount: backRes.matchedCount, modifiedCount: backRes.modifiedCount });
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 4.3 y storage mongodb', !!(health && health.version === '4.3' && health.storage === 'mongodb'), health);
+  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 4.4 y storage mongodb', !!(health && health.version === '4.4' && health.storage === 'mongodb'), health);
 
   const feedB2 = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, la publicación de A sigue ahí y B la sigue viendo', !!(feedB2.json && feedB2.json.ok && feedB2.json.posts.some(p => p.id === postId)), feedB2.json && feedB2.json.posts.length);
@@ -1051,102 +1081,110 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.8 MongoDB: la insignia viaja con el perfil en el inicio (verified true)', !!(profAInFeed && profAInFeed.verified === true), profAInFeed);
 
 
-  /* ---- 4.3: solicitudes de promoción y config del creador ---- */
-  /* Petición con cuerpo JSON + encabezado x-creator-key (api() no lleva
-     encabezados propios y apiHeaders() no lleva cuerpo). */
-  function apiCreator(port, method, p, body, key) {
-    return new Promise((resolve) => {
-      const data = body ? JSON.stringify(body) : '';
-      const headers = { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) };
-      if (key) headers['x-creator-key'] = key;
-      const req = http.request({ hostname: '127.0.0.1', port, path: p, method, headers }, (res) => {
-        let raw = '';
-        res.on('data', c => { raw += c; });
-        res.on('end', () => { let json = null; try { json = JSON.parse(raw); } catch (e) {} resolve({ status: res.statusCode, json, raw }); });
-      });
-      req.on('error', (e) => resolve({ status: 0, json: null, raw: String(e && e.message) }));
-      req.end(data);
-    });
+  /* ---- 4.4: aprobación de promociones por cuenta principal (sin app
+     Creador y sin CREATOR_KEY): solo el correo de OWNER_EMAIL decide.
+     El token del dueño se siembra en la colección `auth` antes de
+     arrancar el servidor con OWNER_EMAIL (como si hubiera entrado con
+     Google: su clave de cuenta ES el correo verificado). */
+  const OWNER_EMAIL_44 = 'dueno-prueba@wordred.test';
+  const OWNER_TOKEN_44 = 'tok-dueno-44-prueba';
+  /* El servidor principal NO tiene OWNER_EMAIL: las rutas de dueño
+     fallan cerradas con 503, nunca dejan pasar. */
+  const pendNoOwner = await api(PORT, 'GET', '/api/promotions/pending');
+  check('4.4 dueño: sin OWNER_EMAIL en el servidor, las pendientes responden 503', pendNoOwner.status === 503, pendNoOwner);
+  const pendNoOwnerTok = await api(PORT, 'GET', '/api/promotions/pending', null, 'tok-cualquiera');
+  check('4.4 dueño: sin OWNER_EMAIL, ni siquiera un token válido abre las pendientes (503)', pendNoOwnerTok.status === 503, pendNoOwnerTok);
+  const cfgNoOwner = await api(PORT, 'POST', '/api/creator-config', { order: ['historias'], sizes: { historias: 'm' } });
+  check('4.4 dueño: sin OWNER_EMAIL, guardar la config responde 503', cfgNoOwner.status === 503, cfgNoOwner);
+  /* Siembra del token del dueño en MongoDB (mismo URI, antes de
+     arrancar el servidor con OWNER_EMAIL). */
+  {
+    const seedClient = new MongoClient(uri);
+    await seedClient.connect();
+    const authDoc = await seedClient.db('wordred').collection('auth').findOne({ _id: 'data' });
+    const authMap = (authDoc && authDoc.value && typeof authDoc.value === 'object') ? authDoc.value : {};
+    authMap[OWNER_EMAIL_44] = { token: OWNER_TOKEN_44, tokenAt: Date.now(), verified: true, codeHash: '' };
+    await seedClient.db('wordred').collection('auth').updateOne({ _id: 'data' }, { $set: { value: authMap } }, { upsert: true });
+    await seedClient.close();
   }
-  const CREATOR_KEY_43 = 'clave-creador-prueba-43';
-  /* (a) El servidor principal NO tiene CREATOR_KEY: las rutas de creador
-     fallan cerradas con 503, nunca dejan pasar (ni con clave en el
-     encabezado, porque no hay con qué compararla). */
-  const pendNoKey = await api(PORT, 'GET', '/api/promotions/pending');
-  check('4.3 creador: sin CREATOR_KEY en el servidor, las pendientes responden 503', pendNoKey.status === 503, pendNoKey);
-  const pendKeyMain = await apiHeaders(PORT, 'GET', '/api/promotions/pending', { 'x-creator-key': CREATOR_KEY_43 });
-  check('4.3 creador: sin CREATOR_KEY configurada, ni siquiera una clave en el encabezado abre las pendientes (503)', pendKeyMain.status === 503, pendKeyMain);
-  const cfgNoKeyMain = await apiCreator(PORT, 'POST', '/api/creator-config', { order: ['historias'], sizes: { historias: 'm' } }, null);
-  check('4.3 creador: sin CREATOR_KEY configurada, guardar la config responde 503', cfgNoKeyMain.status === 503, cfgNoKeyMain);
-  /* (b) Servidor con clave (mismo MongoDB, su propio DATA_DIR). */
-  const dataDir43 = fs.mkdtempSync(path.join(os.tmpdir(), 'wordred-test43-'));
+  const dataDir44 = fs.mkdtempSync(path.join(os.tmpdir(), 'wordred-test44-'));
   const PORT3 = 34533;
-  const proc3 = startServer(PORT3, { MONGODB_URI: uri, DATA_DIR: dataDir43, CREATOR_KEY: CREATOR_KEY_43 });
+  const proc3 = startServer(PORT3, { MONGODB_URI: uri, DATA_DIR: dataDir44, OWNER_EMAIL: OWNER_EMAIL_44 });
   const health3 = await waitHealth(PORT3);
-  check('4.3 creador: el servidor con CREATOR_KEY arranca (health 4.3)', !!(health3 && health3.version === '4.3'), health3);
-  const reg43D = await register(PORT3, '526666666666');
-  const reg43E = await register(PORT3, '527777777777');
-  check('4.3 promociones: dos teléfonos se registran en el servidor con clave', reg43D.ok && reg43E.ok, { reg43D, reg43E });
-  const postD = await api(PORT3, 'POST', '/api/posts', { text: 'Publicación para promocionar (prueba 4.3)' }, reg43D.token);
+  check('4.4 dueño: el servidor con OWNER_EMAIL arranca (health 4.4)', !!(health3 && health3.version === '4.4'), health3);
+  const reg44D = await register(PORT3, '526666666666');
+  const reg44E = await register(PORT3, '527777777777');
+  check('4.4 promociones: dos teléfonos se registran en el servidor del dueño', reg44D.ok && reg44E.ok, { reg44D, reg44E });
+  const postD = await api(PORT3, 'POST', '/api/posts', { text: 'Publicación para promocionar (prueba 4.4)' }, reg44D.token);
   const postDId = postD.json && postD.json.post && postD.json.post.id;
-  check('4.3 promociones: D crea su publicación', !!(postD.json && postD.json.ok && postDId), postD.json);
+  check('4.4 promociones: D crea su publicación', !!(postD.json && postD.json.ok && postDId), postD.json);
   const reqNoTok = await api(PORT3, 'POST', '/api/promotions/request', { postId: postDId, tier: 100 });
-  check('4.3 promociones: pedir sin token responde 401', reqNoTok.status === 401, reqNoTok);
-  const reqBadPost = await api(PORT3, 'POST', '/api/promotions/request', { postId: 'no-existe', tier: 100 }, reg43D.token);
-  check('4.3 promociones: pedir con una publicación que no existe responde 404', reqBadPost.status === 404, reqBadPost);
-  const reqBadTier = await api(PORT3, 'POST', '/api/promotions/request', { postId: postDId, tier: 999 }, reg43D.token);
-  check('4.3 promociones: pedir con un nivel que no es $50/$100/$200/$500 responde 400', reqBadTier.status === 400, reqBadTier);
-  const reqOther = await api(PORT3, 'POST', '/api/promotions/request', { postId: postDId, tier: 100 }, reg43E.token);
-  check('4.3 promociones: pedir por una publicación de otra persona responde 403', reqOther.status === 403, reqOther);
-  const reqOk = await api(PORT3, 'POST', '/api/promotions/request', { postId: postDId, tier: 100 }, reg43D.token);
+  check('4.4 promociones: pedir sin token responde 401', reqNoTok.status === 401, reqNoTok);
+  const reqBadPost = await api(PORT3, 'POST', '/api/promotions/request', { postId: 'no-existe', tier: 100 }, reg44D.token);
+  check('4.4 promociones: pedir con una publicación que no existe responde 404', reqBadPost.status === 404, reqBadPost);
+  const reqBadTier = await api(PORT3, 'POST', '/api/promotions/request', { postId: postDId, tier: 999 }, reg44D.token);
+  check('4.4 promociones: pedir con un nivel que no es $50/$100/$200/$500 responde 400', reqBadTier.status === 400, reqBadTier);
+  const reqOther = await api(PORT3, 'POST', '/api/promotions/request', { postId: postDId, tier: 100 }, reg44E.token);
+  check('4.4 promociones: pedir por una publicación de otra persona responde 403', reqOther.status === 403, reqOther);
+  const reqOk = await api(PORT3, 'POST', '/api/promotions/request', { postId: postDId, tier: 100 }, reg44D.token);
   const reqId = reqOk.json && reqOk.json.request && reqOk.json.request.id;
-  check('4.3 promociones: el autor pide la verificación y queda pendiente', !!(reqOk.json && reqOk.json.ok && reqId && reqOk.json.request.status === 'pending'), reqOk.json);
-  const reqDup = await api(PORT3, 'POST', '/api/promotions/request', { postId: postDId, tier: 100 }, reg43D.token);
-  check('4.3 promociones: pedir dos veces por la misma publicación devuelve la misma solicitud (sin duplicar)', !!(reqDup.json && reqDup.json.ok && reqDup.json.request && reqDup.json.request.id === reqId && reqDup.json.deduped === true), reqDup.json);
-  const mineD = await api(PORT3, 'GET', '/api/promotions/mine', null, reg43D.token);
-  check('4.3 promociones: el autor ve su solicitud en «mías» (pendiente)', !!(mineD.json && mineD.json.ok && mineD.json.requests.some(r => r.id === reqId && r.status === 'pending')), mineD.json);
-  const pendNoKey3 = await api(PORT3, 'GET', '/api/promotions/pending');
-  check('4.3 creador: las pendientes sin clave responden 401', pendNoKey3.status === 401, pendNoKey3);
-  const pendWrong3 = await apiHeaders(PORT3, 'GET', '/api/promotions/pending', { 'x-creator-key': 'clave-mala' });
-  check('4.3 creador: las pendientes con clave incorrecta responden 401', pendWrong3.status === 401, pendWrong3);
-  const pendOk3 = await apiHeaders(PORT3, 'GET', '/api/promotions/pending', { 'x-creator-key': CREATOR_KEY_43 });
-  check('4.3 creador: las pendientes con la clave correcta listan la solicitud', !!(pendOk3.json && pendOk3.json.ok && pendOk3.json.requests.some(r => r.id === reqId)), pendOk3.json);
-  const apprNoKey = await apiCreator(PORT3, 'POST', '/api/promotions/' + reqId + '/approve', null, null);
-  check('4.3 creador: aprobar sin clave responde 401', apprNoKey.status === 401, apprNoKey);
-  const apprOk = await apiCreator(PORT3, 'POST', '/api/promotions/' + reqId + '/approve', null, CREATOR_KEY_43);
-  check('4.3 creador: aprobar con la clave marca la solicitud aprobada', !!(apprOk.json && apprOk.json.ok && apprOk.json.request && apprOk.json.request.status === 'approved'), apprOk.json);
+  check('4.4 promociones: el autor pide la verificación y queda pendiente', !!(reqOk.json && reqOk.json.ok && reqId && reqOk.json.request.status === 'pending'), reqOk.json);
+  const reqDup = await api(PORT3, 'POST', '/api/promotions/request', { postId: postDId, tier: 100 }, reg44D.token);
+  check('4.4 promociones: pedir dos veces por la misma publicación devuelve la misma solicitud (sin duplicar)', !!(reqDup.json && reqDup.json.ok && reqDup.json.request && reqDup.json.request.id === reqId && reqDup.json.deduped === true), reqDup.json);
+  const mineD = await api(PORT3, 'GET', '/api/promotions/mine', null, reg44D.token);
+  check('4.4 promociones: el autor ve su solicitud en «mías» (pendiente)', !!(mineD.json && mineD.json.ok && mineD.json.requests.some(r => r.id === reqId && r.status === 'pending')), mineD.json);
+  /* Autorización por cuenta: sin sesión 401, otra cuenta 403, dueño 200.
+     La clave vieja en el encabezado ya no abre nada. */
+  const pendNoTok3 = await api(PORT3, 'GET', '/api/promotions/pending');
+  check('4.4 dueño: las pendientes sin sesión responden 401', pendNoTok3.status === 401, pendNoTok3);
+  const pendOther3 = await api(PORT3, 'GET', '/api/promotions/pending', null, reg44D.token);
+  check('4.4 dueño: las pendientes con otra cuenta (teléfono) responden 403', pendOther3.status === 403, pendOther3);
+  const pendOldKey3 = await apiHeaders(PORT3, 'GET', '/api/promotions/pending', { 'x-creator-key': 'clave-vieja' });
+  check('4.4 dueño: la clave vieja en el encabezado ya no abre las pendientes (401, sin sesión)', pendOldKey3.status === 401, pendOldKey3);
+  const pendOk3 = await api(PORT3, 'GET', '/api/promotions/pending', null, OWNER_TOKEN_44);
+  check('4.4 dueño: las pendientes con el token de la cuenta principal listan la solicitud', !!(pendOk3.json && pendOk3.json.ok && pendOk3.json.requests.some(r => r.id === reqId)), pendOk3.json);
+  const apprNoTok = await api(PORT3, 'POST', '/api/promotions/' + reqId + '/approve');
+  check('4.4 dueño: aprobar sin sesión responde 401', apprNoTok.status === 401, apprNoTok);
+  const apprOther = await api(PORT3, 'POST', '/api/promotions/' + reqId + '/approve', null, reg44D.token);
+  check('4.4 dueño: aprobar con otra cuenta responde 403', apprOther.status === 403, apprOther);
+  const apprOk = await api(PORT3, 'POST', '/api/promotions/' + reqId + '/approve', null, OWNER_TOKEN_44);
+  check('4.4 dueño: aprobar con la cuenta principal marca la solicitud aprobada', !!(apprOk.json && apprOk.json.ok && apprOk.json.request && apprOk.json.request.status === 'approved'), apprOk.json);
   const feedD = await api(PORT3, 'GET', '/api/feed?phone=526666666666');
-  check('4.3 promociones: tras aprobar, la publicación lleva promoted:true en el inicio', !!(feedD.json && feedD.json.ok && feedD.json.posts.some(p => p.id === postDId && p.promoted === true)), feedD.json && feedD.json.posts.length);
-  const mineD2 = await api(PORT3, 'GET', '/api/promotions/mine', null, reg43D.token);
-  check('4.3 promociones: tras aprobar, el autor ve su solicitud aprobada', !!(mineD2.json && mineD2.json.ok && mineD2.json.requests.some(r => r.id === reqId && r.status === 'approved')), mineD2.json);
-  const apprAgain = await apiCreator(PORT3, 'POST', '/api/promotions/' + reqId + '/approve', null, CREATOR_KEY_43);
-  check('4.3 creador: aprobar una solicitud ya decidida responde 400', apprAgain.status === 400, apprAgain);
+  check('4.4 promociones: tras aprobar, la publicación lleva promoted:true en el inicio', !!(feedD.json && feedD.json.ok && feedD.json.posts.some(p => p.id === postDId && p.promoted === true)), feedD.json && feedD.json.posts.length);
+  const mineD2 = await api(PORT3, 'GET', '/api/promotions/mine', null, reg44D.token);
+  check('4.4 promociones: tras aprobar, el autor ve su solicitud aprobada', !!(mineD2.json && mineD2.json.ok && mineD2.json.requests.some(r => r.id === reqId && r.status === 'approved')), mineD2.json);
+  const apprAgain = await api(PORT3, 'POST', '/api/promotions/' + reqId + '/approve', null, OWNER_TOKEN_44);
+  check('4.4 dueño: aprobar una solicitud ya decidida responde 400', apprAgain.status === 400, apprAgain);
   /* Rechazo con una segunda publicación. */
-  const postE = await api(PORT3, 'POST', '/api/posts', { text: 'Publicación para rechazar (prueba 4.3)' }, reg43E.token);
+  const postE = await api(PORT3, 'POST', '/api/posts', { text: 'Publicación para rechazar (prueba 4.4)' }, reg44E.token);
   const postEId = postE.json && postE.json.post && postE.json.post.id;
-  const reqE = await api(PORT3, 'POST', '/api/promotions/request', { postId: postEId, tier: 50 }, reg43E.token);
+  const reqE = await api(PORT3, 'POST', '/api/promotions/request', { postId: postEId, tier: 50 }, reg44E.token);
   const reqEId = reqE.json && reqE.json.request && reqE.json.request.id;
-  check('4.3 promociones: E pide la verificación de su publicación', !!(reqE.json && reqE.json.ok && reqEId), reqE.json);
-  const rejOk = await apiCreator(PORT3, 'POST', '/api/promotions/' + reqEId + '/reject', null, CREATOR_KEY_43);
-  check('4.3 creador: rechazar con la clave marca la solicitud rechazada', !!(rejOk.json && rejOk.json.ok && rejOk.json.request && rejOk.json.request.status === 'rejected'), rejOk.json);
+  check('4.4 promociones: E pide la verificación de su publicación', !!(reqE.json && reqE.json.ok && reqEId), reqE.json);
+  const rejOther = await api(PORT3, 'POST', '/api/promotions/' + reqEId + '/reject', null, reg44E.token);
+  check('4.4 dueño: rechazar con otra cuenta responde 403', rejOther.status === 403, rejOther);
+  const rejOk = await api(PORT3, 'POST', '/api/promotions/' + reqEId + '/reject', null, OWNER_TOKEN_44);
+  check('4.4 dueño: rechazar con la cuenta principal marca la solicitud rechazada', !!(rejOk.json && rejOk.json.ok && rejOk.json.request && rejOk.json.request.status === 'rejected'), rejOk.json);
   const feedE = await api(PORT3, 'GET', '/api/feed?phone=527777777777');
-  check('4.3 promociones: tras rechazar, la publicación sigue sin promocionar', !!(feedE.json && feedE.json.ok && feedE.json.posts.some(p => p.id === postEId && p.promoted !== true)), feedE.json && feedE.json.posts.length);
-  /* Config del creador. */
+  check('4.4 promociones: tras rechazar, la publicación sigue sin promocionar', !!(feedE.json && feedE.json.ok && feedE.json.posts.some(p => p.id === postEId && p.promoted !== true)), feedE.json && feedE.json.posts.length);
+  /* Config global: solo la cuenta principal. */
   const cfgGetNone = await api(PORT3, 'GET', '/api/creator-config');
-  check('4.3 config: sin config guardada, leer responde 404', cfgGetNone.status === 404, cfgGetNone);
-  const cfgPostNoKey = await apiCreator(PORT3, 'POST', '/api/creator-config', { order: ['historias', 'publicar'], sizes: { historias: 'm', publicar: 'm' } }, null);
-  check('4.3 config: guardar sin clave responde 401', cfgPostNoKey.status === 401, cfgPostNoKey);
-  const cfgPostBad = await apiCreator(PORT3, 'POST', '/api/creator-config', { order: ['historias', 'noexiste'], sizes: { historias: 'm', noexiste: 'm' } }, CREATOR_KEY_43);
-  check('4.3 config: guardar un orden con apartados desconocidos responde 400', cfgPostBad.status === 400, cfgPostBad);
+  check('4.4 config: sin config guardada, leer responde 404', cfgGetNone.status === 404, cfgGetNone);
+  const cfgPostNoTok = await api(PORT3, 'POST', '/api/creator-config', { order: ['historias', 'publicar'], sizes: { historias: 'm', publicar: 'm' } });
+  check('4.4 config: guardar sin sesión responde 401', cfgPostNoTok.status === 401, cfgPostNoTok);
+  const cfgPostOther = await api(PORT3, 'POST', '/api/creator-config', { order: ['historias', 'publicar'], sizes: { historias: 'm', publicar: 'm' } }, reg44D.token);
+  check('4.4 config: guardar con otra cuenta responde 403', cfgPostOther.status === 403, cfgPostOther);
+  const cfgPostBad = await api(PORT3, 'POST', '/api/creator-config', { order: ['historias', 'noexiste'], sizes: { historias: 'm', noexiste: 'm' } }, OWNER_TOKEN_44);
+  check('4.4 config: guardar un orden con apartados desconocidos responde 400', cfgPostBad.status === 400, cfgPostBad);
   const cfgValid = { order: ['historias', 'publicar', 'clima', 'reloj', 'accesos'], sizes: { historias: 'm', publicar: 'm', clima: 's', reloj: 'l', accesos: 'm' } };
-  const cfgPostOk = await apiCreator(PORT3, 'POST', '/api/creator-config', cfgValid, CREATOR_KEY_43);
-  check('4.3 config: guardar una config válida con la clave responde ok', !!(cfgPostOk.json && cfgPostOk.json.ok), cfgPostOk.json);
+  const cfgPostOk = await api(PORT3, 'POST', '/api/creator-config', cfgValid, OWNER_TOKEN_44);
+  check('4.4 config: guardar una config válida con la cuenta principal responde ok', !!(cfgPostOk.json && cfgPostOk.json.ok), cfgPostOk.json);
   const cfgGet = await api(PORT3, 'GET', '/api/creator-config');
-  check('4.3 config: leer devuelve el orden y los tamaños guardados', !!(cfgGet.json && cfgGet.json.ok && cfgGet.json.config && cfgGet.json.config.order.join(',') === cfgValid.order.join(',') && cfgGet.json.config.sizes.reloj === 'l'), cfgGet.json);
-  const cfgReset = await apiCreator(PORT3, 'POST', '/api/creator-config', { reset: true }, CREATOR_KEY_43);
-  check('4.3 config: restablecer con la clave responde ok', !!(cfgReset.json && cfgReset.json.ok), cfgReset.json);
+  check('4.4 config: leer devuelve el orden y los tamaños guardados', !!(cfgGet.json && cfgGet.json.ok && cfgGet.json.config && cfgGet.json.config.order.join(',') === cfgValid.order.join(',') && cfgGet.json.config.sizes.reloj === 'l'), cfgGet.json);
+  const cfgReset = await api(PORT3, 'POST', '/api/creator-config', { reset: true }, OWNER_TOKEN_44);
+  check('4.4 config: restablecer con la cuenta principal responde ok', !!(cfgReset.json && cfgReset.json.ok), cfgReset.json);
   const cfgGetAfter = await api(PORT3, 'GET', '/api/creator-config');
-  check('4.3 config: tras restablecer, leer vuelve a responder 404', cfgGetAfter.status === 404, cfgGetAfter);
+  check('4.4 config: tras restablecer, leer vuelve a responder 404', cfgGetAfter.status === 404, cfgGetAfter);
   await stopServer(proc3);
 
   /* Las colecciones que usa MongoDB existen. */
@@ -1155,7 +1193,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const collNames = (await mc.db('wordred').listCollections().toArray()).map(c => c.name).sort();
   await mc.close();
   const expected = ['audioRooms', 'auth', 'blocked', 'closeFriends', 'conversationSettings', 'coupons', 'events', 'friends', 'gameRatings', 'gameStats', 'groupChats', 'groups', 'listings', 'liveGifts', 'lives', 'media', 'messages', 'muted', 'notifications', 'pages', 'posts', 'postViews', 'postVotes', 'profileViews', 'profiles', 'ratings', 'reports', 'requests', 'salesGroups', 'stories', 'storyPollVotes', 'storyReactions', 'storyViews', 'tournaments', 'wishlists', 'promotion_requests', 'creator_config'];
-  check('4.3 MongoDB: existen las 37 colecciones (una por conjunto de datos, con las 2 de la 4.3)', expected.every(c => collNames.includes(c)), collNames);
+  check('4.4 MongoDB: existen las 37 colecciones (una por conjunto de datos, con las 2 de la 4.3)', expected.every(c => collNames.includes(c)), collNames);
   await stopServer(proc);
 
   /* ---- modo respaldo JSON (sin MONGODB_URI) ---- */
@@ -1163,7 +1201,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT2 = 34532;
   const proc2 = startServer(PORT2, { DATA_DIR: jsonDir });
   const health2 = await waitHealth(PORT2);
-  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 4.3, storage json y mongo false', !!(health2 && health2.version === '4.3' && health2.storage === 'json' && health2.mongo === false), health2);
+  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 4.4, storage json y mongo false', !!(health2 && health2.version === '4.4' && health2.storage === 'json' && health2.mongo === false), health2);
   const regJ = await register(PORT2, '524444444444');
   check('3.3 JSON: el registro sigue funcionando sin MongoDB', regJ.ok, regJ);
   const postJ = await api(PORT2, 'POST', '/api/posts', { text: 'Publicación en modo JSON' }, regJ.token);
@@ -1193,7 +1231,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
 
   await mongod.stop();
   console.log('\n==============================');
-  console.log('Servidor WordRed 4.3 — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('Servidor WordRed 4.4 — ' + pass + ' PASS, ' + fail + ' FAIL');
   if (fail) { console.log('Fallos: ' + failures.join(' | ')); process.exit(1); }
 })().catch((e) => {
   console.error('ERROR en las pruebas: ' + (e && e.stack ? e.stack : e));
