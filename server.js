@@ -201,6 +201,11 @@
  * originales de WordRed (sinopsis y capítulos con texto e imagen).
  * Nada más cambia en la 4.6.
  *
+ * v4.7: GET /api/kdramas pasa también los subtítulos del capítulo
+ * (subtitles: {es, en, pt}, URLs https de los VTT en Cloudinary).
+ * Antes el endpoint los quitaba al limpiar la lista, así que los
+ * subtítulos nunca llegaban al teléfono. Nada más cambia en la 4.7.
+ *
  * v4.4: la aprobación de promociones ya NO usa la clave de creador
  * (WordRed Creador no existe). Las rutas de dueño (GET
  * /api/promotions/pending + POST /api/promotions/:id/approve y
@@ -1097,7 +1102,7 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.6', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.7', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v3.5: actualización de la aplicación. La última versión vive en
    app-version.json junto al APK (WordRed.apk) en el repo: al publicar
@@ -1259,7 +1264,11 @@ app.get('/api/featured-game', (req, res) => {
    readKdramas() acepta AMBAS formas (la de DramaBox y la de los
    dramas originales con texto e imagen), así el catálogo se puede
    cambiar en kdramas.json sin tocar el servidor. Nada más cambia
-   en la 4.6. */
+   en la 4.6.
+   v4.7: el mapa de capítulos pasa también los subtítulos (subtitles
+   {es, en, pt} con URLs https), para que el CC del reproductor de
+   dramas funcione con el catálogo del servidor y no solo con el
+   horneado en la app. Nada más cambia en la 4.7. */
 function readKdramas() {
   try {
     var raw = fs.readFileSync(path.join(__dirname, 'kdramas.json'), 'utf8');
@@ -1291,7 +1300,7 @@ function readKdramas() {
         out.eps = s.eps.map(function (e) { return { ep: Number(e.ep), videoId: String(e.videoId), title: String(e.title), ytTitle: String(e.ytTitle || e.title), thumb: String(e.thumb) }; });
       }
       if (Array.isArray(s.chapters) && s.chapters.length) {
-        out.chapters = s.chapters.map(function (c) { var ch = { n: c.n, title: String(c.title), text: String(c.text), image: String(c.image) }; if (c.video) ch.video = String(c.video); return ch; });
+        out.chapters = s.chapters.map(function (c) { var ch = { n: c.n, title: String(c.title), text: String(c.text), image: String(c.image) }; if (c.video) ch.video = String(c.video); if (c.subtitles && typeof c.subtitles === 'object') { var subs = {}; ['es', 'en', 'pt'].forEach(function (l) { if (typeof c.subtitles[l] === 'string' && c.subtitles[l].indexOf('https://') === 0) subs[l] = c.subtitles[l]; }); if (Object.keys(subs).length) ch.subtitles = subs; } return ch; });
       }
       return out;
     });
