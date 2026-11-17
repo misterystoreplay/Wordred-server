@@ -449,7 +449,11 @@ let creatorConfig = loadJson('creator-config.json', null); // v4.3: {order:[ids 
 const codeHits = {};                                // phone -> [timestamps]
 const emailCodeHits = {};                           // email -> [timestamps] (v2.9)
 /* Subidas por partes en curso (v1.4): uploadId -> {owner, name, type, ext, received, createdAt} */
+/* 1.5.62: subidas ya cerradas con éxito (uploadId -> {owner, id, url, type, size, cloudinary, createdAt}):
+   finish es idempotente — si el cliente lo reintenta (p. ej. se le acabó el tiempo esperando a
+   Cloudinary), se le devuelve el registro ya guardado en vez de 404. Se limpia a las 24 h. */
 const pendingUploads = {};
+const finishedUploads = {};
 
 function saveAll() {
   saveJson('profiles.json', profiles);
@@ -711,6 +715,11 @@ function sweepStaleUploads() {
         const st = fs.statSync(p);
         if (now - st.mtimeMs > 24 * 60 * 60 * 1000) { fs.unlinkSync(p); delete pendingUploads[f.replace(/\.part$/, '')]; }
       } catch (e) {}
+    });
+    /* 1.5.62: los cierres guardados también caducan a las 24 h (el
+       registro en media.json con su uploadId sigue cubriendo reintentos viejos). */
+    Object.keys(finishedUploads).forEach(function (id) {
+      if (now - (finishedUploads[id].createdAt || 0) > 24 * 60 * 60 * 1000) delete finishedUploads[id];
     });
   } catch (e) {}
 }
@@ -1102,7 +1111,7 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.7', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.8', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v3.5: actualización de la aplicación. La última versión vive en
    app-version.json junto al APK (WordRed.apk) en el repo: al publicar
@@ -1574,10 +1583,45 @@ app.post('/api/media/chunk', (req, res) => {
   up.received += buf.length;
   return res.json({ ok: true, received: up.received });
 });
+/* 1.5.62: cuánto lleva recibido una subida (para reanudarla donde se
+   quedó en vez de empezar de cero). Solo el dueño puede preguntar. */
+app.get('/api/media/status', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const uploadId = String((req.query && req.query.uploadId) || '');
+  const up = pendingUploads[uploadId];
+  if (up) {
+    if (up.owner !== phone) return res.status(403).json({ ok: false, error: 'Sin permiso.' });
+    return res.json({ ok: true, uploadId, received: up.received, finished: false });
+  }
+  const done = finishedUploads[uploadId];
+  if (done) {
+    if (done.owner !== phone) return res.status(403).json({ ok: false, error: 'Sin permiso.' });
+    return res.json({ ok: true, uploadId, received: done.size, finished: true, id: done.id, url: done.url });
+  }
+  return res.status(404).json({ ok: false, error: 'Subida no encontrada.' });
+});
 app.post('/api/media/finish', async (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
   const uploadId = String((req.body && req.body.uploadId) || '');
+  /* 1.5.62: finish IDEMPOTENTE — si ya se cerró con éxito, se devuelve
+     el registro guardado (misma forma que la primera vez) en vez de 404.
+     Sin esto, un cliente que reintentaba finish tras acabársele el tiempo
+     recibía «Subida no encontrada» aunque el archivo sí estaba guardado.
+     Primero el mapa en memoria; luego el registro persistido en media.json
+     (cubre reinicios del servidor, donde el mapa se vacía). */
+  const done = finishedUploads[uploadId];
+  if (done) {
+    if (done.owner !== phone) return res.status(403).json({ ok: false, error: 'Sin permiso.' });
+    return res.json({ ok: true, id: done.id, url: done.url, type: done.type, size: done.size, cloudinary: done.cloudinary });
+  }
+  const prev = Object.keys(media || {}).map(function (k) { return media[k]; }).filter(function (m) { return m && m.uploadId === uploadId; })[0];
+  if (prev) {
+    if (prev.owner !== phone) return res.status(403).json({ ok: false, error: 'Sin permiso.' });
+    finishedUploads[uploadId] = { owner: phone, id: prev.id, url: prev.url, type: prev.type, size: prev.size, cloudinary: !!prev.cloudinaryUrl, createdAt: Date.now() };
+    return res.json({ ok: true, id: prev.id, url: prev.url, type: prev.type, size: prev.size, cloudinary: !!prev.cloudinaryUrl });
+  }
   const up = pendingUploads[uploadId];
   if (!up) return res.status(404).json({ ok: false, error: 'Subida no encontrada.' });
   if (up.owner !== phone) return res.status(403).json({ ok: false, error: 'Sin permiso.' });
@@ -1586,7 +1630,9 @@ app.post('/api/media/finish', async (req, res) => {
   const tmpPath = path.join(MEDIA_TMP_DIR, uploadId + '.part');
   let buf;
   try { buf = fs.readFileSync(tmpPath); } catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar el archivo.' }); }
-  delete pendingUploads[uploadId];
+  /* 1.5.62: el uploadId se borra SOLO después de guardar con éxito
+     (antes se borraba aquí, antes de subir a Cloudinary: si el cliente
+     reintentaba finish, ya no existía y recibía 404). */
   /* v1.4: primero se intenta Cloudinary (para siempre). Si no está
      configurado o su subida falla, se guarda en el disco local como
      respaldo temporal (en Render gratis se pierde al reiniciar). */
@@ -1595,18 +1641,31 @@ app.post('/api/media/finish', async (req, res) => {
     try {
       const cloud = await uploadToCloudinary(cfg, buf, up.type, fileName, id);
       try { fs.unlinkSync(tmpPath); } catch (e) {}
-      media[id] = { id, owner: phone, name: up.name, type: up.type, ext: up.ext, size: up.received, createdAt: Date.now(), url: cloud.secure_url, cloudinaryUrl: cloud.secure_url, publicId: cloud.public_id };
+      media[id] = { id, owner: phone, name: up.name, type: up.type, ext: up.ext, size: up.received, createdAt: Date.now(), url: cloud.secure_url, cloudinaryUrl: cloud.secure_url, publicId: cloud.public_id, uploadId };
       saveJson('media.json', media);
+      delete pendingUploads[uploadId];
+      finishedUploads[uploadId] = { owner: phone, id, url: cloud.secure_url, type: up.type, size: up.received, cloudinary: true, createdAt: Date.now() };
       return res.json({ ok: true, id, url: cloud.secure_url, type: up.type, size: up.received, cloudinary: true });
     } catch (e) {
       console.log('[media] Cloudinary falló, se guarda en disco local: ' + (e && e.message ? e.message : e));
     }
   }
+  /* 1.5.62: renameSync falla con EXDEV si DATA_DIR y MEDIA_DIR están en
+     dispositivos distintos (p. ej. DATA_DIR en /tmp en las pruebas):
+     se intenta el renombre y, si es entre dispositivos, se copia y se
+     borra el temporal. */
   try {
     fs.renameSync(tmpPath, path.join(MEDIA_DIR, fileName));
-  } catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar el archivo.' }); }
-  media[id] = { id, owner: phone, name: up.name, type: up.type, ext: up.ext, size: up.received, createdAt: Date.now(), url: '/media/' + fileName };
+  } catch (e) {
+    if (e && e.code === 'EXDEV') {
+      try { fs.copyFileSync(tmpPath, path.join(MEDIA_DIR, fileName)); fs.unlinkSync(tmpPath); }
+      catch (e2) { return res.status(500).json({ ok: false, error: 'No se pudo guardar el archivo.' }); }
+    } else return res.status(500).json({ ok: false, error: 'No se pudo guardar el archivo.' });
+  }
+  media[id] = { id, owner: phone, name: up.name, type: up.type, ext: up.ext, size: up.received, createdAt: Date.now(), url: '/media/' + fileName, uploadId };
   saveJson('media.json', media);
+  delete pendingUploads[uploadId];
+  finishedUploads[uploadId] = { owner: phone, id, url: '/media/' + fileName, type: up.type, size: up.received, cloudinary: false, createdAt: Date.now() };
   return res.json({ ok: true, id, url: '/media/' + fileName, type: up.type, size: up.received, cloudinary: false });
 });
 app.get('/media/:file', (req, res) => {
@@ -1727,6 +1786,17 @@ app.post('/api/posts', async (req, res) => {
   const body = req.body && req.body.post ? req.body.post : req.body;
   const text = String(body.text || '').trim();
   if (!text && !body.media && !body.link && !body.poll && !(Array.isArray(body.mediaList) && body.mediaList.length)) return res.status(400).json({ ok: false, error: 'Publicación vacía.' });
+  /* 1.5.62: el medio debe ser una URL http(s) válida (Cloudinary o el
+     servidor). Un medio local (blob:/content:/data:) nunca se publica:
+     antes se guardaba tal cual y ningún teléfono lo podía reproducir
+     (3 videos rotos del usuario en el feed). Igual que en comentarios. */
+  if (body.media && !isHttpUrl(body.media)) return res.status(400).json({ ok: false, error: 'Medio no válido.' });
+  if (Array.isArray(body.mediaList)) {
+    for (let mi = 0; mi < body.mediaList.length; mi++) {
+      const msrc = body.mediaList[mi] && (body.mediaList[mi].src || body.mediaList[mi].url || body.mediaList[mi].mediaUrl);
+      if (msrc && !isHttpUrl(msrc)) return res.status(400).json({ ok: false, error: 'Medio no válido.' });
+    }
+  }
   let link = null;
   if (body.link) {
     const lb = typeof body.link === 'object' ? body.link : {};
