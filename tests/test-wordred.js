@@ -649,7 +649,7 @@ async function coreTests() {
 
   console.log('=== 25. Controles estáticos v1.2 (permisos, voz, llamadas, compartir, bloqueo) ===');
   const manifest = fs.readFileSync(path.join(__dirname, '..', 'AndroidManifest.xml'), 'utf8');
-  check('estático: manifest versión 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
+  check('estático: manifest versión 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
   check('estático: el manifest recibe compartir (ACTION_SEND texto/imagen/video)', /android.intent.action.SEND/.test(manifest) && /text\/plain/.test(manifest) && /image\/\*/.test(manifest) && /video\/\*/.test(manifest));
   check('estático: el manifest pide micrófono y audio', /RECORD_AUDIO/.test(manifest) && /MODIFY_AUDIO_SETTINGS/.test(manifest));
   check('estático: la portada es su propio rectángulo y el avatar va aparte', /\.profileHead\{margin-top:16px/.test(idx) && !/\.profileHead\{margin-top:-/.test(idx));
@@ -2312,7 +2312,7 @@ async function serverTests() {
     const appjs = fs.readFileSync(path.join(__dirname, '..', 'assets', 'app.js'), 'utf8');
     const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'assets', 'index.html'), 'utf8');
     check('v1.5 bloqueo: el manifiesto declara USE_BIOMETRIC y el sensor de huella', manifest.indexOf('USE_BIOMETRIC') >= 0 && manifest.indexOf('android.hardware.fingerprint') >= 0);
-    check('v1.5.10 bloqueo: el manifiesto es versión 67 / 1.5.52', manifest.indexOf('versionCode="75"') >= 0 && manifest.indexOf('versionName="1.5.60"') >= 0);
+    check('v1.5.10 bloqueo: el manifiesto es versión 67 / 1.5.52', manifest.indexOf('versionCode="76"') >= 0 && manifest.indexOf('versionName="1.5.61"') >= 0);
     check('v1.5 bloqueo: la huella se pide en onResume (y al reintentarlo), no en onCreate', mainJava.indexOf('pendingUnlockAuth') >= 0 && mainJava.indexOf('onResume') >= 0 && (mainJava.match(/authenticateForLock\("unlock"\)/g) || []).length === 2 && mainJava.indexOf('LOCK_GRACE_MS') >= 0 && (function () { var oc = mainJava.indexOf('protected void onCreate'); var or = mainJava.indexOf('protected void onResume'); return oc >= 0 && or > oc && mainJava.slice(oc, or).indexOf('authenticateForLock("unlock")') < 0; })(), 'veces authenticateForLock("unlock")=' + ((mainJava.match(/authenticateForLock\("unlock"\)/g) || []).length));
     check('v1.5 bloqueo: al pasar a segundo plano el contenido se tapa', mainJava.indexOf('onPause') >= 0 && /onPause\(\)[\s\S]{0,400}setVisibility\(View\.INVISIBLE\)/.test(mainJava));
     check('v1.5 bloqueo: sin huella enrolada se usa el PIN del teléfono y se dice', mainJava.indexOf('BIOMETRIC_ERROR_NONE_ENROLLED') >= 0 && mainJava.indexOf('No tienes huella configurada') >= 0);
@@ -2621,7 +2621,7 @@ function static159() {
   const manifest = fs.readFileSync(path.join(__dirname, '..', 'AndroidManifest.xml'), 'utf8');
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'com', 'wordred', 'app', 'MainActivity.java'), 'utf8');
   const share = fs.readFileSync(path.join(__dirname, '..', 'src', 'com', 'wordred', 'app', 'ScreenShareService.java'), 'utf8');
-  check('v1.5.16: el manifiesto es versión 67 / 1.5.52 con targetSdk 35', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest) && /android:targetSdkVersion="35"/.test(manifest));
+  check('v1.5.16: el manifiesto es versión 67 / 1.5.52 con targetSdk 35', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest) && /android:targetSdkVersion="35"/.test(manifest));
   check('v1.5.9: minSdk sigue en 24 (nada más cambia)', /android:minSdkVersion="24"/.test(manifest));
   check('v1.5.9: el WebView aplica los márgenes de las barras del sistema como padding (edge-to-edge igual que 1.5.8)', /void applySystemBarPadding\(final View v\)/.test(main) && /setOnApplyWindowInsetsListener/.test(main) && /Type\.systemBars\(\)/.test(main) && /setPadding\(0, top, 0, bottom\)/.test(main) && /applySystemBarPadding\(webView\)/.test(main));
   check('v1.5.9: el fondo del WebView es el color oscuro de antes (#120608)', /webView\.setBackgroundColor\(0xFF120608\)/.test(main));
@@ -2798,7 +2798,7 @@ function static1514drawer() {
   const appjs = fs.readFileSync(path.join(__dirname, '..', 'assets', 'app.js'), 'utf8');
   const idx = fs.readFileSync(path.join(__dirname, '..', 'assets', 'index.html'), 'utf8');
   const manifest = fs.readFileSync(path.join(__dirname, '..', 'AndroidManifest.xml'), 'utf8');
-  check('v1.5.14 manifiesto: versión 67 / 1.5.52 con targetSdk 35', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest) && /android:targetSdkVersion="35"/.test(manifest));
+  check('v1.5.14 manifiesto: versión 67 / 1.5.52 con targetSdk 35', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest) && /android:targetSdkVersion="35"/.test(manifest));
   // Causa raíz: las baldosas tenían touch-action:none (el navegador
   // nunca desplazaba) y cualquier movimiento >12 px empezaba un arrastre.
   check('v1.5.14 cajón: las baldosas permiten el desplazamiento vertical nativo (pan-y)', /\.launcherTile\{[^}]*touch-action:pan-y/.test(idx) && !/\.launcherTile\{[^}]*touch-action:none/.test(idx));
@@ -2950,7 +2950,7 @@ function static1512() {
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'com', 'wordred', 'app', 'MainActivity.java'), 'utf8');
   const bgJava = fs.readFileSync(path.join(__dirname, '..', 'src', 'com', 'wordred', 'app', 'WordRedBackgroundService.java'), 'utf8');
   const recvJava = fs.readFileSync(path.join(__dirname, '..', 'src', 'com', 'wordred', 'app', 'WordRedNotifyReceiver.java'), 'utf8');
-  check('v1.5.12: el manifiesto es versión 67 / 1.5.52 con targetSdk 35', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest) && /android:targetSdkVersion="35"/.test(manifest));
+  check('v1.5.12: el manifiesto es versión 67 / 1.5.52 con targetSdk 35', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest) && /android:targetSdkVersion="35"/.test(manifest));
   // 1. Música automática: solo audio real, nada de pitido.
   check('v1.5.12 música: la canción del catálogo SÍ tiene audio real (1.5.34: la música ya suena)', C.songHasAudio(C.songFromCatalog('cancion-1')) === true);
   check('v1.5.12 música: un audio subido (con src) sí tiene audio real', C.songHasAudio({ id: 'custom-1', title: 'Mi audio', src: 'https://x/audio.mp3' }) === true && C.songHasAudio({ title: 'Sin src', src: '' }) === false && C.songHasAudio(null) === false);
@@ -3266,7 +3266,7 @@ function static1516() {
   check('v1.5.16 barra: los dos lados tienen 2 botones cada uno (simetría por conteo)', navSides1516.length === 2 && navSides1516.every(function (s) { return (s.match(/<button/g) || []).length === 2; }));
   check('v1.5.16 barra: los 4 iconos laterales miden 28 px, sin uno más grande que su espejo', /nav#bottomNav button \.ic svg\{width:28px;height:28px/.test(idx) && !/nav#bottomNav button\.bn-main \.ic svg\{width:32px/.test(idx));
   check('v1.5.16 FAQ: la barra se describe con 5 botones y Mercado desde arriba', /La barra de abajo tiene Inicio, Shorts, Aplicaciones, Grupos y Perfil/.test(appjs) && /Mercado se entra desde arriba/.test(appjs) && /se entra desde arriba, tocando «Marketplace»/.test(appjs));
-  check('v1.5.16 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
+  check('v1.5.16 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
 }
 
 function static1517() {
@@ -3278,8 +3278,8 @@ function static1517() {
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'com', 'wordred', 'app', 'MainActivity.java'), 'utf8');
   const batt = fs.readFileSync(path.join(__dirname, '..', 'src', 'com', 'wordred', 'app', 'BatteryWatcher.java'), 'utf8');
   const srv = fs.readFileSync(path.join(process.env.HOME || '', 'workspace', 'wordred-server-v35', 'server.js'), 'utf8');
-  check('v1.5.17 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.17 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
+  check('v1.5.17 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.17 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
   check('v1.5.17 video chiquito: compartir no copia el medio en la copia', /media: '', mediaType: '', mediaList: null/.test(corejs) && /ownMediaHtml/.test(appjs));
   check('v1.5.17 actualización: Ajustes lleva el apartado hasta arriba con su botón', /id="checkUpdateBtn"/.test(idx) && /Buscar actualización/.test(idx) && /id="updateCurrentVersion"/.test(idx) && idx.indexOf('Actualización</h3>') < idx.indexOf('Notificaciones</h3>'));
   check('v1.5.17 actualización: el diálogo existe con fondo traslúcido y botón Instalar', /id="updateOverlay"/.test(idx) && /id="updateInstallBtn"/.test(idx) && /rgba\(26,12,15,.85\)/.test(idx) && /#updateOverlay\{z-index:100\}/.test(idx));
@@ -3304,9 +3304,9 @@ function static1518() {
   const idx = fs.readFileSync(path.join(__dirname, '..', 'assets', 'index.html'), 'utf8');
   const appjs = fs.readFileSync(path.join(__dirname, '..', 'assets', 'app.js'), 'utf8');
   const manifest = fs.readFileSync(path.join(__dirname, '..', 'AndroidManifest.xml'), 'utf8');
-  check('v1.5.18 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.18 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.18 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.18 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.18 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.18 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   check('v1.5.18 cajón fluido: hay keyframes propios, solo opacidad y desplazamiento vertical (sin escala ni sobrepaso)', /@keyframes wrDrawerFluid\{from\{opacity:0;transform:translateY\(18px\)\}to\{opacity:1;transform:translateY\(0\)\}\}/.test(idx));
   check('v1.5.18 cajón fluido: la hoja del cajón usa la transición fluida al abrirse', /#appsDrawerOverlay\.on \.sheet\{animation:wrDrawerFluid \.22s cubic-bezier\(\.22,\.61,\.36,1\) both\}/.test(idx));
   check('v1.5.18 cajón fluido: la duración es corta y rápida (220 ms, menos que el deslizamiento general de .28 s)', (function () { const m = idx.match(/#appsDrawerOverlay\.on \.sheet\{animation:wrDrawerFluid \.(\d+)s/); return !!m && parseFloat('0.' + m[1]) <= 0.25; })());
@@ -3324,9 +3324,9 @@ function static1519() {
   const manifest = fs.readFileSync(path.join(__dirname, '..', 'AndroidManifest.xml'), 'utf8');
   const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'com', 'wordred', 'app', 'MainActivity.java'), 'utf8');
   const srv = fs.readFileSync(path.join(process.env.HOME || '', 'workspace', 'wordred-server-v35', 'server.js'), 'utf8');
-  check('v1.5.19 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.19 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.19 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.19 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.19 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.19 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   check('v1.5.19 descarga: appUpdateDownloadUrl reescribe a https la URL http del servidor', /function appUpdateDownloadUrl\(info\) \{[\s\S]*?http:\/\/wordred-server\.onrender\.com\//.test(appjs) && /'https:\/\/' \+ u\.slice\(7\)/.test(appjs));
   check('v1.5.19 descarga: la URL http del servidor se convierte a https, la https se queda y otras URLs no se tocan', (function () {
     var m = appjs.match(/function appUpdateDownloadUrl\(info\) \{[\s\S]*?\n\}/);
@@ -3359,9 +3359,9 @@ function static1520() {
   const listener = fs.readFileSync(path.join(__dirname, '..', 'src', 'com', 'wordred', 'app', 'WordRedNotificationListener.java'), 'utf8');
   const javaFiles = ['MainActivity.java', 'WordRedBackgroundService.java', 'WordRedNotifyReceiver.java', 'BatteryWatcher.java', 'ScreenShareService.java'].map(function (f) { return fs.readFileSync(path.join(__dirname, '..', 'src', 'com', 'wordred', 'app', f), 'utf8'); });
   const javaAll = javaFiles.join('\n');
-  check('v1.5.20 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.20 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.20 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.20 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.20 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.20 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   /* La campana es un WAV real: cabecera RIFF/WAVE, PCM, mono, 16 bits, ~1,5 s. */
   const bellBuf = fs.readFileSync(path.join(__dirname, '..', 'res', 'raw', 'bell.wav'));
   const bellDur = bellBuf.readUInt32LE(40) / (bellBuf.readUInt32LE(24) * bellBuf.readUInt16LE(22) * (bellBuf.readUInt16LE(34) / 8));
@@ -3406,9 +3406,9 @@ function static1521() {
     const j = src.indexOf('\nfunction ', i + 10);
     return src.slice(i, j < 0 ? src.length : j);
   };
-  check('v1.5.21 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.21 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.21 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.21 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.21 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.21 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   const openBody = fnBody(appjs, 'openAppsDrawer');
   check('v1.5.21 apertura: al presionar el botón del centro, el cajón se dibuja desde la caché y se muestra ANTES de cualquier llamada al puente', openBody.indexOf('applyDrawerSettings1547()') >= 0 && openBody.indexOf("showOverlay('appsDrawerOverlay')") >= 0 && openBody.indexOf('applyDrawerSettings1547()') < openBody.indexOf("showOverlay('appsDrawerOverlay')") && openBody.indexOf("showOverlay('appsDrawerOverlay')") < openBody.indexOf('refreshLauncherApps()'));
   check('v1.5.21 apertura: el manejador del clic TERMINA y cede (la lista se actualiza por detrás con setTimeout 0)', /setTimeout\(function \(\) \{\s*refreshLauncherApps\(\);\s*refreshAppNotifCounts\(\);\s*initNavInset\(\);\s*\}, 0\)/.test(openBody));
@@ -3476,9 +3476,9 @@ function static1523() {
     return src.slice(i, j < 0 ? src.length : j);
   };
   /* Versión. */
-  check('v1.5.23 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.23 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.23 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.23 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.23 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.23 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   /* CSS del diseño nuevo. */
   check('v1.5.23 perfil: la fila superior es simétrica con botones solo-símbolo del mismo tamaño (1.5.30: botones de 40 px; 1.5.32: 6 botones)', /\.ownTopRow\{display:flex;justify-content:space-between;align-items:center/.test(idx) && /\.ownIconBtn\{position:relative;width:40px;height:40px;border-radius:50%/.test(idx) && /\.ownViewsCircle\{position:relative;width:40px;height:40px;border-radius:50%/.test(idx));
   check('v1.5.23 perfil: el engranaje de configuración es rojo', /\.ownIconBtn\.red\{color:var\(--red2\)\}/.test(idx));
@@ -3536,9 +3536,9 @@ function static1524() {
     return src.slice(i, j < 0 ? src.length : j);
   };
   /* Versión. */
-  check('v1.5.24 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.24 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.24 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.24 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.24 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.24 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   /* Orden nuevo en el perfil propio: biografía y datos antes que las cantidades. */
   const ownBody = fnBody(appjs, 'renderOwnProfile');
   const oTop = ownBody.indexOf('<div class="ownTopRow">');
@@ -3575,9 +3575,9 @@ function static1525() {
     return src.slice(i, j < 0 ? src.length : j);
   };
   /* Versión. */
-  check('v1.5.25 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.25 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.25 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.25 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.25 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.25 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   /* (1) Sin hueco: la biografía y los datos, en la columna izquierda de la cabecera. */
   check('v1.5.25 perfil propio: la columna izquierda ocupa lo que sobra junto al avatar', /\.ownHeadCol\{flex:1;min-width:0\}/.test(idx));
   check('v1.5.25 perfil propio: sin margen extra entre el nombre y la biografía', /\.ownHeadCol p\.muted\{margin:4px 0 0\}/.test(idx));
@@ -3663,9 +3663,9 @@ function static1526() {
     return s;
   };
   /* Versión. */
-  check('v1.5.26 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.26 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.26 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.26 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.26 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.26 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   check('v1.5.26 versión: build.sh dice 1.5.34', /Build WordRed v1\.5\.59/.test(buildsh));
   check('v1.5.26 versión: sin restos de 1.5.26/1.5.27 como versión (solo comentarios históricos)', !/versionCode="41"/.test(manifest) && !/APP_VERSION_CODE = 41/.test(appjs) && !/updateCurrentVersion\">WordRed 1\.5\.26/.test(idx) && !/versionCode="42"/.test(manifest) && !/APP_VERSION_CODE = 42/.test(appjs) && !/updateCurrentVersion\">WordRed 1\.5\.27/.test(idx));
   /* 1.5.28: panel de vista previa al subir foto o video. */
@@ -4049,7 +4049,7 @@ function static1526() {
   check('v1.5.26 FAQ: nada de SMS', !/SMS/.test(faqBlock));
   check('v1.5.26 FAQ: explica cómo actualizar y que el aviso desaparece al instalar', /¿Cómo actualizo WordRed\?/.test(faqBlock) && /al instalarla, su aviso desaparece de la campana/.test(faqBlock));
   check('v1.5.26 FAQ: explica las otras aplicaciones en la campana, la batería, el reproductor y la biografía', /¿Por qué aparecen otras aplicaciones en la campana\?/.test(faqBlock) && /¿Qué es el indicador de batería\?/.test(faqBlock) && /¿Cómo funciona el reproductor de video\?/.test(faqBlock) && /¿Dónde quedó mi biografía\?/.test(faqBlock));
-  check('v1.5.26 FAQ: una entrada corta de novedades (la de la versión actual), sin meter las 66 ideas una por una', /¿Qué hay de nuevo en la 1\.5\.59\?/.test(faqBlock) && faqEntries === 29);
+  check('v1.5.26 FAQ: una entrada corta de novedades (la de la versión actual), sin meter las 66 ideas una por una', /¿Qué hay de nuevo en la 1\.5\.61\?/.test(faqBlock) && faqEntries === 29);
   /* Sin regresión: pie, prohibidos y cajón. */
   check('v1.5.26 base: el pie exacto aparece 3 veces', (idx.match(/Creada y diseñada por Mistery Store Play/g) || []).length === 3);
   check('v1.5.26 base: 0 Muse, 0 usuario como palabra, 0 Facebook en app.js e index.html', !/Muse/.test(appjs) && !/Muse/.test(idx) && !/Facebook/.test(appjs) && !/Facebook/.test(idx));
@@ -4083,9 +4083,9 @@ function static1527() {
   const faqBlock = (appjs.match(/var FAQ = \[([\s\S]*?)\];/) || [])[1] || '';
   const faqEntries = (faqBlock.match(/\{ q: '/g) || []).length;
   /* Versión. */
-  check('v1.5.27 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.27 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.27 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.27 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.27 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.27 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   check('v1.5.27 versión: build.sh dice 1.5.34', /Build WordRed v1\.5\.59/.test(buildsh));
   /* (1) Canción del día fuera del perfil propio. */
   check('v1.5.27 canción: la tarjeta ya no existe (ni función, ni botones, ni selector, ni llamada en el perfil propio)', !/function songOfDayHtml1526/.test(appjs) && !/__wrPickSongOfDay/.test(appjs) && !/__wrClearSongOfDay/.test(appjs) && !/__wrPlaySongOfDay/.test(appjs) && !/songOfDayHtml1526/.test(fnBody(appjs, 'renderOwnProfile')));
@@ -4123,9 +4123,9 @@ function static1530() {
   const faqBlock = (appjs.match(/var FAQ = \[([\s\S]*?)\];/) || [])[1] || '';
   const faqEntries = (faqBlock.match(/\{ q: '/g) || []).length;
   /* Versión. */
-  check('v1.5.29 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.29 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.29 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.29 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.29 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.29 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   check('v1.5.29 versión: build.sh dice 1.5.34', /Build WordRed v1\.5\.59/.test(buildsh));
   /* (1) El puente nativo avisa la subida en el celular. */
   check('v1.5.29 aviso: MainActivity tiene el canal y los tres métodos del puente (progreso, fin, ocultar)', /CHANNEL_UPLOAD = "wordred_upload"/.test(mainJava) && /NOTIF_UPLOAD_ID = 9500/.test(mainJava) && /showUploadNotification\(final int progress, final String label\)/.test(mainJava) && /finishUploadNotification\(final boolean ok, final String text\)/.test(mainJava) && /hideUploadNotification\(\)/.test(mainJava) && /Subidas de WordRed/.test(mainJava));
@@ -4194,9 +4194,9 @@ function static1531() {
   const faqBlock = (appjs.match(/var FAQ = \[([\s\S]*?)\];/) || [])[1] || '';
   const faqEntries = (faqBlock.match(/\{ q: '/g) || []).length;
   /* Versión. */
-  check('v1.5.31 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.31 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.31 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.31 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.31 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.31 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   check('v1.5.31 versión: build.sh dice 1.5.34', /Build WordRed v1\.5\.59/.test(buildsh));
   /* (1) "Tu tiempo hoy" en el perfil, no el clima. */
   check('v1.5.31 tiempo: en el perfil propio va "Tu tiempo hoy" en el lugar de la tarjeta de la nota', /screenTimeTodayHtml\(\)/.test(fnBody(appjs, 'renderOwnProfile')) && !/profileWeatherHtml1530\(\)/.test(fnBody(appjs, 'renderOwnProfile')) && !/profileNoteHtml1526\(\)/.test(fnBody(appjs, 'renderOwnProfile')));
@@ -4223,9 +4223,9 @@ function static1532() {
   const faqBlock = (appjs.match(/var FAQ = \[([\s\S]*?)\];/) || [])[1] || '';
   const faqEntries = (faqBlock.match(/\{ q: '/g) || []).length;
   /* Versión. */
-  check('v1.5.32 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.32 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.32 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.32 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.32 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.32 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   check('v1.5.32 versión: build.sh dice 1.5.34', /Build WordRed v1\.5\.59/.test(buildsh));
   /* (1) El botón Amigos ya no existe. */
   check('v1.5.32 perfil: el botón Amigos (profileFriendsBtn) ya no existe en la app', !/profileFriendsBtn/.test(appjs) && !/profileFriendsBtn/.test(idx));
@@ -4257,9 +4257,9 @@ function static1533() {
   const faqBlock = (appjs.match(/var FAQ = \[([\s\S]*?)\];/) || [])[1] || '';
   const faqEntries = (faqBlock.match(/\{ q: '/g) || []).length;
   /* Versión. */
-  check('v1.5.33 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.33 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.33 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.33 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.33 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.33 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   check('v1.5.33 versión: build.sh dice 1.5.34', /Build WordRed v1\.5\.59/.test(buildsh));
   /* (1) Tiempo en pantalla que cuenta de verdad. */
   check('v1.5.33 tiempo: se guarda cada 10 segundos (no cada minuto)', /setInterval\(function \(\) \{ screenTimeFlush1526\(\); \}, 10000\)/.test(fnBody(appjs, 'screenTimeStart1526')));
@@ -4317,9 +4317,9 @@ function static1534() {
   const faqBlock = (appjs.match(/var FAQ = \[([\s\S]*?)\];/) || [])[1] || '';
   const faqEntries = (faqBlock.match(/\{ q: '/g) || []).length;
   /* Versión. */
-  check('v1.5.34 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.34 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.34 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.34 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.34 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.34 versión: los textos visibles dicen 1.5.34 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   check('v1.5.34 versión: build.sh dice 1.5.34', /Build WordRed v1\.5\.59/.test(buildsh));
   /* (1) Una sola cuenta de ejemplo, un ejemplo de cada opción. */
   check('v1.5.34 ejemplos: solo queda 1 cuenta de ejemplo (la oficial) con un ejemplo de cada opción', (function () { var st = C.emptyState(); C.seedDemo(st); var demos = Object.keys(st.profiles).filter(function (k) { return st.profiles[k].isDemo; }); var dps = st.posts.filter(function (p) { return p.isDemo; }); return demos.length === 1 && demos[0] === '0000000000' && dps.length === 7 && dps.filter(function (p) { return p.mediaType === 'video'; }).length === 1 && dps.filter(function (p) { return p.song && C.songHasAudio(p.song); }).length === 1 && st.stories.filter(function (x) { return x.isDemo; }).length === 1 && st.groups.filter(function (g) { return String(g.name || '').indexOf('(ejemplo)') >= 0; }).length === 1; })());
@@ -4360,9 +4360,9 @@ function static1535() {
   const faqBlock = (appjs.match(/var FAQ = \[([\s\S]*?)\];/) || [])[1] || '';
   const faqEntries = (faqBlock.match(/\{ q: '/g) || []).length;
   /* Versión. */
-  check('v1.5.35 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.35 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.35 versión: los textos visibles dicen 1.5.36 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.35 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.35 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.35 versión: los textos visibles dicen 1.5.36 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   check('v1.5.35 versión: build.sh dice 1.5.36', /Build WordRed v1\.5\.59/.test(buildsh));
   /* (1) La causa: la ruta llevaba un prefijo assets/ de más. */
   check('v1.5.35 música: los 12 src del catálogo son exactamente musica/cancion-N.mp3', C.SONG_CATALOG.length === 12 && C.SONG_CATALOG.every(function (sg, i) { return sg.src === 'musica/cancion-' + (i + 1) + '.mp3'; }));
@@ -4402,9 +4402,9 @@ function static1536() {
   const faqBlock = (appjs.match(/var FAQ = \[([\s\S]*?)\];/) || [])[1] || '';
   const faqEntries = (faqBlock.match(/\{ q: '/g) || []).length;
   /* Versión. */
-  check('v1.5.36 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.36 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.36 versión: los textos visibles dicen 1.5.36 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.36 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.36 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.36 versión: los textos visibles dicen 1.5.36 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   check('v1.5.36 versión: build.sh dice 1.5.36', /Build WordRed v1\.5\.59/.test(buildsh));
   /* (1) Registro y predeterminado. */
   check('v1.5.36 widgets: el registro tiene los 5 apartados del inicio y 7 agregables (calendario, mensajería, fotos, calculadora, notas, batería, tiempo)', C.HOME_WIDGETS_BUILTIN_1536.length === 5 && ['reloj', 'clima', 'historias', 'publicar', 'accesos'].every(function (id) { return C.HOME_WIDGETS_BUILTIN_1536.indexOf(id) >= 0; }) && C.HOME_WIDGETS_ADDABLE_1536.length === 7 && ['calendario', 'mensajeria', 'fotos', 'calculadora', 'notas', 'bateria', 'tiempo'].every(function (id) { return C.HOME_WIDGETS_ADDABLE_1536.some(function (w) { return w.id === id; }); }));
@@ -4434,7 +4434,7 @@ function static1536() {
   check('v1.5.36 widgets: notas se guardan en la configuración y se borran', /cfg\.notes\.push/.test(fnBody(appjs, 'homeWidgetClick1536')) && /data-hw-note-del/.test(fnBody(appjs, 'homeWidgetNotesHtml1536')));
   check('v1.5.36 widgets: batería muestra el nivel real y se refresca al llegar', /batteryLevel/.test(fnBody(appjs, 'homeWidgetBatteryHtml1536')) && /renderHomeWidgetBody1536\('bateria'\)/.test(appjs));
   check('v1.5.36 widgets: tiempo muestra el tiempo de hoy con el formato real', /C\.formatScreenTime\(C\.screenTimeTodayMs\(state\)\)/.test(fnBody(appjs, 'homeWidgetTimeHtml1536')));
-  check('v1.5.36 widgets: sin animaciones nuevas (los 25 @keyframes son los viejos)', (idx.match(/@keyframes/g) || []).length === 25);
+  check('v1.5.36 widgets: sin animaciones nuevas salvo el resplandor del cargador (26 @keyframes: los 25 viejos + chargerGlowRise1561)', (idx.match(/@keyframes/g) || []).length === 26 && /@keyframes chargerGlowRise1561/.test(idx));
   /* FAQ: 24 + 1 = 25. */
   check('v1.5.36 FAQ: 29 entradas (nueva: cómo acomodar el menú principal)', faqEntries === 29 && /¿Cómo acomodo el menú principal\?/.test(appjs));
   /* 1.5.35 intacto. */
@@ -4461,9 +4461,9 @@ function static1537() {
   const faqBlock = (appjs.match(/var FAQ = \[([\s\S]*?)\];/) || [])[1] || '';
   const faqEntries = (faqBlock.match(/\{ q: '/g) || []).length;
   /* Versión. */
-  check('v1.5.37 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.37 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.37 versión: los textos visibles dicen 1.5.37 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.60</.test(idx) && /WordRed 1.5.60 — red social original/.test(idx));
+  check('v1.5.37 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.37 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.37 versión: los textos visibles dicen 1.5.37 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1.5.61</.test(idx) && /WordRed 1.5.61 — red social original/.test(idx));
   check('v1.5.37 versión: build.sh dice 1.5.37', /Build WordRed v1\.5\.59/.test(buildsh));
   /* (1) La causa: en tamaño s el reloj se salía del recuadro. */
   check('v1.5.37 reloj: la tarjeta del reloj puede encogerse (min-width:0 en el apartado)', /\.homeWidget\[data-widget="reloj"\] \.weatherTimeCard\{min-width:0\}/.test(idx));
@@ -4497,7 +4497,7 @@ function static1537() {
   /* 1.5.36 intacto. */
   check('v1.5.37 1.5.36 intacto: los 5 apartados, editar con mantener presionado y lo demás translúcido', /id="homeWidgets1536"/.test(idx) && /HOME_WIDGET_LONGPRESS_MS_1536 = 550/.test(appjs) && /body\.hwEditing1536 #view-feed \.homeWidget:not\(\.hwActive\)\{opacity:\.35\}/.test(idx));
   check('v1.5.37 1.5.36 intacto: los 7 agregables y la calculadora sin eval()', C.HOME_WIDGETS_ADDABLE_1536.length === 7 && /function hwCalcEval1536/.test(appjs) && !/eval\(/.test(fnBody(appjs, 'hwCalcEval1536')));
-  check('v1.5.37 1.5.36 intacto: sin animaciones nuevas (los 25 @keyframes son los viejos)', (idx.match(/@keyframes/g) || []).length === 25);
+  check('v1.5.37 1.5.36 intacto: sin animaciones nuevas salvo el resplandor del cargador (26 @keyframes: los 25 viejos + chargerGlowRise1561)', (idx.match(/@keyframes/g) || []).length === 26 && /@keyframes chargerGlowRise1561/.test(idx));
   /* 1.5.35 intacto. */
   check('v1.5.37 1.5.35 intacto: las 12 canciones con musica/ y 0 assets/musica', C.SONG_CATALOG.length === 12 && C.SONG_CATALOG.every(function (sg, i) { return sg.src === 'musica/cancion-' + (i + 1) + '.mp3'; }) && !/assets\/musica/.test(appjs) && !/assets\/musica/.test(corejs));
   /* 1.5.34 intacto. */
@@ -4521,9 +4521,9 @@ function static1538() {
   const faqBlock = (appjs.match(/var FAQ = \[([\s\S]*?)\];/) || [])[1] || '';
   const faqEntries = (faqBlock.match(/\{ q: '/g) || []).length;
   /* Versión. */
-  check('v1.5.38 versión: manifiesto 67 / 1.5.52', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
-  check('v1.5.38 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('v1.5.38 versión: los textos visibles dicen 1.5.38 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1\.5\.60</.test(idx) && /WordRed 1\.5\.60 — red social original/.test(idx));
+  check('v1.5.38 versión: manifiesto 67 / 1.5.52', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('v1.5.38 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('v1.5.38 versión: los textos visibles dicen 1.5.38 (Ajustes y Acerca de)', /id="updateCurrentVersion">WordRed 1\.5\.61</.test(idx) && /WordRed 1\.5\.61 — red social original/.test(idx));
   check('v1.5.38 versión: build.sh dice 1.5.38', /Build WordRed v1\.5\.59/.test(buildsh));
   /* (1) El estilo de referencia (los iconos del perfil) sigue igual. */
   check('v1.5.38 perfil: los botones del perfil siguen en 40 px, redondos, fondo translúcido y borde fino', /\.ownIconBtn\{[^}]*width:40px;height:40px;border-radius:50%[^}]*background:rgba\(255,255,255,\.08\)[^}]*border:1px solid rgba\(255,255,255,\.14\)/.test(idx));
@@ -4560,7 +4560,7 @@ function static1538() {
   check('v1.5.38 1.5.37 intacto: el rayo va dentro del símbolo de batería (25×12)', /function batteryIconSvg\(level, charging\)/.test(appjs) && /M13\.8 1\.8 L9\.6 6\.6/.test(fnBody(appjs, 'batteryIconSvg')) && !/ic\('zap'/.test(fnBody(appjs, 'renderBatteryInd')));
   /* 1.5.36 intacto. */
   check('v1.5.38 1.5.36 intacto: los 5 apartados, editar con mantener presionado (550 ms) y los 7 agregables', /id="homeWidgets1536"/.test(idx) && /HOME_WIDGET_LONGPRESS_MS_1536 = 550/.test(appjs) && C.HOME_WIDGETS_ADDABLE_1536.length === 7 && /function hwCalcEval1536/.test(appjs) && !/eval\(/.test(fnBody(appjs, 'hwCalcEval1536')));
-  check('v1.5.38 1.5.36 intacto: sin animaciones nuevas (los 25 @keyframes son los viejos)', (idx.match(/@keyframes/g) || []).length === 25);
+  check('v1.5.38 1.5.36 intacto: sin animaciones nuevas salvo el resplandor del cargador (26 @keyframes: los 25 viejos + chargerGlowRise1561)', (idx.match(/@keyframes/g) || []).length === 26 && /@keyframes chargerGlowRise1561/.test(idx));
   /* 1.5.35 intacto. */
   check('v1.5.38 1.5.35 intacto: las 12 canciones con musica/ y 0 assets/musica', C.SONG_CATALOG.length === 12 && C.SONG_CATALOG.every(function (sg, i) { return sg.src === 'musica/cancion-' + (i + 1) + '.mp3'; }) && !/assets\/musica/.test(appjs) && !/assets\/musica/.test(corejs));
   /* 1.5.34 intacto. */
@@ -4584,9 +4584,9 @@ function static1539() {
     return src.slice(i, j < 0 ? src.length : j);
   };
   /* Versión. */
-  check('v1.5.39 versión: manifiesto 67 / 1.5.52', manifest.indexOf('android:versionCode="75"') >= 0 && manifest.indexOf('android:versionName="1.5.60"') >= 0);
-  check('v1.5.39 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 75;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.60';") >= 0);
-  check('v1.5.39 versión: los textos visibles dicen 1.5.39 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.60<') >= 0 && idx.indexOf('WordRed 1.5.60 — red social original') >= 0);
+  check('v1.5.39 versión: manifiesto 67 / 1.5.52', manifest.indexOf('android:versionCode="76"') >= 0 && manifest.indexOf('android:versionName="1.5.61"') >= 0);
+  check('v1.5.39 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 76;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.61';") >= 0);
+  check('v1.5.39 versión: los textos visibles dicen 1.5.39 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.61<') >= 0 && idx.indexOf('WordRed 1.5.61 — red social original') >= 0);
   check('v1.5.39 versión: build.sh dice 1.5.39', buildsh.indexOf('Build WordRed v1.5.59') >= 0);
   /* (1) La fila: una sola fila, sin envoltura, mismos textos y acciones. */
   check('v1.5.39 fila: el contenedor es profileShortcuts1539 con nowrap y 6 px entre botones', idx.indexOf('.profileShortcuts1539{display:flex;flex-wrap:nowrap;gap:6px;margin:8px 0}') >= 0);
@@ -4672,9 +4672,9 @@ function static1540() {
   const serverjs = fs.readFileSync(path.join(process.env.HOME, 'workspace', 'wordred-server-v35', 'server.js'), 'utf8');
   const movies = JSON.parse(fs.readFileSync(path.join(process.env.HOME, 'workspace', 'wordred-server-v35', 'movies.json'), 'utf8'));
   /* Versión. */
-  check('v1.5.40 versión: manifiesto 67 / 1.5.52', manifest.indexOf('android:versionCode="75"') >= 0 && manifest.indexOf('android:versionName="1.5.60"') >= 0);
-  check('v1.5.40 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 75;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.60';") >= 0);
-  check('v1.5.40 versión: los textos visibles dicen 1.5.40 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.60<') >= 0 && idx.indexOf('WordRed 1.5.60 — red social original') >= 0);
+  check('v1.5.40 versión: manifiesto 67 / 1.5.52', manifest.indexOf('android:versionCode="76"') >= 0 && manifest.indexOf('android:versionName="1.5.61"') >= 0);
+  check('v1.5.40 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 76;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.61';") >= 0);
+  check('v1.5.40 versión: los textos visibles dicen 1.5.40 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.61<') >= 0 && idx.indexOf('WordRed 1.5.61 — red social original') >= 0);
   check('v1.5.40 versión: build.sh dice 1.5.40', buildsh.indexOf('Build WordRed v1.5.59') >= 0);
   check('v1.5.40 versión: el FAQ sigue en 29 entradas', faqEntries === 29);
   /* (1) Reels mucho más grandes. */
@@ -4723,9 +4723,9 @@ function static1541() {
   const faqEntries = (faqStart >= 0 && faqEnd > faqStart ? appjs.slice(faqStart, faqEnd) : '').split("{ q: '").length - 1;
   const serverjs = fs.readFileSync(path.join(process.env.HOME, 'workspace', 'wordred-server-v35', 'server.js'), 'utf8');
   /* Versión. */
-  check('v1.5.41 versión: manifiesto 67 / 1.5.52', manifest.indexOf('android:versionCode="75"') >= 0 && manifest.indexOf('android:versionName="1.5.60"') >= 0);
-  check('v1.5.41 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 75;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.60';") >= 0);
-  check('v1.5.41 versión: los textos visibles dicen 1.5.41 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.60<') >= 0 && idx.indexOf('WordRed 1.5.60 — red social original') >= 0);
+  check('v1.5.41 versión: manifiesto 67 / 1.5.52', manifest.indexOf('android:versionCode="76"') >= 0 && manifest.indexOf('android:versionName="1.5.61"') >= 0);
+  check('v1.5.41 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 76;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.61';") >= 0);
+  check('v1.5.41 versión: los textos visibles dicen 1.5.41 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.61<') >= 0 && idx.indexOf('WordRed 1.5.61 — red social original') >= 0);
   check('v1.5.41 versión: build.sh dice 1.5.41', buildsh.indexOf('Build WordRed v1.5.59') >= 0);
   check('v1.5.41 versión: el FAQ sigue en 29 entradas y dice que los reels quedan siempre arriba', faqEntries === 29 && appjs.indexOf('Los reels siempre quedan arriba.') >= 0);
   /* (1) El orden nuevo por defecto. */
@@ -4762,9 +4762,9 @@ function static1542() {
   const faqEntries = (faqStart >= 0 && faqEnd > faqStart ? appjs.slice(faqStart, faqEnd) : '').split("{ q: '").length - 1;
   const serverjs = fs.readFileSync(path.join(process.env.HOME, 'workspace', 'wordred-server-v35', 'server.js'), 'utf8');
   /* Versión. */
-  check('v1.5.42 versión: manifiesto 67 / 1.5.52', manifest.indexOf('android:versionCode="75"') >= 0 && manifest.indexOf('android:versionName="1.5.60"') >= 0);
-  check('v1.5.42 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 75;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.60';") >= 0);
-  check('v1.5.42 versión: los textos visibles dicen 1.5.42 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.60<') >= 0 && idx.indexOf('WordRed 1.5.60 — red social original') >= 0);
+  check('v1.5.42 versión: manifiesto 67 / 1.5.52', manifest.indexOf('android:versionCode="76"') >= 0 && manifest.indexOf('android:versionName="1.5.61"') >= 0);
+  check('v1.5.42 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 76;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.61';") >= 0);
+  check('v1.5.42 versión: los textos visibles dicen 1.5.42 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.61<') >= 0 && idx.indexOf('WordRed 1.5.61 — red social original') >= 0);
   check('v1.5.42 versión: build.sh dice 1.5.42', buildsh.indexOf('Build WordRed v1.5.59') >= 0);
   check('v1.5.42 versión: el FAQ sigue en 29 entradas', faqEntries === 29);
   /* (1) El diseño de las configuraciones de los widgets. */
@@ -4781,7 +4781,7 @@ function static1542() {
   /* (3) Tutorial y preguntas con las novedades. */
   check('v1.5.42 tutorial: sigue en 6 pasos y los pasos de inicio, Shorts y perfil traen las novedades', (appjs.match(/\{ art: '/g) || []).length === 6 && appjs.indexOf('Arriba siempre están los reels, luego «¿Qué estás pensando?»') >= 0 && appjs.indexOf('Arriba en el inicio están los reels: toca tu foto con el + para publicar uno') >= 0 && appjs.indexOf('con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos') >= 0);
   check('v1.5.42 preguntas: hay entradas nuevas de la cartelera, los Reels y «Tu tiempo hoy»', appjs.indexOf("q: '¿Qué es la cartelera «Próximos estrenos»?") >= 0 && appjs.indexOf("q: '¿Cómo quedaron los Reels?'") >= 0 && appjs.indexOf("q: '¿Dónde quedó «Tu tiempo hoy»?") >= 0);
-  check('1.5.60 preguntas: la entrada de novedades ahora es la 1.5.60 y arriba en el inicio solo salen los reels verticales', appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.60?'") >= 0 && appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.59?'") >= 0 && appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.58?'") < 0 && appjs.indexOf('Los dramas vuelven a ser originales de WordRed') >= 0);
+  check('1.5.61 preguntas: la entrada de novedades ahora es la 1.5.61 y arriba en el inicio solo salen los reels verticales', appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.61?'") >= 0 && appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.60?'") >= 0 && appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.59?'") < 0 && appjs.indexOf('Los Dramas ahora mezclan ReelShort y ShortMax') >= 0);
   /* 1.5.41 intacto. */
   check('v1.5.42 1.5.41 intacto: el orden historias, publicar, reloj, clima, accesos y las historias fijadas', JSON.stringify(C.HOME_WIDGETS_BUILTIN_1536) === JSON.stringify(['historias', 'publicar', 'reloj', 'clima', 'accesos']) && appjs.indexOf('if (i === 0 || j === 0) return;') >= 0 && appjs.indexOf("$('hwMoveDown').disabled = (idx === 0);") >= 0);
   check('v1.5.42 1.5.40 intacto: Reels 264x400 y cartelera «Próximos estrenos» con /api/billboard', idx.indexOf('.reelTile{flex:0 0 264px;height:400px;') >= 0 && appjs.indexOf('BILLBOARD_CACHE_KEY_1540') >= 0 && appjs.indexOf('Próximos estrenos') >= 0 && serverjs.indexOf("version: '4.7'") >= 0 && serverjs.indexOf("app.get('/api/billboard'") >= 0);
@@ -4804,9 +4804,9 @@ function static1543() {
   const faqEntries = (faqStart >= 0 && faqEnd > faqStart ? appjs.slice(faqStart, faqEnd) : '').split("{ q: '").length - 1;
   const serverjs = fs.readFileSync(path.join(process.env.HOME, 'workspace', 'wordred-server-v35', 'server.js'), 'utf8');
   /* Versión. */
-  check('v1.5.43 versión: manifiesto 67 / 1.5.52', manifest.indexOf('android:versionCode="75"') >= 0 && manifest.indexOf('android:versionName="1.5.60"') >= 0);
-  check('v1.5.43 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 75;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.60';") >= 0);
-  check('v1.5.43 versión: los textos visibles dicen 1.5.43 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.60<') >= 0 && idx.indexOf('WordRed 1.5.60 — red social original') >= 0);
+  check('v1.5.43 versión: manifiesto 67 / 1.5.52', manifest.indexOf('android:versionCode="76"') >= 0 && manifest.indexOf('android:versionName="1.5.61"') >= 0);
+  check('v1.5.43 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 76;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.61';") >= 0);
+  check('v1.5.43 versión: los textos visibles dicen 1.5.43 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.61<') >= 0 && idx.indexOf('WordRed 1.5.61 — red social original') >= 0);
   check('v1.5.43 versión: build.sh dice 1.5.43', buildsh.indexOf('Build WordRed v1.5.59') >= 0);
   check('v1.5.43 versión: el FAQ sigue en 29 entradas', faqEntries === 29);
   /* (1) Las preguntas en su panel. */
@@ -4879,9 +4879,9 @@ function static1544() {
   const faqEntries = (faqStart >= 0 && faqEnd > faqStart ? appjs.slice(faqStart, faqEnd) : '').split("{ q: '").length - 1;
   const serverjs = fs.readFileSync(path.join(process.env.HOME, 'workspace', 'wordred-server-v35', 'server.js'), 'utf8');
   /* Versión. */
-  check('v1.5.45 versión: manifiesto 67 / 1.5.52', manifest.indexOf('android:versionCode="75"') >= 0 && manifest.indexOf('android:versionName="1.5.60"') >= 0);
-  check('v1.5.45 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 75;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.60';") >= 0);
-  check('v1.5.45 versión: los textos visibles dicen 1.5.45 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.60<') >= 0 && idx.indexOf('WordRed 1.5.60 — red social original') >= 0);
+  check('v1.5.45 versión: manifiesto 67 / 1.5.52', manifest.indexOf('android:versionCode="76"') >= 0 && manifest.indexOf('android:versionName="1.5.61"') >= 0);
+  check('v1.5.45 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 76;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.61';") >= 0);
+  check('v1.5.45 versión: los textos visibles dicen 1.5.45 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.61<') >= 0 && idx.indexOf('WordRed 1.5.61 — red social original') >= 0);
   check('v1.5.45 versión: build.sh dice 1.5.45', buildsh.indexOf('Build WordRed v1.5.59') >= 0);
   check('v1.5.45 versión: el FAQ sigue en 29 entradas', faqEntries === 29);
   /* 1.5.45: apilado — la pantalla recién abierta va al frente. */
@@ -4904,7 +4904,7 @@ function static1544() {
   check('v1.5.44 activa: una cuenta de ejemplo nunca está en vivo (sin aro rojo ni entrar a un live)', appjs.indexOf('if (isDemoAccount1544(phone)) return null;') >= 0);
   check('v1.5.44 activa: la fila de lives filtra los lives de la cuenta de ejemplo', appjs.indexOf('liveList.filter(function (l) { return !isDemoAccount1544(l.host); })') >= 0);
   /* (4) Preguntas. */
-  check('1.5.60 preguntas: la entrada de novedades ahora es la 1.5.60 (respuesta ≤400 caracteres, sin mencionar el servidor; cuenta que los dramas vuelven a ser originales, que hay subtítulos, Reels rectángulos, tráilers dentro de la app y un Navegador)', appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.60?'") >= 0 && (function () { var m = appjs.match(/\{ q: '¿Qué hay de nuevo en la 1\.5\.60\?', a: '([^']*)'/); return m && m[1].length <= 400 && m[1].indexOf('dramas') >= 0 && m[1].indexOf('originales') >= 0 && m[1].indexOf('subtítulos') >= 0 && m[1].indexOf('Navegador') >= 0 && m[1].indexOf('servidor') < 0; })() && appjs.indexOf('El servidor está despertando, reintentando') >= 0);
+  check('1.5.61 preguntas: la entrada de novedades ahora es la 1.5.61 (respuesta ≤400 caracteres, sin mencionar el servidor; cuenta los dramas mezclados, la pantalla completa y el resplandor del cargador)', appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.61?'") >= 0 && (function () { var m = appjs.match(/\{ q: '¿Qué hay de nuevo en la 1\.5\.61\?', a: '([^']*)'/); return m && m[1].length <= 400 && m[1].indexOf('ReelShort') >= 0 && m[1].indexOf('ShortMax') >= 0 && m[1].indexOf('pantalla completa') >= 0 && m[1].indexOf('cargador') >= 0 && m[1].indexOf('servidor') < 0; })() && appjs.indexOf('El servidor está despertando, reintentando') >= 0);
   /* 1.5.43 intacto. */
   check('v1.5.44 1.5.43 intacto: panel de preguntas, tarjeta de apoyo, fondos translúcidos, reloj 39/64/89 y cartelera de juegos', idx.indexOf('id="faqOverlay1543"') >= 0 && idx.indexOf('#supportSection{padding:22px}') >= 0 && idx.indexOf('#settingsOverlay{background:rgba(5,1,2,.55)}') >= 0 && idx.indexOf('.homeWidget[data-size="s"] .weatherTime{font-size:39px}') >= 0 && appjs.indexOf('gamesBillboardHtml1543') >= 0 && serverjs.indexOf("version: '4.7'") >= 0 && serverjs.indexOf("app.get('/api/games-billboard'") >= 0);
 }
@@ -4921,9 +4921,9 @@ function static1546() {
   const faqEntries = (faqStart >= 0 && faqEnd > faqStart ? appjs.slice(faqStart, faqEnd) : '').split("{ q: '").length - 1;
   const serverjs = fs.readFileSync(path.join(process.env.HOME, 'workspace', 'wordred-server-v35', 'server.js'), 'utf8');
   /* Versión. */
-  check('v1.5.46 versión: manifiesto 67 / 1.5.52', manifest.indexOf('android:versionCode="75"') >= 0 && manifest.indexOf('android:versionName="1.5.60"') >= 0);
-  check('v1.5.46 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 75;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.60';") >= 0);
-  check('v1.5.46 versión: los textos visibles dicen 1.5.46 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.60<') >= 0 && idx.indexOf('WordRed 1.5.60 — red social original') >= 0);
+  check('v1.5.46 versión: manifiesto 67 / 1.5.52', manifest.indexOf('android:versionCode="76"') >= 0 && manifest.indexOf('android:versionName="1.5.61"') >= 0);
+  check('v1.5.46 versión: la versión en JS es 67 / 1.5.52 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 76;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.61';") >= 0);
+  check('v1.5.46 versión: los textos visibles dicen 1.5.46 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.61<') >= 0 && idx.indexOf('WordRed 1.5.61 — red social original') >= 0);
   check('v1.5.46 versión: build.sh dice 1.5.46', buildsh.indexOf('Build WordRed v1.5.59') >= 0);
   check('v1.5.46 versión: el FAQ sigue en 29 entradas', faqEntries === 29);
   /* (1) Abrir y cerrar van con reintento; el trozo, nunca en su lugar. */
@@ -4941,7 +4941,7 @@ function static1546() {
   check('1.5.46 mensajes: ya no se culpa a la conexión del usuario al fallar una publicación', appjs.indexOf('Revisa tu conexión y toca Reintentar.') < 0);
   check('1.5.46 mensajes: el último error de subida se guarda para el mensaje final', corejs.indexOf('function lastMediaUploadError1546()') >= 0 && corejs.indexOf('lastMediaUploadError1546: lastMediaUploadError1546') >= 0);
   /* (3) Preguntas. */
-  check('1.5.60 preguntas: la entrada de novedades ahora es la 1.5.60 (la FAQ no menciona el servidor)', appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.60?'") >= 0 && (function () { var m = appjs.match(/\{ q: '¿Qué hay de nuevo en la 1\.5\.60\?', a: '([^']*)'/); return m && m[1].indexOf('servidor') < 0; })() && appjs.indexOf('El servidor está despertando, reintentando') >= 0);
+  check('1.5.61 preguntas: la entrada de novedades ahora es la 1.5.61 (la FAQ no menciona el servidor)', appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.61?'") >= 0 && (function () { var m = appjs.match(/\{ q: '¿Qué hay de nuevo en la 1\.5\.61\?', a: '([^']*)'/); return m && m[1].indexOf('servidor') < 0; })() && appjs.indexOf('El servidor está despertando, reintentando') >= 0);
   /* (4) La barra de subida va abajo, sin tapar nada. */
   check('1.5.46 barra: va fijada ABAJO, justo encima de la barra inferior (ya no arriba tapando pantallas)', idx.indexOf('#mediaUploadBar{position:fixed;left:0;right:0;bottom:calc(68px + var(--sys-nav-bottom,0px));z-index:70;') >= 0 && idx.indexOf('position:fixed;top:0;left:0;right:0;z-index:200') < 0);
   check('1.5.46 barra: su z (70) queda por debajo de las pantallas (z-80) y por encima de la barra inferior (z-60)', idx.indexOf('z-index:70;height:40px') >= 0 && idx.indexOf('nav#bottomNav{position:fixed;left:0;right:0;bottom:var(--sys-nav-bottom,0px);z-index:60;') >= 0);
@@ -4974,10 +4974,10 @@ async function static1554() {
     return src.slice(i, j < 0 ? src.length : j);
   };
   /* Versión. */
-  check('1.5.54 versión: manifiesto 69 / 1.5.54', manifest.indexOf('android:versionCode="75"') >= 0 && manifest.indexOf('android:versionName="1.5.60"') >= 0);
-  check('1.5.54 versión: la versión en JS es 69 / 1.5.54 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 75;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.60';") >= 0);
-  check('1.5.54 versión: los textos visibles dicen 1.5.54 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.60<') >= 0 && idx.indexOf('WordRed 1.5.60 — red social original') >= 0);
-  check('1.5.60 versión: el FAQ sigue en 29 entradas (la de novedades es la 1.5.60 y la 1.5.58 se quitó)', faqEntries === 29 && appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.60?'") >= 0 && appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.59?'") >= 0 && appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.58?'") < 0);
+  check('1.5.54 versión: manifiesto 69 / 1.5.54', manifest.indexOf('android:versionCode="76"') >= 0 && manifest.indexOf('android:versionName="1.5.61"') >= 0);
+  check('1.5.54 versión: la versión en JS es 69 / 1.5.54 (igual que el manifiesto)', appjs.indexOf('var APP_VERSION_CODE = 76;') >= 0 && appjs.indexOf("var APP_VERSION_NAME = '1.5.61';") >= 0);
+  check('1.5.54 versión: los textos visibles dicen 1.5.54 (Ajustes y Acerca de)', idx.indexOf('id="updateCurrentVersion">WordRed 1.5.61<') >= 0 && idx.indexOf('WordRed 1.5.61 — red social original') >= 0);
+  check('1.5.61 versión: el FAQ sigue en 29 entradas (la de novedades es la 1.5.61 y la 1.5.59 se quitó)', faqEntries === 29 && appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.61?'") >= 0 && appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.60?'") >= 0 && appjs.indexOf("q: '¿Qué hay de nuevo en la 1.5.59?'") < 0);
   check('1.5.54 versión: build.sh dice 1.5.54', buildsh.indexOf('Build WordRed v1.5.59') >= 0);
   check('1.5.54 versión: el servidor es 4.4', serverjs.indexOf("version: '4.7'") >= 0);
   /* (1) La app de usuario pide verificación y no auto-activa. */
@@ -5041,13 +5041,13 @@ async function static1554() {
      gratis verificados con videoId; los capítulos de miembros no traen
      videoId y se muestran como «Disponible en DramaBox». Los archivos
      de los dramas originales se conservan en el APK por si vuelven. */
-  check('1.5.60 dramas: kdramas.json trae los 5 dramas originales con sus capítulos (texto largo, imagen de escena; los de video con URL de Cloudinary y subtítulos es/en/pt)', Array.isArray(kdramasJson.kdramas) && kdramasJson.kdramas.length === 5 && ['el-contrato-de-la-heredera', 'la-venganza-de-camila', 'la-doble-vida-de-elena', 'cartas-a-medianoche', 'la-otra-yo'].every(function (id) { return kdramasJson.kdramas.some(function (s) { return s.id === id; }); }) && kdramasJson.kdramas.every(function (s) { return s && s.id && s.name && s.synopsis && s.poster && Array.isArray(s.chapters) && s.chapters.length >= 4 && s.chapters.every(function (c) { return c && typeof c.n === 'number' && c.title && typeof c.text === 'string' && c.text.length > 100 && c.image && (!c.video || (typeof c.video === 'string' && c.video.indexOf('https://res.cloudinary.com/') === 0)) && (!c.subtitles || (typeof c.subtitles.es === 'string' && c.subtitles.es.indexOf('https://') === 0 && typeof c.subtitles.en === 'string' && c.subtitles.en.indexOf('https://') === 0 && typeof c.subtitles.pt === 'string' && c.subtitles.pt.indexOf('https://') === 0)); }); }) && kdramasJson.kdramas.reduce(function (n, s) { return n + s.chapters.filter(function (c) { return c.video; }).length; }, 0) >= 6);
+  check('1.5.61 dramas: kdramas.json trae el mezclado (16 series: 14 ReelShort + 2 ShortMax, 1 entrada gratis por serie con videoId de YouTube)', Array.isArray(kdramasJson.kdramas) && kdramasJson.kdramas.length === 16 && kdramasJson.kdramas.filter(function (s) { return s.source === 'ReelShort'; }).length === 14 && kdramasJson.kdramas.filter(function (s) { return s.source === 'ShortMax'; }).length === 2 && kdramasJson.kdramas.every(function (s) { return s && s.id && s.name && s.synopsis && s.poster && s.totalEps >= 1 && !s.chapters && Array.isArray(s.eps) && s.eps.length === 1 && typeof s.eps[0].videoId === 'string' && s.eps[0].videoId.length === 11 && s.eps[0].thumb === 'https://i.ytimg.com/vi/' + s.eps[0].videoId + '/hqdefault.jpg'; }));
   check('1.5.58 dramas: las 25 imágenes de los dramas originales (5 portadas + 20 capítulos) siguen en assets/dramas por si vuelven', (function () { var files = fs.readdirSync(path.join(__dirname, '..', 'assets', 'dramas')); return files.length === 25 && files.every(function (f) { return /\.jpg$/.test(f) && fs.statSync(path.join(__dirname, '..', 'assets', 'dramas', f)).size > 1000; }); })());
-  check('1.5.60 dramas: el catálogo horneado en la app trae los mismos 5 dramas originales con sus capítulos con video', /var KDRAMA_CATALOG_1549 = \[/.test(appjs) && ['el-contrato-de-la-heredera', 'la-venganza-de-camila', 'la-doble-vida-de-elena', 'cartas-a-medianoche', 'la-otra-yo'].every(function (id) { return appjs.indexOf('"id": "' + id + '"') >= 0; }) && (appjs.match(/"video": "https:\/\/res\.cloudinary\.com\/[^"]+"/g) || []).length >= 6);
+  check('1.5.61 dramas: el catálogo horneado en la app es el mezclado (16 series: 14 ReelShort + 2 ShortMax, 0 DramaBox, 0 originales)', /var KDRAMA_CATALOG_1549 = \[/.test(appjs) && ['la-doble-vida-de-mi-esposo-multimillonario', 'arrebato-a-un-multimillonario', 'atada-al-honor', 'atrape-el-corazon-de-un-multimillonario', 'tuve-un-bebe-sin-ti', 'proteger-su-cuerpo-reclamar-su-corazon', 'reina-alfa-traicionada', 'francotirador-americano-el-ultimo-disparo', 'te-amo-mas-que-a-la-vida', 'no-quiero-ser-tu-novia', 'un-final-feliz-en-las-vegas', 'agente-de-sombras', 'no-es-la-novia-que-el-queria', 'tras-7-anos-presa-volvi-como-ninera', 'mama-papa-es-invencible', 'el-renacer-de-la-esposa-gorda'].every(function (id) { return appjs.indexOf('"id": "' + id + '"') >= 0; }) && (appjs.match(/"source": "ReelShort"/g) || []).length === 14 && (appjs.match(/"source": "ShortMax"/g) || []).length === 2 && appjs.indexOf('"source": "DramaBox"') < 0 && appjs.indexOf('"chapters":') < 0);
   check('1.5.60 dramas: la app trae la etiqueta «Original de WordRed» en las tarjetas (la forma DramaBox sigue valiendo por dentro, para catálogos viejos)', /Original de WordRed/.test(appjs) && /kdIsOriginal1549/.test(appjs) && /kdBadge1549/.test(idx) && idx.indexOf('>Dramas<') >= 0);
-  check('1.5.60 dramas: el catálogo vuelve a traer dramas originales (capítulos con texto largo e imágenes locales)', /"chapters": \[/.test(appjs) && /"text": "/.test(appjs) && appjs.indexOf('"image": "dramas/') >= 0);
+  check('1.5.61 dramas: el catálogo horneado es el mezclado (eps con videoId de YouTube, sin chapters)', /"eps": \[/.test(appjs) && /"videoId": "/.test(appjs) && appjs.indexOf('"chapters":') < 0);
   check('1.5.58 dramas: el visor es de video (iframe de YouTube con el patrón ShortsSound; tocar = siguiente capítulo; gestos arriba/abajo e izquierda/derecha; sin texto largo)', /function kdLoadCurrent1549/.test(appjs) && /kdYtLoad1558/.test(appjs) && /kdYtFrame1558/.test(appjs) && /kdImage1549/.test(appjs) && /kdText1549/.test(appjs) === false && /kdTextBody1549/.test(appjs) === false && /function kdNextEpisode1549/.test(appjs) && /Math\.abs\(dx\) < 12 && Math\.abs\(dy\) < 12\) \{ kdNextEpisode1549\(\); return; \}/.test(appjs) && /function kdStopNovel1549/.test(appjs));
-  check('1.5.58 dramas: el catálogo viene del servidor con caché de 1 día y clave nueva 1558 (un caché viejo nunca se pinta)', /function fetchKdramas1554/.test(appjs) && /function kdramasValid1554/.test(appjs) && /wordred_kdramas1560/.test(appjs) && /wordred_kdramas1558/.test(appjs) === false && /fetchKdramas1552/.test(appjs) === false && /kdramasValid1552/.test(appjs) === false);
+  check('1.5.61 dramas: el catálogo viene del servidor con caché de 1 día y clave nueva 1561 (un caché viejo nunca se pinta)', /function fetchKdramas1554/.test(appjs) && /function kdramasValid1554/.test(appjs) && /wordred_kdramas1561/.test(appjs) && /wordred_kdramas1560/.test(appjs) === false && /fetchKdramas1552/.test(appjs) === false && /kdramasValid1552/.test(appjs) === false);
   /* (8) El botón de regresar funciona en toda la app. */
   check('1.5.54 regresar: el manejador global cierra la ventana de arriba, luego vuelve a la pantalla anterior, y en Inicio no hace nada', /function handleAndroidBack/.test(appjs) && /function topOpenOverlay1549/.test(appjs) && /function closeTopOverlay1549/.test(appjs) && /backViewStack1549/.test(appjs) && /window\.handleAndroidBack/.test(appjs));
   check('1.5.54 regresar: la pila de navegación se llena al cambiar de pantalla (con tope) y nunca empuja Shorts', /backViewStack1549\.push\(currentView\)/.test(appjs) && /backViewStack1549\.length > 20/.test(appjs));
@@ -5088,9 +5088,9 @@ async function static1555() {
      que 'assets/...' resolvía a 'assets/assets/...' y el archivo no
      existía; el mismo fallo que la música en la 1.5.34). */
   check('1.5.55 rutas: ninguna ruta de drama o de Fantore lleva el prefijo assets/ de más', appjs.indexOf('assets/dramas/') < 0 && appjs.indexOf('assets/fantore/') < 0 && idx.indexOf('assets/dramas/') < 0 && idx.indexOf('assets/fantore/') < 0 && JSON.stringify(kdramasJson).indexOf('assets/dramas/') < 0 && JSON.stringify(featuredJson).indexOf('assets/fantore/') < 0);
-  check('1.5.60 rutas: las 25 imágenes de los dramas originales siguen en assets/dramas y el catálogo (kdramas.json y horneado) usa sus videos de Cloudinary sin el prefijo assets/', (function () { var files = fs.readdirSync(path.join(__dirname, '..', 'assets', 'dramas')); var baked = (appjs.match(/"video": "https:\/\/res\.cloudinary\.com\/[^"]+"/g) || []); return files.length === 25 && files.every(function (f) { return /\.jpg$/.test(f); }) && baked.length >= 6 && JSON.stringify(kdramasJson).indexOf('assets/') < 0 && appjs.indexOf('assets/dramas/') < 0; })());
+  check('1.5.61 rutas: las 25 imágenes de los dramas originales siguen en assets/dramas (sin borrar) y el catálogo mezclado usa miniaturas de YouTube sin el prefijo assets/', (function () { var files = fs.readdirSync(path.join(__dirname, '..', 'assets', 'dramas')); var thumbs = (appjs.match(/"thumb": "https:\/\/i\.ytimg\.com\/vi\/[A-Za-z0-9_-]{11}\/hqdefault\.jpg"/g) || []); return files.length === 25 && files.every(function (f) { return /\.jpg$/.test(f); }) && thumbs.length >= 16 && JSON.stringify(kdramasJson).indexOf('assets/') < 0 && appjs.indexOf('assets/dramas/') < 0; })());
   check('1.5.55 rutas: logo, icono y 8 capturas de Fantore existen en assets/fantore sin el prefijo', (function () { var all = [featuredJson.game.logo, featuredJson.game.icon].concat(featuredJson.screenshots); return all.length === 10 && all.every(function (f) { return typeof f === 'string' && f.indexOf('fantore/') === 0 && fs.existsSync(path.join(__dirname, '..', 'assets', f)); }) && appjs.indexOf("'fantore/logo.png'") >= 0 && appjs.indexOf("'fantore/icon.png'") >= 0; })());
-  check('1.5.60 caché: la clave de dramas es nueva (1560) y la del juego destacado sigue en 1555, para que el teléfono ignore el catálogo viejo de DramaBox', /wordred_kdramas1560/.test(appjs) && /wordred_featuredgame1555/.test(appjs) && /wordred_kdramas1558/.test(appjs) === false && /wordred_featuredgame1554/.test(appjs) === false);
+  check('1.5.61 caché: la clave de dramas es nueva (1561) y la del juego destacado sigue en 1555, para que el teléfono ignore el catálogo viejo de la 1.5.60', /wordred_kdramas1561/.test(appjs) && /wordred_featuredgame1555/.test(appjs) && /wordred_kdramas1560/.test(appjs) === false && /wordred_featuredgame1554/.test(appjs) === false);
   /* (2) A prueba de fallos: si una imagen no carga, se ve el nombre. */
   check('1.5.55 a prueba de fallos: existe el respaldo si una imagen no carga (nunca un hueco vacío)', /window\.__wrImgFail1555 = function/.test(appjs));
   check('1.5.55 a prueba de fallos: las tarjetas de dramas, el logo del juego, el icono del cajón, la imagen del visor y las capturas usan el respaldo', (function () { var b = fnBody(appjs, 'renderKdramaHome1549'); var g = fnBody(appjs, 'featuredGameInner1549'); var l = fnBody(appjs, 'launcherIconHtml'); var r = fnBody(appjs, 'featuredGameRepaintPage1549'); return b.indexOf("__wrImgFail1555(this,\\'dramaTile\\')") >= 0 && g.indexOf("__wrImgFail1555(this,\\'gameLogo\\')") >= 0 && l.indexOf("__wrImgFail1555(this,\\'appIcon\\'") >= 0 && r.indexOf("__wrImgFail1555(this,\\'gameShot\\')") >= 0 && idx.indexOf("onerror=\"window.__wrImgFail1555(this,'kdViewer')\"") >= 0; })());
@@ -5102,9 +5102,9 @@ async function static1555() {
   check('1.5.55 reels verticales: la orientación se guarda al subir el reel, se mide al cargar sus metadatos y viaja con la publicación', /function tagVideoOrientation1555/.test(appjs) && /function measureReelOrientation1555/.test(appjs) && /function recordReelOrientation1555/.test(appjs) && /orientation: morient/.test(corejs) && /orientation: m\.orientation \|\| ''/.test(appjs));
   check('1.5.55 reels verticales: el video de ejemplo es horizontal (900×544) y queda guardado para que la fila de arriba no lo muestre', (function () { var i = corejs.indexOf("key: 'ejemplo-video'"); return i >= 0 && corejs.slice(i, i + 500).indexOf("videoOrientation: 'horizontal'") >= 0; })());
   /* (5) FAQ y versión. */
-  check('1.5.60 FAQ: una sola entrada de novedades (la de la 1.5.60 nueva, la de la 1.5.59 corta, sin la de la 1.5.58)', appjs.indexOf('¿Qué hay de nuevo en la 1.5.60?') >= 0 && appjs.indexOf('¿Qué hay de nuevo en la 1.5.59?') >= 0 && appjs.indexOf('¿Qué hay de nuevo en la 1.5.58?') < 0);
-  check('1.5.60 FAQ: las respuestas de novedades tienen 400 caracteres o menos', (function () { function ans(q) { var i = appjs.indexOf(q); if (i < 0) return ''; var s = appjs.indexOf("a: '", i); if (s < 0) return ''; var e = appjs.indexOf("'", s + 4); return appjs.slice(s + 4, e); } var a60 = ans('¿Qué hay de nuevo en la 1.5.60?'); var a59 = ans('¿Qué hay de nuevo en la 1.5.59?'); return a60.length > 0 && a60.length <= 400 && a59.length > 0 && a59.length <= 400; })());
-  check('1.5.59 versión: app-version.json dice 1.5.59/74 (lo que publica el servidor; la 1.5.60/75 se pone al publicar)', appVersion.versionName === '1.5.59' && appVersion.versionCode === 74);
+  check('1.5.61 FAQ: una sola entrada de novedades (la de la 1.5.61 nueva, la de la 1.5.60 corta, sin la de la 1.5.59)', appjs.indexOf('¿Qué hay de nuevo en la 1.5.61?') >= 0 && appjs.indexOf('¿Qué hay de nuevo en la 1.5.60?') >= 0 && appjs.indexOf('¿Qué hay de nuevo en la 1.5.59?') < 0);
+  check('1.5.61 FAQ: las respuestas de novedades tienen 400 caracteres o menos', (function () { function ans(q) { var i = appjs.indexOf(q); if (i < 0) return ''; var s = appjs.indexOf("a: '", i); if (s < 0) return ''; var e = appjs.indexOf("'", s + 4); return appjs.slice(s + 4, e); } var a61 = ans('¿Qué hay de nuevo en la 1.5.61?'); var a60 = ans('¿Qué hay de nuevo en la 1.5.60?'); return a61.length > 0 && a61.length <= 400 && a60.length > 0 && a60.length <= 400; })());
+  check('1.5.60 versión: app-version.json dice 1.5.60/75 (lo que publica el servidor; la 1.5.61/76 se pone al publicar)', appVersion.versionName === '1.5.60' && appVersion.versionCode === 75);
   /* (6) Servidor sin cambio. */
   check('1.5.60 servidor: pasa a 4.7 (readKdramas acepta DramaBox y dramas originales y pasa los subtítulos; nada más cambia)', /version: '4.7'/.test(serverjs));
 
@@ -5119,7 +5119,7 @@ async function static1555() {
   /* (2) Los 45 capítulos gratis son videos de YouTube de DramaBox,
      iguales en kdramas.json y en el catálogo horneado (11 + 9 + 8 + 7
      + 10); los capítulos de miembros no traen videoId. */
-  check('1.5.60 videos: los capítulos con video son de Cloudinary (los 6 de la 1.5.57 más los nuevos de la 1.5.60) y todos traen subtítulos es/en/pt', (function () { var v = []; if (!Array.isArray(kdramasJson.kdramas)) return false; kdramasJson.kdramas.forEach(function (s) { if (!Array.isArray(s.chapters)) return; s.chapters.forEach(function (c) { if (c.video) v.push([s.id, c.n, c.video, c.subtitles]); }); }); return v.length >= 6 && v.every(function (x) { return typeof x[2] === 'string' && x[2].indexOf('https://res.cloudinary.com/') === 0 && x[3] && typeof x[3].es === 'string' && x[3].es.indexOf('https://') === 0 && typeof x[3].en === 'string' && x[3].en.indexOf('https://') === 0 && typeof x[3].pt === 'string' && x[3].pt.indexOf('https://') === 0; }) && v.filter(function (x) { return x[0] === 'el-contrato-de-la-heredera'; }).length === 4 && v.filter(function (x) { return x[0] === 'la-venganza-de-camila'; }).length >= 2; })());
+  check('1.5.61 videos: las 16 entradas gratis son videos de YouTube (videoId de 11 caracteres, miniatura de YouTube)', (function () { var v = []; if (!Array.isArray(kdramasJson.kdramas)) return false; kdramasJson.kdramas.forEach(function (s) { if (!Array.isArray(s.eps)) return; s.eps.forEach(function (e) { if (e.videoId) v.push([s.id, e.ep, e.videoId, e.thumb]); }); }); return v.length === 16 && v.every(function (x) { return typeof x[2] === 'string' && /^[A-Za-z0-9_-]{11}$/.test(x[2]) && typeof x[3] === 'string' && x[3] === 'https://i.ytimg.com/vi/' + x[2] + '/hqdefault.jpg'; }) && v.filter(function (x) { return x[0] === 'la-doble-vida-de-mi-esposo-multimillonario'; }).length === 1 && v.filter(function (x) { return x[0] === 'el-renacer-de-la-esposa-gorda'; }).length === 1; })());
 
 }
 
@@ -5133,19 +5133,19 @@ async function static1556() {
   const mainAct = fs.readFileSync(path.join(__dirname, '..', 'src', 'com', 'wordred', 'app', 'MainActivity.java'), 'utf8');
   const fnBody = function (src, name) { const i = src.indexOf('function ' + name + '('); if (i < 0) return ''; const j = src.indexOf('\nfunction ', i + 10); return src.slice(i, j < 0 ? src.length : j); };
   const videoUrls = [];
-  kdramasJson.kdramas.forEach(function (s) { (s.chapters || []).forEach(function (c) { if (c.video) videoUrls.push([s.id, c.n, c.video]); }); });
+  kdramasJson.kdramas.forEach(function (s) { (s.eps || []).forEach(function (e) { if (e.videoId) videoUrls.push([s.id, e.ep, e.videoId]); }); });
   /* (1) Versión 1.5.58/73 en el proyecto (app-version.json del árbol
      del servidor lo actualiza el padre al publicar, no se revisa aquí). */
-  check('1.5.58 versión: APP_VERSION_NAME 1.5.58 y APP_VERSION_CODE 73 en app.js', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs));
-  check('1.5.58 versión: AndroidManifest.xml dice 73/1.5.58', /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
+  check('1.5.58 versión: APP_VERSION_NAME 1.5.58 y APP_VERSION_CODE 73 en app.js', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs));
+  check('1.5.58 versión: AndroidManifest.xml dice 73/1.5.58', /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
   /* (2) Los 6 videos: 4 de El contrato de la heredera + 2 de La
      venganza de Camila, en Cloudinary, iguales en kdramas.json y en el
      catálogo horneado; los otros 14 capítulos no tienen video todavía
      (el cap. 2 de Camila se recuperó de su URL remota tras fallar la
      generación, y se subió por el mismo relay). */
-  check('1.5.60 videos: kdramas.json trae los capítulos con video de Cloudinary (6 o más)', videoUrls.length >= 6 && videoUrls.every(function (v) { return typeof v[2] === 'string' && v[2].indexOf('https://res.cloudinary.com/') === 0; }) && videoUrls.filter(function (v) { return v[0] === 'el-contrato-de-la-heredera'; }).length === 4 && videoUrls.filter(function (v) { return v[0] === 'la-venganza-de-camila'; }).length >= 2);
-  check('1.5.60 videos: el catálogo horneado trae los mismos videos de Cloudinary que kdramas.json', videoUrls.every(function (v) { return appjs.indexOf('"video": "' + v[2] + '"') >= 0; }) && (appjs.match(/"video": "https:\/\/res\.cloudinary\.com\/[^"]+"/g) || []).length >= 6);
-  check('1.5.60 videos: cada drama trae al menos 4 capítulos (20 en total por ahora; los capítulos 5-20 llegan uno por día)', kdramasJson.kdramas.every(function (s) { return Array.isArray(s.chapters) && s.chapters.length >= 4; }) && kdramasJson.kdramas.reduce(function (n, s) { return n + (Array.isArray(s.chapters) ? s.chapters.length : 0); }, 0) === 20);
+  check('1.5.61 videos: kdramas.json trae las 16 entradas gratis de YouTube (videoId de 11 caracteres)', videoUrls.length === 16 && videoUrls.every(function (v) { return typeof v[2] === 'string' && /^[A-Za-z0-9_-]{11}$/.test(v[2]); }) && videoUrls.filter(function (v) { return v[0] === 'la-doble-vida-de-mi-esposo-multimillonario'; }).length === 1 && videoUrls.filter(function (v) { return v[0] === 'mama-papa-es-invencible'; }).length === 1);
+  check('1.5.61 videos: el catálogo horneado trae los mismos videoIds de YouTube que kdramas.json', videoUrls.every(function (v) { return appjs.indexOf('"videoId": "' + v[2] + '"') >= 0; }) && (appjs.match(/"videoId": "[A-Za-z0-9_-]{11}"/g) || []).length === 16);
+  check('1.5.61 videos: cada serie trae 1 entrada gratis (16 en total; los capítulos que no son gratis dicen «Disponible en [App]»)', kdramasJson.kdramas.every(function (s) { return Array.isArray(s.eps) && s.eps.length === 1; }) && kdramasJson.kdramas.reduce(function (n, s) { return n + (Array.isArray(s.eps) ? s.eps.length : 0); }, 0) === 16);
   /* (3) El visor es de video de YouTube (iframe con el patrón
      ShortsSound en la página; en el teléfono, el reproductor nativo
      con base https). */
@@ -5160,7 +5160,7 @@ async function static1556() {
   check('1.5.58 visor: no queda texto largo en el visor (sin kdText1549 ni kdTextBody1549 en app.js ni en index.html)', appjs.indexOf('kdText1549') < 0 && appjs.indexOf('kdTextBody1549') < 0 && idx.indexOf('kdText1549') < 0 && idx.indexOf('kdTextBody1549') < 0);
   check('1.5.58 visor: en pantalla solo van el título del drama y «Capítulo N de TOTAL · título»', /kdEpTitle1549/.test(idx) && /kdSeriesTitle1549/.test(idx) && (function () { var b = fnBody(appjs, 'kdLoadCurrent1549'); return b.indexOf("kdEpLabel1549(ch) + ' · ' + ch.title") >= 0; })());
   check('1.5.58 visor: la barra del reproductor queda por encima del área de capítulos (no se tapa con ella)', /\.kdVideoWrap1556 \.wrBar\{bottom:112px\}/.test(idx));
-  check('1.5.58 visor: el capítulo de miembros muestra su portada con «Disponible en DramaBox», sin botón ni enlace', /id="kdMember1558"/.test(idx) && /Disponible en DramaBox/.test(idx) && (function () { var b = fnBody(appjs, 'kdLoadCurrent1549'); return b.indexOf('kdMember1558') >= 0 && b.indexOf('img.src = ch.thumb') >= 0; })() && (function () { var b = fnBody(appjs, 'kdOpenChapters1549'); return b.indexOf('kdSheetMember1558') >= 0 && b.indexOf('Disponible en DramaBox') >= 0; })());
+  check('1.5.61 visor: el capítulo de miembros muestra su portada con «Disponible en [App]», sin botón ni enlace', /id="kdMember1558"/.test(idx) && (function () { var b = fnBody(appjs, 'kdLoadCurrent1549'); return b.indexOf('kdMember1558') >= 0 && b.indexOf('kdMemberText1561(s)') >= 0 && b.indexOf('img.src = ch.thumb') >= 0; })() && (function () { var b = fnBody(appjs, 'kdOpenChapters1549'); return b.indexOf('kdSheetMember1558') >= 0 && b.indexOf('kdMemberText1561(s)') >= 0; })() && (function () { var y = fs.readFileSync(path.join(__dirname, '..', 'assets', 'ytplayer.html'), 'utf8'); return y.indexOf("Disponible en ' + esc(appTag(s)) + '") >= 0; })());
   check('1.5.58 visor: si el video no carga, sale el error con Reintentar (y el respaldo de Cloudinary sigue como función)', /window\.__wrKdYtRetry1558 = function/.test(appjs) && /kdYtShowErr1558/.test(appjs) && /Reintentar/.test(idx) && /window\.__wrKdVideoFail1556 = function/.test(appjs));
   /* (4) Gestos iguales que antes, sobre todo el escenario, sin
      romper los controles del reproductor. */
@@ -5169,7 +5169,7 @@ async function static1556() {
   check('1.5.58 gestos: al cerrar el visor se para el video y se limpia la imagen', (function () { var b = fnBody(appjs, 'kdStopNovel1549'); return b.indexOf('kdYtStop1558()') >= 0 && b.indexOf('v.pause()') >= 0 && b.indexOf('removeAttribute') >= 0; })());
   /* (5) Validador, caché, FAQ, servidor y reproductor nativo. */
   check('1.5.60 validador: doble forma — los originales (chapters con texto largo, video opcional y subtítulos es/en/pt) y DramaBox (totalEps, eps con videoId de 11 caracteres y miniatura) pasan los dos', (function () { var b = fnBody(appjs, 'kdramasValid1554'); return b.indexOf('totalEps') >= 0 && b.indexOf('e.videoId') >= 0 && b.indexOf('e.thumb') >= 0 && b.indexOf('c.text.length > 100') >= 0 && b.indexOf('Array.isArray(s.chapters)') >= 0 && b.indexOf('c.subtitles') >= 0; })());
-  check('1.5.60 caché: la clave es wordred_kdramas1560 (la vieja 1558 ya no se usa)', /wordred_kdramas1560/.test(appjs) && /wordred_kdramas1558/.test(appjs) === false);
+  check('1.5.61 caché: la clave es wordred_kdramas1561 (la vieja 1560 ya no se usa)', /wordred_kdramas1561/.test(appjs) && /wordred_kdramas1560/.test(appjs) === false);
   check('1.5.60 FAQ: la entrada de la 1.5.60 existe, la de la 1.5.58 no, y el total sigue en 29', (function () { var m = appjs.match(/var FAQ = \[([\s\S]*?)\];/); var block = m ? m[1] : ''; return block.indexOf('¿Qué hay de nuevo en la 1.5.60?') >= 0 && block.indexOf('¿Qué hay de nuevo en la 1.5.58?') < 0 && (block.match(/\{ q: '/g) || []).length === 29; })());
   check('1.5.60 servidor: pasa a 4.7 (readKdramas acepta DramaBox y originales y pasa los subtítulos; nada más cambia)', /version: '4.7'/.test(serverjs) && serverjs.indexOf("app.get('/api/kdramas'") >= 0 && serverjs.indexOf('isDramaBox') >= 0 && serverjs.indexOf('isOriginal') >= 0 && serverjs.indexOf('ch.subtitles = subs') >= 0);
   /* (6) Reproductor nativo (segundo WebView con base https): en el
@@ -5208,7 +5208,7 @@ async function static1558() {
   check('1.5.58 publicar: una programada solo se quita al confirmar su publicación (si falla, se guarda como borrador)', (function () { var b = fnBody(appjs, 'publishDueScheduled1526'); return b.indexOf('confirmPostPublish1529') >= 0 || b.indexOf('publishCreatedPost1529') >= 0; })());
 }
 async function static1560() {
-  console.log('=== 111. WordRed 1.5.60: dramas originales con subtítulos, Reels rectángulos, videos que caben en su publicación, tráilers dentro de la app y Navegador interno ===');
+  console.log('=== 111. WordRed 1.5.61: dramas originales con subtítulos, Reels rectángulos, videos que caben en su publicación, tráilers dentro de la app y Navegador interno ===');
   const idx = fs.readFileSync(path.join(__dirname, '..', 'assets', 'index.html'), 'utf8');
   const appjs = fs.readFileSync(path.join(__dirname, '..', 'assets', 'app.js'), 'utf8');
   const mainAct = fs.readFileSync(path.join(__dirname, '..', 'src', 'com', 'wordred', 'app', 'MainActivity.java'), 'utf8');
@@ -5217,13 +5217,13 @@ async function static1560() {
   const kdramasJson = JSON.parse(fs.readFileSync(path.join(process.env.HOME, 'workspace', 'wordred-server-v35', 'kdramas.json'), 'utf8'));
   const fnBody = function (src, name) { const i = src.indexOf('function ' + name + '('); if (i < 0) return ''; const j = src.indexOf('\nfunction ', i + 10); return src.slice(i, j < 0 ? src.length : j); };
   /* (0) Versión 1.5.60 / 75 en todas partes. */
-  check('1.5.60 versión: app.js y AndroidManifest dicen 1.5.60 / 75', /var APP_VERSION_CODE = 75;/.test(appjs) && /var APP_VERSION_NAME = '1.5.60';/.test(appjs) && /android:versionCode="75"/.test(manifest) && /android:versionName="1.5.60"/.test(manifest));
+  check('1.5.60 versión: app.js y AndroidManifest dicen 1.5.60 / 75', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs) && /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
   /* (1) «¿Qué estás pensando?» ARRIBA de las destacadas; Gamer Premium se queda abajo. */
   check('1.5.60 perfil: «¿Qué estás pensando?» va ANTES de las secciones destacadas y de Gamer Premium', (function () { var b = fnBody(appjs, 'renderOwnProfile'); return b.indexOf('thinkBoxHtml1559()') >= 0 && b.indexOf('thinkBoxHtml1559()') < b.indexOf('pinnedCoverHtml1526()') && b.indexOf('thinkBoxHtml1559()') < b.indexOf('featuredGameProfileHtml1559()'); })());
   check('1.5.60 perfil: Gamer Premium sigue abajo de las destacadas, antes de «Mis publicaciones»', (function () { var b = fnBody(appjs, 'renderOwnProfile'); return b.indexOf('featuredGameProfileHtml1559()') >= 0 && b.indexOf('featuredGameProfileHtml1559()') < b.indexOf('Mis publicaciones'); })());
   /* (2) Dramas originales con doble forma y subtítulos CC. */
   check('1.5.60 dramas: el validador acepta las dos formas (originales con chapters y DramaBox con eps)', (function () { var b = fnBody(appjs, 'kdramasValid1554'); return b.indexOf('Array.isArray(s.chapters)') >= 0 && b.indexOf('totalEps') >= 0 && b.indexOf('c.subtitles') >= 0; })());
-  check('1.5.60 dramas: kdramas.json y el catálogo horneado son los 5 dramas originales (20 capítulos; los de video con subtítulos es/en/pt)', kdramasJson.kdramas.length === 5 && kdramasJson.kdramas.every(function (s) { return Array.isArray(s.chapters) && s.chapters.length >= 4; }) && kdramasJson.kdramas.reduce(function (n, s) { return n + s.chapters.length; }, 0) === 20 && (appjs.match(/"video": "https:\/\/res\.cloudinary\.com\/[^"]+"/g) || []).length >= 6);
+  check('1.5.61 dramas: kdramas.json y el catálogo horneado son el mezclado (16 series, 16 entradas gratis: 14 ReelShort + 2 ShortMax; cada entrada con videoId de 11 caracteres y miniatura de YouTube)', kdramasJson.kdramas.length === 16 && kdramasJson.kdramas.filter(function (s) { return s.source === 'ReelShort'; }).length === 14 && kdramasJson.kdramas.filter(function (s) { return s.source === 'ShortMax'; }).length === 2 && kdramasJson.kdramas.every(function (s) { return Array.isArray(s.eps) && s.eps.length === 1 && s.totalEps >= 1 && s.eps[0].videoId.length === 11 && /^https:\/\/i\.ytimg\.com\/vi\//.test(s.eps[0].thumb) && !s.chapters; }) && (appjs.match(/"source": "ReelShort"/g) || []).length === 14);
   check('1.5.60 dramas: el visor carga el video de Cloudinary del capítulo y sus subtítulos (CC con idioma)', (function () { var b = fnBody(appjs, 'kdLoadCurrent1549'); return b.indexOf('ch.video') >= 0 && b.indexOf('kdVideo1556') >= 0 && b.indexOf('kdLoadSubs1560(ch)') >= 0 && b.indexOf('__wrKdSubs1560') >= 0; })() && /function kdLoadSubs1560/.test(appjs) && /function kdParseVtt1560/.test(appjs) && /window\.__wrKdSubLang1560 = function/.test(appjs) && /id="kdCcBtn1560"/.test(idx) && /id="kdSubMenu1560"/.test(idx) && idx.indexOf('Sin subtítulos') >= 0);
   check('1.5.60 dramas: el capítulo sin video muestra su imagen de escena con «Próximamente en video» (nunca la tarjeta de miembros)', (function () { var b = fnBody(appjs, 'kdLoadCurrent1549'); return b.indexOf("soon.classList.remove('hidden')") >= 0 && b.indexOf('ch.member') >= 0; })() && /id="kdSoon1556"/.test(idx));
   check('1.5.60 dramas: el reproductor de DramaBox sigue (no se borró) para catálogos viejos', /openDramaPlayer/.test(appjs) && /window\.__wrDramaOpen/.test(yt) && /ch\.videoId/.test(fnBody(appjs, 'kdLoadCurrent1549')));
@@ -5249,6 +5249,44 @@ async function static1560() {
   check('1.5.60 ajustes: el menú CC de dramas marca el idioma activo en rojo', /data-sub-lang="es"/.test(idx) && /data-sub-lang="off"/.test(idx) && /#kdramaOverlay1549 \.kdSubMenu1560 button\.on\{background:linear-gradient\(135deg,#FF2E4D,#E60026\)\}/.test(idx) && /data-sub-lang.*kdSubLang1560/.test(appjs));
   check('1.5.60 ajustes: SIN texto al pie en las hojas de ajustes (corrección 11:03 CST; el pie estándar donde existe no se toca)', idx.indexOf('Diseñada y Creada por Mistery Store Play') < 0 && appjs.indexOf('Diseñada y Creada por Mistery Store Play') < 0 && (idx.match(/Creada y diseñada por Mistery Store Play/g) || []).length === 3);
 }
+
+async function static1561() {
+  console.log('=== 112. WordRed 1.5.61: dramas mezclados ReelShort + ShortMax, pantalla completa con rotación y resplandor al conectar el cargador ===');
+  const idx = fs.readFileSync(path.join(__dirname, '..', 'assets', 'index.html'), 'utf8');
+  const appjs = fs.readFileSync(path.join(__dirname, '..', 'assets', 'app.js'), 'utf8');
+  const mainAct = fs.readFileSync(path.join(__dirname, '..', 'src', 'com', 'wordred', 'app', 'MainActivity.java'), 'utf8');
+  const bgSvc = fs.readFileSync(path.join(__dirname, '..', 'src', 'com', 'wordred', 'app', 'WordRedBackgroundService.java'), 'utf8');
+  const yt = fs.readFileSync(path.join(__dirname, '..', 'assets', 'ytplayer.html'), 'utf8');
+  const manifest = fs.readFileSync(path.join(__dirname, '..', 'AndroidManifest.xml'), 'utf8');
+  const srv = fs.readFileSync(path.join(process.env.HOME, 'workspace', 'wordred-server-v35', 'server.js'), 'utf8');
+  const kdramasJson = JSON.parse(fs.readFileSync(path.join(process.env.HOME, 'workspace', 'wordred-server-v35', 'kdramas.json'), 'utf8'));
+  const verify61 = fs.readFileSync(path.join(process.env.HOME, 'workspace', 'kd150', 'verify61.jsonl'), 'utf8').trim().split('\n').map(function (l) { return JSON.parse(l); });
+  const fnBody = function (src, name) { const i = src.indexOf('function ' + name + '('); if (i < 0) return ''; const j = src.indexOf('\nfunction ', i + 10); return src.slice(i, j < 0 ? src.length : j); };
+  /* (0) Versión 1.5.61 / 76 en todas partes; el servidor sigue en 4.7 (kdramas.json sí cambia, server.js no). */
+  check('1.5.61 versión: app.js y AndroidManifest dicen 1.5.61 / 76', /var APP_VERSION_CODE = 76;/.test(appjs) && /var APP_VERSION_NAME = '1.5.61';/.test(appjs) && /android:versionCode="76"/.test(manifest) && /android:versionName="1.5.61"/.test(manifest));
+  check('1.5.61 servidor: sigue en 4.7 (sin cambio en server.js)', /version: '4.7'/.test(srv));
+  /* (1) Catálogo mezclado: composición y evidencia video por video. */
+  check('1.5.61 dramas: verify61.jsonl trae 68 videos revisados (16 incluidos, 52 excluidos) y los 16 incluidos son es/es-US, verticales 1080x1920 y embebibles', verify61.length === 68 && verify61.filter(function (v) { return v.estado === 'incluido'; }).length === 16 && verify61.filter(function (v) { return v.estado === 'incluido'; }).every(function (v) { return (v.idioma === 'es' || v.idioma === 'es-US') && v.embebible === true && v.resolucion === '1080x1920'; }) && verify61.filter(function (v) { return v.app === 'DramaBox'; }).every(function (v) { return v.estado === 'excluido'; }));
+  check('1.5.61 dramas: kdramas.json es el mezclado (16 series: 14 ReelShort + 2 ShortMax, 0 en inglés, 0 originales)', kdramasJson.kdramas.length === 16 && kdramasJson.kdramas.filter(function (x) { return x.source === 'ReelShort'; }).length === 14 && kdramasJson.kdramas.filter(function (x) { return x.source === 'ShortMax'; }).length === 2 && kdramasJson.kdramas.every(function (x) { return !x.chapters && Array.isArray(x.eps) && x.eps.length === 1 && x.eps[0].videoId.length === 11; }));
+  /* (2) Etiqueta por app y texto de miembros por app (nada de «Disponible en DramaBox» fijo). */
+  check('1.5.61 dramas: la etiqueta sale de `source` (ReelShort, ShortMax, DramaBox) y la sección la pinta', fnBody(appjs, 'kdAppTag1561').indexOf("if (src === 'reelshort') return 'ReelShort'") >= 0 && fnBody(appjs, 'kdAppTag1561').indexOf("if (src === 'shortmax') return 'ShortMax'") >= 0 && fnBody(appjs, 'renderKdramaHome1549').indexOf('kdAppTag1561(s)') >= 0);
+  check('1.5.61 dramas: la hoja de capítulos y la tarjeta de miembros dicen la aplicación de ESA serie', fnBody(appjs, 'kdOpenChapters1549').indexOf('kdMemberText1561(s)') >= 0 && fnBody(appjs, 'kdLoadCurrent1549').indexOf('kdMemberText1561(s)') >= 0 && appjs.indexOf("'Disponible en DramaBox'") < 0 && appjs.indexOf('"Disponible en DramaBox"') < 0 && appjs.indexOf('<span class="kdSheetMember1558">Disponible en DramaBox</span>') < 0);
+  check('1.5.61 dramas: ytplayer.html también pinta la app por serie (título, tarjeta y hoja) y busca el capítulo por número', yt.indexOf('function appTag') >= 0 && yt.indexOf("Disponible en ' + esc(appTag(s)) + '") >= 0 && yt.indexOf("id=\"memberTitle\"") >= 0 && yt.indexOf('eps[i].ep === n') >= 0);
+  /* (3) Validador y capítulo tolerantes a huecos (un capítulo gratis que falta no duplica el número). */
+  check('1.5.61 dramas: el validador acepta capítulos gratis no consecutivos (números que suben dentro de 1..totalEps)', fnBody(appjs, 'kdramasValid1554').indexOf('e.ep > s.eps[i - 1].ep') >= 0 && fnBody(appjs, 'kdramasValid1554').indexOf('e.ep === i + 1') < 0);
+  check('1.5.61 dramas: kdChapterAt1558 busca el capítulo por su número, no por posición', fnBody(appjs, 'kdChapterAt1558').indexOf('eps[i].ep === n') >= 0);
+  /* (4) FAQ: entra la 1.5.61 (<=400), sale la 1.5.59, la 1.5.60 se acorta; total 29. */
+  check('1.5.61 FAQ: entra la 1.5.61, sale la 1.5.59 y la 1.5.60 se acorta (total 29)', appjs.indexOf("¿Qué hay de nuevo en la 1.5.61?") >= 0 && appjs.indexOf("¿Qué hay de nuevo en la 1.5.59?") < 0 && (function () { var m = appjs.match(/\{ q: '¿Qué hay de nuevo en la 1\.5\.61\?', a: '([^']*)' \}/); var m60 = appjs.match(/\{ q: '¿Qué hay de nuevo en la 1\.5\.60\?', a: '([^']*)' \}/); return !!m && m[1].length <= 400 && !!m60 && m60[1].length <= 400; })() && (appjs.match(/\{ q: '/g) || []).length >= 29);
+  /* (5) Pantalla completa con rotación en los videos del muro (mismo reproductor para viejos y nuevos). */
+  check('1.5.61 video: el muro usa un solo reproductor completo (mediaItemHtml, mediaHtml y videoWithEditsHtml pasan por wrPlayerHtml; sin controles nativos)', fnBody(appjs, 'mediaItemHtml').indexOf('wrPlayerHtml(') >= 0 && fnBody(appjs, 'mediaHtml').indexOf('videoWithEditsHtml(') >= 0 && fnBody(appjs, 'videoWithEditsHtml').indexOf('wrPlayerHtml(') >= 0 && !/<video[^>]*controls/.test(appjs));
+  check('1.5.61 video: la barra trae play/pausa, progreso, tiempo, silencio, CC, pantalla completa y velocidades', (function () { var b = fnBody(appjs, 'wrBarHtml'); return b.indexOf('wrPlay') >= 0 && b.indexOf('wrProg') >= 0 && b.indexOf('wrTime') >= 0 && b.indexOf('wrMute') >= 0 && b.indexOf('wrCc') >= 0 && b.indexOf('wrFull') >= 0 && b.indexOf('wrSpeedMenu') >= 0 && b.indexOf('[0.5, 0.75, 1, 1.25, 1.5, 2]') >= 0; })());
+  check('1.5.61 video: el botón de pantalla completa cambia de icono al entrar/salir (expandir/comprimir)', /compress: '<path/.test(appjs) && appjs.indexOf("document.addEventListener('fullscreenchange'") >= 0 && appjs.indexOf("ic(full ? 'compress' : 'expand', 20)") >= 0);
+  check('1.5.61 video: el lado nativo muestra la vista a pantalla completa y gira a horizontal; al salir vuelve a vertical y el botón de regresar sale de la pantalla completa', mainAct.indexOf('onShowCustomView') >= 0 && mainAct.indexOf('SCREEN_ORIENTATION_SENSOR_LANDSCAPE') >= 0 && mainAct.indexOf('SCREEN_ORIENTATION_PORTRAIT') >= 0 && mainAct.indexOf('hideMainCustomView1561') >= 0 && mainAct.indexOf('if (mainCustomView1561 != null) { hideMainCustomView1561(); return; }') >= 0);
+  /* (6) Resplandor al conectar el cargador: rojo, solo orillas, de abajo hacia arriba, transitorio. */
+  check('1.5.61 cargador: el resplandor es un borde rojo como neblina (#E60026) que sube de abajo hacia arriba y se apaga solo', /#chargerGlow1561\{[^}]*box-shadow:inset[^}]*rgba\(230,0,38/.test(idx) && /@keyframes chargerGlowRise1561\{0%\{opacity:0;clip-path:inset\(100% 0 0 0\)/.test(idx) && idx.indexOf('id="chargerGlow1561"') >= 0 && /#chargerGlow1561\.on\{animation:chargerGlowRise1561 1\.5s/.test(idx));
+  check('1.5.61 cargador: la app expone __wrChargerGlow1561 y el lado nativo lo dispara al conectar el cargador (actividad + servicio)', /window\.__wrChargerGlow1561 = function/.test(appjs) && mainAct.indexOf('ACTION_POWER_CONNECTED') >= 0 && mainAct.indexOf('onChargerConnected1561') >= 0 && mainAct.indexOf('wordred_charger1561') >= 0 && bgSvc.indexOf('ACTION_POWER_CONNECTED') >= 0 && bgSvc.indexOf('plug_at_ms') >= 0);
+}
+
 (async () => {
   try {
     await coreTests();
@@ -5301,12 +5339,13 @@ async function static1560() {
     await static1556();
     await static1558();
     await static1560();
+    await static1561();
     await serverTests();
   } catch (e) {
     fail++;
     console.log('FAIL: excepción no controlada — ' + (e && e.stack ? e.stack : e));
   }
   console.log('\n==============================');
-  console.log('WordRed v1.5.60 — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('WordRed v1.5.61 — ' + pass + ' PASS, ' + fail + ' FAIL');
   process.exit(fail ? 1 : 0);
 })();

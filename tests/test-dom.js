@@ -240,7 +240,7 @@ window.fetch = async (url, opts) => {
   if (u.includes('/api/health')) return ok({ ok: true, version: '1.4' });
   /* v1.5.19 punto 2: la última versión es la instalada (1.5.60): las
      revisiones en segundo plano no encuentran nada nuevo. */
-  if (u.includes('/api/app/latest')) return ok({ ok: true, versionName: '1.5.60', versionCode: 75, url: 'https://wordred-server.onrender.com/app/WordRed.apk', notes: '' });
+  if (u.includes('/api/app/latest')) return ok({ ok: true, versionName: '1.5.61', versionCode: 76, url: 'https://wordred-server.onrender.com/app/WordRed.apk', notes: '' });
   /* 1.5.40: la cartelera del servidor (GET /api/billboard): 2 películas
      distintas de la lista fija, para comprobar que la app pinta lo que
      devuelve el servidor y no la lista que lleva dentro. */
@@ -3998,28 +3998,28 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const elF17 = shF17 && shF17.ok ? window.document.querySelector('#feed .post[data-post="' + shF17.post.id + '"]') : null;
     check('v1.5.17 video chiquito: en un repost video+foto la foto distinta sí sigue viéndose', !!c17d && c17d.videos === 1 && !!elF17 && !!elF17.querySelector('.medialist img[src="https://srv/fotoF17.jpg"]'), JSON.stringify(c17d));
     // (14) v1.5.17 punto 2: buscar actualización en Ajustes.
-    check('v1.5.17 actualización: en Ajustes, hasta arriba, está el apartado de buscar actualización', (function () { window.__wrOpenSettings(); const h = window.document.querySelector('#settingsOverlay h3.sectitle'); return h && h.textContent === 'Actualización' && $('checkUpdateBtn') && /Buscar/.test($('checkUpdateBtn').textContent) && /1\.5\.60/.test($('updateCurrentVersion').textContent); })());
+    check('v1.5.17 actualización: en Ajustes, hasta arriba, está el apartado de buscar actualización', (function () { window.__wrOpenSettings(); const h = window.document.querySelector('#settingsOverlay h3.sectitle'); return h && h.textContent === 'Actualización' && $('checkUpdateBtn') && /Buscar/.test($('checkUpdateBtn').textContent) && /1\.5\.61/.test($('updateCurrentVersion').textContent); })());
     const origRetry17 = C17.serverFetchWithRetry;
     C17.serverFetchWithRetry = async function (state, path) {
-      if (path === '/api/app/latest') return { ok: true, data: { ok: true, versionName: '1.5.61', versionCode: 76, url: 'https://wordred-server.onrender.com/app/WordRed.apk', notes: 'Prueba de actualización' } };
+      if (path === '/api/app/latest') return { ok: true, data: { ok: true, versionName: '1.5.62', versionCode: 77, url: 'https://wordred-server.onrender.com/app/WordRed.apk', notes: 'Prueba de actualización' } };
       return origRetry17.apply(this, arguments);
     };
     st17.notifications = st17.notifications.filter(function (n) { return n.type !== 'update'; });
     calls.notifications = [];
     calls.installApk = [];
     await T17.checkAppUpdate({ silent: true });
-    check('v1.5.17 actualización: con versión nueva aparece el aviso en la campana', st17.notifications.some(function (n) { return n.type === 'update' && n.refId === '76'; }));
+    check('v1.5.17 actualización: con versión nueva aparece el aviso en la campana', st17.notifications.some(function (n) { return n.type === 'update' && n.refId === '77'; }));
     check('v1.5.17 actualización: con versión nueva llega la notificación del celular', calls.notifications.filter(function (n) { return /actualización/.test(n.x || ''); }).length === 1, JSON.stringify(calls.notifications));
     await T17.checkAppUpdate({ silent: true });
     check('v1.5.17 actualización: la segunda revisión no repite ni la campana ni la notificación del celular', st17.notifications.filter(function (n) { return n.type === 'update'; }).length === 1 && calls.notifications.filter(function (n) { return /actualización/.test(n.x || ''); }).length === 1);
     T17.openUpdateDialog(T17.getAppUpdateInfo());
-    check('v1.5.17 actualización: el diálogo muestra la versión nueva y el botón Instalar', $('updateOverlay').classList.contains('on') && /1\.5\.61/.test($('updateBody').textContent) && !$('updateInstallBtn').classList.contains('hidden'));
+    check('v1.5.17 actualización: el diálogo muestra la versión nueva y el botón Instalar', $('updateOverlay').classList.contains('on') && /1\.5\.62/.test($('updateBody').textContent) && !$('updateInstallBtn').classList.contains('hidden'));
     check('v1.5.17 actualización: el diálogo lleva transparencia atrás', /rgba\(26,\s*12,\s*15/.test($('updateOverlay').querySelector('.glass').style.background));
     window.__wrInstallUpdate();
     check('v1.5.17 actualización: Instalar descarga el APK real del servidor', calls.installApk.length === 1 && calls.installApk[0] === 'https://wordred-server.onrender.com/app/WordRed.apk', JSON.stringify(calls.installApk));
     // (14b) v1.5.19: si el servidor devuelve la URL con http, Instalar descarga por https.
     C17.serverFetchWithRetry = async function (state, path) {
-      if (path === '/api/app/latest') return { ok: true, data: { ok: true, versionName: '1.5.61', versionCode: 76, url: 'http://wordred-server.onrender.com/app/WordRed.apk', notes: 'Prueba http' } };
+      if (path === '/api/app/latest') return { ok: true, data: { ok: true, versionName: '1.5.62', versionCode: 77, url: 'http://wordred-server.onrender.com/app/WordRed.apk', notes: 'Prueba http' } };
       return origRetry17.apply(this, arguments);
     };
     calls.installApk = [];
@@ -4028,7 +4028,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     window.__wrInstallUpdate();
     check('v1.5.19 actualización: si el servidor devuelve la URL con http, Instalar descarga por https', calls.installApk.length === 1 && calls.installApk[0] === 'https://wordred-server.onrender.com/app/WordRed.apk', JSON.stringify(calls.installApk));
     C17.serverFetchWithRetry = async function (state, path) {
-      if (path === '/api/app/latest') return { ok: true, data: { ok: true, versionName: '1.5.60', versionCode: 75, url: 'https://wordred-server.onrender.com/app/WordRed.apk', notes: '' } };
+      if (path === '/api/app/latest') return { ok: true, data: { ok: true, versionName: '1.5.61', versionCode: 76, url: 'https://wordred-server.onrender.com/app/WordRed.apk', notes: '' } };
       return origRetry17.apply(this, arguments);
     };
     await T17.checkAppUpdate({ silent: false });
@@ -4045,7 +4045,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     st17.notifications = [
       { id: 'u-old', type: 'update', from: me17, to: me17, text: 'Hay una actualización disponible: WordRed 1.5.30.', refId: '45', createdAt: Date.now() - 86400000, read: false },
       { id: 'u-cur', type: 'update', from: me17, to: me17, text: 'Hay una actualización disponible: WordRed 1.5.45.', refId: '60', createdAt: Date.now() - 3600000, read: false },
-      { id: 'u-new', type: 'update', from: me17, to: me17, text: 'Hay una actualización disponible: WordRed 1.5.61.', refId: '76', createdAt: Date.now(), read: false },
+      { id: 'u-new', type: 'update', from: me17, to: me17, text: 'Hay una actualización disponible: WordRed 1.5.62.', refId: '77', createdAt: Date.now(), read: false },
       { id: 'n-like', type: 'like', from: '5522222222', to: me17, text: 'A Bruno le gusta tu publicación.', refId: 'post1', createdAt: Date.now(), read: false },
     ];
     T17.updateBadges();
@@ -4601,7 +4601,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     click(q('[data-close="composerOverlay"]'));
     // (9) El FAQ describe la vista previa grande y sigue con 23 entradas.
     check('v1.5.28 panel: el FAQ describe la vista previa grande al subir', T26.getFaq().filter(function (f) { return f.q === '¿Cómo publico algo?'; })[0].a.indexOf('vista previa grande') >= 0);
-    check('v1.5.28 panel: el FAQ tiene 29 entradas (23 + 1 en la 1.5.33 por el tutorial, +1 en la 1.5.36 por el menú, +3 en la 1.5.42 por la cartelera, los Reels y «Tu tiempo hoy», +1 en la 1.5.54 por los dramas originales y Fantore; en la 1.5.55 la entrada de la 1.5.53 se cambió por la de la 1.5.55; en la 1.5.56 la entrada de la 1.5.54 se cambió por la de la 1.5.56; en la 1.5.59 la entrada de la 1.5.57 se cambió por la de la 1.5.59 y la de la 1.5.58 se acortó; en la 1.5.60 la entrada de la 1.5.58 se quitó, se añadió la de la 1.5.60 y la de la 1.5.59 se acortó)', T26.getFaq().length === 29);
+    check('v1.5.28 panel: el FAQ tiene 29 entradas (23 + 1 en la 1.5.33 por el tutorial, +1 en la 1.5.36 por el menú, +3 en la 1.5.42 por la cartelera, los Reels y «Tu tiempo hoy», +1 en la 1.5.54 por los dramas originales y Fantore; en la 1.5.55 la entrada de la 1.5.53 se cambió por la de la 1.5.55; en la 1.5.56 la entrada de la 1.5.54 se cambió por la de la 1.5.56; en la 1.5.59 la entrada de la 1.5.57 se cambió por la de la 1.5.59 y la de la 1.5.58 se acortó; en la 1.5.61 la entrada de la 1.5.59 se quitó, se añadió la de la 1.5.61 y la de la 1.5.60 se acortó)', T26.getFaq().length === 29);
     // v1.5.28: del inicio se va "Sala de audio"; las salas siguen (desde Transmitir en vivo).
     T26.setLiveList([]);
     check('v1.5.28 inicio: sin lives no hay entrada de Salas de audio en el inicio', $('liveRow').innerHTML.indexOf('Salas de audio') < 0 && $('liveRow').classList.contains('hidden'));
@@ -5833,7 +5833,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check('v1.5.43 preguntas: Ajustes ya no trae la lista de preguntas suelta dentro', !$('settingsOverlay').querySelector('#faqList') && !$('settingsOverlay').querySelector('#faqTitle1542'));
     click($('settingsFaqBtn1542')); await tick();
     check('v1.5.43 preguntas: el botón «?» abre el panel de preguntas', $('faqOverlay1543').classList.contains('on'));
-    check('v1.5.43 preguntas: el panel trae las 29 preguntas (1.5.60: dramas originales, Reels rectángulos, tráilers y Navegador; 1.5.59: perfil, chat y muro), con las nuevas de la cartelera, los Reels y «Tu tiempo hoy»', qa('#faqOverlay1543 #faqList .faqItem').length === 29 && $('faqList').textContent.indexOf('¿Qué es la cartelera «Próximos estrenos»?') >= 0 && $('faqList').textContent.indexOf('¿Cómo quedaron los Reels?') >= 0 && $('faqList').textContent.indexOf('¿Dónde quedó «Tu tiempo hoy»?') >= 0 && $('faqList').textContent.indexOf('¿Qué hay de nuevo en la 1.5.60?') >= 0 && $('faqList').textContent.indexOf('¿Qué hay de nuevo en la 1.5.59?') >= 0 && $('faqList').textContent.indexOf('¿Qué hay de nuevo en la 1.5.58?') < 0, 'items=' + qa('#faqList .faqItem').length);
+    check('v1.5.43 preguntas: el panel trae las 29 preguntas (1.5.61: dramas mezclados, pantalla completa y resplandor del cargador; 1.5.60: dramas originales, Reels rectángulos, tráilers y Navegador), con las nuevas de la cartelera, los Reels y «Tu tiempo hoy»', qa('#faqOverlay1543 #faqList .faqItem').length === 29 && $('faqList').textContent.indexOf('¿Qué es la cartelera «Próximos estrenos»?') >= 0 && $('faqList').textContent.indexOf('¿Cómo quedaron los Reels?') >= 0 && $('faqList').textContent.indexOf('¿Dónde quedó «Tu tiempo hoy»?') >= 0 && $('faqList').textContent.indexOf('¿Qué hay de nuevo en la 1.5.61?') >= 0 && $('faqList').textContent.indexOf('¿Qué hay de nuevo en la 1.5.60?') >= 0 && $('faqList').textContent.indexOf('¿Qué hay de nuevo en la 1.5.59?') < 0, 'items=' + qa('#faqList .faqItem').length);
     var faqQ43 = q('#faqList .faqQ');
     if (faqQ43) faqQ43.click();
     check('v1.5.43 preguntas: tocar una pregunta muestra su respuesta dentro del panel', !!q('#faqList .faqItem.open'));
@@ -6558,18 +6558,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     myProfile26().note = ''; myProfile26().songOfTheDay = null; myProfile26().pinnedCover = ''; myProfile26().pinnedPosts = [];
     // --- 1.5.49 K-Dramas: sección fija en el Inicio, visor vertical dentro de la app ---
     // 1.5.52: el fetch de arranque ya pintó los dramas de prueba del simulador; volver a la lista fija para estas pruebas.
-    window.localStorage.removeItem('wordred_kdramas1558');
+    window.localStorage.removeItem('wordred_kdramas1561');
     T26.resetKdramas1554();
     T26.renderKdramaHome1549();
     var kdSec49 = $('homeKdrama1549');
     check('1.5.49 K-Dramas: la sección está en el Inicio, fija justo debajo de «+ Agregar apartado»', !!kdSec49 && kdSec49.parentElement === $('homeWidgets1536') && kdSec49.previousElementSibling === $('homeAddBtn1536'));
     check('1.5.49 K-Dramas: la sección NO lleva data-widget (no es un apartado editable)', !!kdSec49 && !kdSec49.hasAttribute('data-widget'));
     var kdTiles49 = qa('#kdramaReels1549 .reelTile');
-    check('1.5.60 Dramas: hay 5 portadas, una por drama, con su portada y la insignia «Original de WordRed»', kdTiles49.length === 5 && kdTiles49.every(function (t) { var im = t.querySelector('img'); return !!im && /^dramas\/.+-portada\.jpg$/.test(im.getAttribute('src')) && !!t.querySelector('.kdBadge1549') && t.querySelector('.kdBadge1549').textContent === 'Original de WordRed' && t.textContent.indexOf('4 capítulos') >= 0; }), 'tiles=' + kdTiles49.length);
-    check('1.5.60 Dramas: el catálogo trae los 5 dramas originales con 4 capítulos cada uno', (function () { var c = T26.getKdramaCatalog1549(); return c.length === 5 && c[0].name === 'El contrato de la heredera' && c[1].name === 'La venganza de Camila' && c[2].name === 'La doble vida de Elena' && c[3].name === 'Cartas a medianoche' && c[4].name === 'La otra yo' && c.every(function (s) { return s.chapters.length === 4; }); })());
-    check('1.5.60 Dramas: cada capítulo lleva su número, título, texto largo e imagen de escena', T26.getKdramaCatalog1549().every(function (s) { return s.chapters.every(function (ch, i) { return ch.n === i + 1 && !!ch.title && typeof ch.text === 'string' && ch.text.length > 100 && /^dramas\//.test(ch.image || ''); }); }));
-    check('1.5.60 Dramas: ningún drama de DramaBox queda en el catálogo (sin eps ni «DramaBox»)', T26.getKdramaCatalog1549().every(function (s) { return !s.eps && JSON.stringify(s).indexOf('DramaBox') < 0; }) && JSON.stringify(T26.getKdramaCatalog1549()).indexOf('El contrato de la heredera') >= 0);
-    check('1.5.60 FAQ: la novedad es la 1.5.60 (dramas originales, Reels rectángulos, tráilers y Navegador) y la 1.5.58 ya no está', (function () { var f = T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.60?'; })[0]; return !!f && f.a.length <= 400 && f.a.indexOf('dramas') >= 0 && f.a.indexOf('Navegador') >= 0 && T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.58?'; }).length === 0; })());
+    check('1.5.61 Dramas: hay 16 portadas, una por serie, con su miniatura de YouTube y la insignia de su aplicación', kdTiles49.length === 16 && kdTiles49.every(function (t) { var im = t.querySelector('img'); return !!im && /^https:\/\/i\.ytimg\.com\/vi\/[A-Za-z0-9_-]{11}\/hqdefault\.jpg$/.test(im.getAttribute('src')) && !!t.querySelector('.kdBadge1549') && (t.querySelector('.kdBadge1549').textContent === 'ReelShort' || t.querySelector('.kdBadge1549').textContent === 'ShortMax') && t.textContent.indexOf('1 capítulo gratis de ') >= 0; }), 'tiles=' + kdTiles49.length);
+    check('1.5.61 Dramas: el catálogo trae 14 series de ReelShort y 2 de ShortMax, cada una con 1 entrada gratis', (function () { var c = T26.getKdramaCatalog1549(); return c.length === 16 && c.filter(function (s) { return s.source === 'ReelShort'; }).length === 14 && c.filter(function (s) { return s.source === 'ShortMax'; }).length === 2 && c[0].name === 'La doble vida de mi esposo multimillonario' && c[15].name === 'El Renacer de la Esposa Gorda' && c.every(function (s) { return Array.isArray(s.eps) && s.eps.length === 1 && s.eps[0].videoId.length === 11; }); })());
+    check('1.5.61 Dramas: cada entrada gratis lleva su videoId, título y miniatura de YouTube', T26.getKdramaCatalog1549().every(function (s) { return s.eps.every(function (e) { return e.ep >= 1 && e.ep <= s.totalEps && !!e.title && /^https:\/\/i\.ytimg\.com\/vi\/[A-Za-z0-9_-]{11}\/hqdefault\.jpg$/.test(e.thumb || ''); }); }));
+    check('1.5.61 Dramas: ningún drama original ni de DramaBox queda en el catálogo (sin chapters ni «DramaBox»)', T26.getKdramaCatalog1549().every(function (s) { return !s.chapters && JSON.stringify(s).indexOf('DramaBox') < 0; }) && JSON.stringify(T26.getKdramaCatalog1549()).indexOf('El contrato de la heredera') < 0);
+    check('1.5.61 FAQ: la novedad es la 1.5.61 (dramas mezclados, pantalla completa y resplandor del cargador) y la 1.5.59 ya no está', (function () { var f = T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.61?'; })[0]; return !!f && f.a.length <= 400 && f.a.indexOf('ReelShort') >= 0 && f.a.indexOf('ShortMax') >= 0 && T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.59?'; }).length === 0; })());
     // --- 1.5.53 promociones: la sincronización activa o rechaza; config del creador ---
     var savedPosts53 = st26.posts.slice();
     var savedPromo53 = st26.promotions1547;
@@ -6656,7 +6656,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // 1.5.54: mis renderFeed re-dispararon el fetch de dramas del
     // simulador (2 dramas de prueba); volver a la lista fija para las
     // pruebas del visor que siguen, igual que al principio del bloque.
-    window.localStorage.removeItem('wordred_kdramas1558');
+    window.localStorage.removeItem('wordred_kdramas1561');
     T26.resetKdramas1554();
     T26.renderKdramaHome1549();
     // Edición: la sección no se puede editar ni se mueve al reordenar.
@@ -6692,7 +6692,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
         kdSerie58('My World Ends with You', 60, 7, 'D', 'DDDDDDDDD01', 'DDDDDDDDD02'),
         kdSerie58('Love You To Death', 49, 10, 'E', 'EEEEEEEEE01', 'EEEEEEEEE02')
       ];
-      window.localStorage.setItem('wordred_kdramas1560', JSON.stringify({ at: Date.now(), kdramas: window.__wrDramaBox58 }));
+      window.localStorage.setItem('wordred_kdramas1561', JSON.stringify({ at: Date.now(), kdramas: window.__wrDramaBox58 }));
       T26.resetKdramas1554();
       T26.fetchKdramas1554();
       T26.renderKdramaHome1549();
@@ -6797,25 +6797,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check('1.5.54 guía: al volver al primer capítulo aparece de nuevo', !$('kdGuide1549').classList.contains('hidden'));
     click($('kdClose1549'));
     // --- 1.5.54 dramas: el catálogo viene del servidor (caché de 1 día, respaldo fijo) ---
-    check('1.5.60 dramas: la validación acepta las DOS formas (DramaBox y originales), una rota no', T26.kdramasValid1554([{ id: 'x', name: 'X', synopsis: 'S', poster: 'https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg', totalEps: 3, source: 'dramabox', eps: [{ ep: 1, videoId: 'AAAAAAAAAAA', title: 'T', ytTitle: 'T', thumb: 'https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg' }] }]) === true && T26.kdramasValid1554(null) === false && T26.kdramasValid1554([{ id: 'x' }]) === false && T26.kdramasValid1554([{ id: 'x', name: 'X', synopsis: 'S', poster: 'p', eps: [{ ep: 2, videoId: 'AAAAAAAAAAA', title: 'T', ytTitle: 'T', thumb: 't' }] }]) === false && T26.kdramasValid1554([{ id: 'x', name: 'X', synopsis: 'S', poster: 'dramas/x-portada.jpg', chapters: [{ n: 1, title: 'T', text: 'Texto de más de cien caracteres para que la validación del catálogo de dramas originales lo acepte sin problema alguno.', image: 'dramas/x-cap1.jpg' }] }]) === true);
-    window.localStorage.removeItem('wordred_kdramas1560');
+    check('1.5.61 dramas: la validación acepta las DOS formas (DramaBox y originales), una rota no, y los huecos entre capítulos gratis', T26.kdramasValid1554([{ id: 'x', name: 'X', synopsis: 'S', poster: 'https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg', totalEps: 3, source: 'dramabox', eps: [{ ep: 1, videoId: 'AAAAAAAAAAA', title: 'T', ytTitle: 'T', thumb: 'https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg' }] }]) === true && T26.kdramasValid1554(null) === false && T26.kdramasValid1554([{ id: 'x' }]) === false && T26.kdramasValid1554([{ id: 'x', name: 'X', synopsis: 'S', poster: 'p', eps: [{ ep: 2, videoId: 'AAAAAAAAAAA', title: 'T', ytTitle: 'T', thumb: 't' }] }]) === false && T26.kdramasValid1554([{ id: 'x', name: 'X', synopsis: 'S', poster: 'dramas/x-portada.jpg', chapters: [{ n: 1, title: 'T', text: 'Texto de más de cien caracteres para que la validación del catálogo de dramas originales lo acepte sin problema alguno.', image: 'dramas/x-cap1.jpg' }] }]) === true && T26.kdramasValid1554([{ id: 'hueco61', name: 'Hueco', synopsis: 'S', poster: 'https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg', totalEps: 6, source: 'ReelShort', eps: [{ ep: 1, videoId: 'AAAAAAAAAAA', title: 'T1', ytTitle: 'T1', thumb: 't' }, { ep: 2, videoId: 'BBBBBBBBBBB', title: 'T2', ytTitle: 'T2', thumb: 't' }, { ep: 4, videoId: 'CCCCCCCCCCC', title: 'T4', ytTitle: 'T4', thumb: 't' }] }]) === true);
+    window.localStorage.removeItem('wordred_kdramas1561');
     T26.resetKdramas1554();
     T26.fetchKdramas1554();
     await tick(); await tick();
     T26.renderKdramaHome1549();
     check('1.5.54 dramas: la app pinta la lista del servidor (no la fija)', qa('#kdramaReels1549 .reelTile').length === 2 && $('kdramaReels1549').textContent.indexOf('Drama de prueba 1') >= 0 && $('kdramaReels1549').textContent.indexOf('El contrato de la heredera') < 0);
     // Sin conexión: la lista fija.
-    window.localStorage.removeItem('wordred_kdramas1560');
+    window.localStorage.removeItem('wordred_kdramas1561');
     T26.resetKdramas1554();
     var realFetch54 = window.fetch;
     window.fetch = async () => { throw new Error('sin conexión'); };
     T26.fetchKdramas1554();
     await tick(); await tick();
     T26.renderKdramaHome1549();
-    check('1.5.60 dramas: sin conexión pinta la lista fija (5 dramas originales)', qa('#kdramaReels1549 .reelTile').length === 5 && $('kdramaReels1549').textContent.indexOf('El contrato de la heredera') >= 0 && $('kdramaReels1549').textContent.indexOf('La otra yo') >= 0 && $('kdramaReels1549').textContent.indexOf('After I Died He Went Mad') < 0);
+    check('1.5.61 dramas: sin conexión pinta la lista fija (16 series mezcladas)', qa('#kdramaReels1549 .reelTile').length === 16 && $('kdramaReels1549').textContent.indexOf('La doble vida de mi esposo multimillonario') >= 0 && $('kdramaReels1549').textContent.indexOf('El Renacer de la Esposa Gorda') >= 0 && $('kdramaReels1549').textContent.indexOf('After I Died He Went Mad') < 0 && $('kdramaReels1549').textContent.indexOf('El contrato de la heredera') < 0);
     window.fetch = realFetch54;
     // Caché de 1 día: con una caché fresca no se pide nada y se pinta lo guardado.
-    window.localStorage.setItem('wordred_kdramas1560', JSON.stringify({ at: Date.now(), kdramas: [{ id: 'drama-cache', name: 'Drama en caché', synopsis: 'Sinopsis en caché.', poster: 'https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg', totalEps: 2, source: 'dramabox', eps: [{ ep: 1, videoId: 'AAAAAAAAAAA', title: 'Capítulo en caché', ytTitle: 'Capítulo en caché', thumb: 'https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg' }] }] }));
+    window.localStorage.setItem('wordred_kdramas1561', JSON.stringify({ at: Date.now(), kdramas: [{ id: 'drama-cache', name: 'Drama en caché', synopsis: 'Sinopsis en caché.', poster: 'https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg', totalEps: 2, source: 'dramabox', eps: [{ ep: 1, videoId: 'AAAAAAAAAAA', title: 'Capítulo en caché', ytTitle: 'Capítulo en caché', thumb: 'https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg' }] }] }));
     T26.resetKdramas1554();
     T26.fetchKdramas1554();
     T26.renderKdramaHome1549();
@@ -6918,7 +6918,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check('1.5.54 aprobación: si el servidor responde 403, la sección no aparece', $('promotionsHubBody1547').textContent.indexOf('Solicitudes de promoción') < 0);
     T26.hideOverlay('promotionsHubOverlay1547');
     C26.serverFetch = origFetch54b;
-    window.localStorage.setItem('wordred_kdramas1560', JSON.stringify({ at: Date.now(), kdramas: window.__wrDramaBox58 }));
+    window.localStorage.setItem('wordred_kdramas1561', JSON.stringify({ at: Date.now(), kdramas: window.__wrDramaBox58 }));
     T26.resetKdramas1554();
     T26.fetchKdramas1554();
     T26.renderKdramaHome1549();
@@ -6979,73 +6979,101 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     st26.posts = st26.posts.filter(function (p) { return p !== reelV55 && p !== reelH55 && p !== reelU55; });
     T26.go('feed');
     await tick();
-    // --- 1.5.60: dramas originales de nuevo (con video de Cloudinary y subtítulos CC; la forma DramaBox sigue valiendo) ---
-    window.localStorage.removeItem('wordred_kdramas1560');
+    // --- 1.5.61: dramas mezclados (ReelShort 14 + ShortMax 2; DramaBox no aporta en español; la forma originales sigue valiendo para el CC/VTT) ---
+    window.localStorage.removeItem('wordred_kdramas1561');
     T26.resetKdramas1554();
     T26.renderKdramaHome1549();
-    check('1.5.60 dramas: el catálogo horneado vuelve a ser los 5 dramas originales (forma chapters[], no DramaBox)', (function () { var c = T26.getKdramaCatalog1549(); return c.length === 5 && c.every(function (s) { return T26.kdIsOriginal1549(s) && s.chapters.length >= 4 && s.chapters.every(function (ch) { return typeof ch.n === 'number' && ch.title && typeof ch.text === 'string' && ch.text.length > 100 && ch.image; }); }); })());
-    check('1.5.60 dramas: los capítulos con video traen su URL de Cloudinary y subtítulos es/en/pt', (function () { var c = T26.getKdramaCatalog1549(); var n = 0, ok = true; c.forEach(function (s) { s.chapters.forEach(function (ch) { if (ch.video) { n++; if (ch.video.indexOf('https://res.cloudinary.com/') !== 0) ok = false; if (!ch.subtitles || !/^https:\/\//.test(ch.subtitles.es || '') || !/^https:\/\//.test(ch.subtitles.en || '') || !/^https:\/\//.test(ch.subtitles.pt || '')) ok = false; } }); }); return n >= 6 && ok; })());
-    check('1.5.60 dramas: la etiqueta del inicio es «Original de WordRed»', $('kdramaReels1549').textContent.indexOf('Original de WordRed') >= 0 && $('kdramaReels1549').textContent.indexOf('DramaBox') < 0);
-    // Capítulo con video: se ve el video de Cloudinary con el reproductor propio y el botón CC.
+    check('1.5.61 dramas: el catálogo horneado es el mezclado (16 series: 14 ReelShort + 2 ShortMax, 1 entrada gratis por serie)', (function () { var c = T26.getKdramaCatalog1549(); return c.length === 16 && c.filter(function (s) { return s.source === 'ReelShort'; }).length === 14 && c.filter(function (s) { return s.source === 'ShortMax'; }).length === 2 && c.every(function (s) { return !s.chapters && Array.isArray(s.eps) && s.eps.length === 1 && s.eps[0].videoId.length === 11 && /^https:\/\/i\.ytimg\.com\/vi\//.test(s.eps[0].thumb); }); })());
+    check('1.5.61 dramas: cada tarjeta lleva la etiqueta de su aplicación y el conteo de capítulos gratis', (function () { var tiles = qa('#kdramaReels1549 .reelTile'); return tiles.length === 16 && tiles.filter(function (t) { return (t.querySelector('.kdBadge1549') || {}).textContent === 'ReelShort'; }).length === 14 && tiles.filter(function (t) { return (t.querySelector('.kdBadge1549') || {}).textContent === 'ShortMax'; }).length === 2 && tiles.every(function (t) { return t.textContent.indexOf('1 capítulo gratis de ') >= 0; }); })(), 'tiles=' + qa('#kdramaReels1549 .reelTile').length);
+    check('1.5.61 dramas: ningún original queda en la sección y DramaBox no aporta nada', $('kdramaReels1549').textContent.indexOf('Original de WordRed') < 0 && $('kdramaReels1549').textContent.indexOf('DramaBox') < 0 && $('kdramaReels1549').textContent.indexOf('El contrato de la heredera') < 0);
+    check('1.5.61 dramas: kdAppTag1561 y kdMemberText1561 salen de `source` (también en minúsculas)', T26.kdAppTag1561({ source: 'ReelShort' }) === 'ReelShort' && T26.kdAppTag1561({ source: 'ShortMax' }) === 'ShortMax' && T26.kdAppTag1561({ source: 'dramabox' }) === 'DramaBox' && T26.kdAppTag1561({ chapters: [] }) === 'Original de WordRed' && T26.kdMemberText1561({ source: 'ReelShort' }).title === 'Disponible en ReelShort' && T26.kdMemberText1561({ source: 'ShortMax' }).title === 'Disponible en ShortMax' && T26.kdMemberText1561({ source: 'ReelShort' }).sub.indexOf('ReelShort') >= 0);
+    // Visor: el primer capítulo gratis es el video de ReelShort (mJVKa6XzAHU) y el título lleva el lote.
     T26.openKdrama1549(0, 0);
-    check('1.5.60 visor: el primer capítulo carga su video de Cloudinary con autoplay', !!$('kdVideo1556') && $('kdVideo1556').getAttribute('src').indexOf('https://res.cloudinary.com/') === 0 && !!$('kdVideo1556').getAttribute('poster'));
-    check('1.5.60 visor: solo se ven el título del drama y «Capítulo N de TOTAL · título»', $('kdSeriesTitle1549').textContent === 'El contrato de la heredera' && $('kdEpTitle1549').textContent.indexOf('Capítulo 1 de ') === 0 && $('kdEpTitle1549').textContent.indexOf('La cláusula 30') >= 0);
-    check('1.5.60 visor: con subtítulos, el botón CC está visible y dice el idioma actual', !$('kdCcBtn1560').classList.contains('hidden') && $('kdCcBtn1560').textContent.indexOf('CC:') === 0);
-    check('1.5.60 visor: el menú CC trae español, inglés, portugués y sin subtítulos', (function () { window.__wrKdSubMenu1560(); var m = $('kdSubMenu1560'); var t = m ? m.textContent : ''; window.__wrKdSubMenu1560(); return t.indexOf('Español') >= 0 && t.indexOf('English') >= 0 && t.indexOf('Português') >= 0 && t.indexOf('Sin subtítulos') >= 0; })());
-    // El VTT se lee y se pinta: con la red simulada, el parser convierte el texto en cues con sus tiempos.
-    var vtt60 = 'WEBVTT\n\n00:00:01.000 --> 00:00:03.500\nValeria: Buenos días, señor Andrés.\n\n00:00:04.000 --> 00:00:06.000\nAndrés: Buenos días, Valeria.\n';
-    check('1.5.60 subtítulos: el parser WebVTT saca los cues con inicio, fin y texto', (function () { var cues = T26.kdParseVtt1560(vtt60); return cues.length === 2 && cues[0].start === 1000 && cues[0].end === 3500 && cues[0].text.indexOf('Buenos días') >= 0 && cues[1].start === 4000; })());
-    var origFetch60 = window.fetch;
-    window.fetch = function (u) { return Promise.resolve({ ok: true, text: function () { return Promise.resolve(vtt60); } }); };
-    var ch60 = T26.kdChapterAt1558(T26.getKdramaCatalog1549()[0], 0);
-    T26.kdLoadSubs1560(ch60);
+    check('1.5.61 visor: el primer capítulo carga su video de ReelShort en el iframe', !!$('kdYtFrame1558') && $('kdYtFrame1558').getAttribute('src').indexOf('https://www.youtube.com/embed/mJVKa6XzAHU?autoplay=1') === 0 && !$('kdVideo1556'));
+    check('1.5.61 visor: se ven la serie, su aplicación y el título del lote con el total', $('kdSeriesTitle1549').textContent === 'La doble vida de mi esposo multimillonario' && $('kdEpTitle1549').textContent.indexOf('Capítulo 1 de 70') === 0 && $('kdEpTitle1549').textContent.indexOf('Capítulos 1 al 6') >= 0 && $('kdramaOverlay1549').textContent.indexOf('ReelShort') >= 0);
+    // Capítulo de miembros: dice «Disponible en ReelShort», sin video.
+    T26.openKdrama1549(0, 1);
+    check('1.5.61 miembros: el capítulo 2 (de miembros) dice «Disponible en ReelShort» y no carga video', $('kdYtWrap1558').classList.contains('hidden') && !$('kdMember1558').classList.contains('hidden') && $('kdMember1558').textContent.indexOf('Disponible en ReelShort') >= 0 && $('kdEpTitle1549').textContent.indexOf('Capítulo 2 de 70') === 0, 'ep=' + T26.getKdState1549().ep);
+    // Hoja de capítulos: 70 filas, 1 gratis con botón y 69 de miembros con el texto de su app.
+    T26.openKdrama1549(0, 0);
+    click($('kdChaptersBtn1549'));
+    await tick();
+    check('1.5.61 capítulos: la hoja trae los 70 capítulos (1 gratis con botón, 69 de miembros)', $('kdramaSheet1549').classList.contains('on') && qa('#kdSheetList1549 .kdSheetRow1549').length === 70 && qa('#kdSheetList1549 [data-kd-play]').length === 1 && qa('#kdSheetList1549 .kdSheetMember1558').length === 69 && qa('#kdSheetList1549 .kdSheetMember1558').every(function (el) { return el.textContent === 'Disponible en ReelShort'; }), 'filas=' + qa('#kdSheetList1549 .kdSheetRow1549').length);
+    click(window.document.querySelector('#kdramaSheet1549 [data-close="kdramaSheet1549"]'));
+    // Validador y capítulo tolerantes a huecos: gratis 1, 2 y 4 de 6 (falta el 3).
+    check('1.5.61 dramas: kdChapterAt1558 busca el capítulo por su número (el 3 que falta es de miembros, el 4 trae su video)', (function () { var s = { id: 'hueco61', name: 'Hueco', totalEps: 6, source: 'ReelShort', eps: [{ ep: 1, videoId: 'AAAAAAAAAAA', title: 'T1' }, { ep: 2, videoId: 'BBBBBBBBBBB', title: 'T2' }, { ep: 4, videoId: 'CCCCCCCCCCC', title: 'T4' }] }; var m = T26.kdChapterAt1558(s, 2); var v = T26.kdChapterAt1558(s, 3); return !!m && m.member === true && m.n === 3 && !!v && v.videoId === 'CCCCCCCCCCC' && v.n === 4; })());
+    click($('kdClose1549'));
+    // CC y subtítulos VTT siguen funcionando con una serie de originales instalada por caché (doble forma).
+    window.localStorage.setItem('wordred_kdramas1561', JSON.stringify({ at: Date.now(), kdramas: [{ id: 'drama-original-prueba61', name: 'Drama original de prueba 1.5.61', synopsis: 'Serie original de prueba para el CC y los subtítulos.', poster: 'dramas/prueba61-portada.jpg', chapters: [{ n: 1, title: 'La cláusula de prueba', text: 'Texto de más de cien caracteres para que la validación del catálogo de dramas originales lo acepte sin problema alguno.', image: 'dramas/prueba61-cap1.jpg', video: 'https://res.cloudinary.com/bekxop7h/video/upload/v1794894453/prygi28pbkflh8v2aiof.mp4', subtitles: { es: 'https://res.cloudinary.com/bekxop7h/raw/upload/dramas/prueba61-cap1-es.vtt', en: 'https://res.cloudinary.com/bekxop7h/raw/upload/dramas/prueba61-cap1-en.vtt', pt: 'https://res.cloudinary.com/bekxop7h/raw/upload/dramas/prueba61-cap1-pt.vtt' } }, { n: 2, title: 'Capítulo sin video', text: 'Texto de más de cien caracteres para que la validación del catálogo de dramas originales lo acepte sin problema alguno.', image: 'dramas/prueba61-cap2.jpg' }] }] }));
+    T26.resetKdramas1554();
+    T26.fetchKdramas1554();
+    T26.renderKdramaHome1549();
+    T26.openKdrama1549(0, 0);
+    check('1.5.61 visor originales: el capítulo con video carga su video de Cloudinary con autoplay', !!$('kdVideo1556') && $('kdVideo1556').getAttribute('src').indexOf('https://res.cloudinary.com/') === 0 && !!$('kdVideo1556').getAttribute('poster'));
+    check('1.5.61 visor originales: se ven el título del drama y «Capítulo N de TOTAL · título»', $('kdSeriesTitle1549').textContent === 'Drama original de prueba 1.5.61' && $('kdEpTitle1549').textContent.indexOf('Capítulo 1 de 2') === 0 && $('kdEpTitle1549').textContent.indexOf('La cláusula de prueba') >= 0);
+    check('1.5.61 visor originales: con subtítulos, el botón CC está visible y dice el idioma actual', !$('kdCcBtn1560').classList.contains('hidden') && $('kdCcBtn1560').textContent.indexOf('CC:') === 0);
+    check('1.5.61 visor originales: el menú CC trae español, inglés, portugués y sin subtítulos', (function () { window.__wrKdSubMenu1560(); var m = $('kdSubMenu1560'); var t = m ? m.textContent : ''; window.__wrKdSubMenu1560(); return t.indexOf('Español') >= 0 && t.indexOf('English') >= 0 && t.indexOf('Português') >= 0 && t.indexOf('Sin subtítulos') >= 0; })());
+    var vtt61 = 'WEBVTT\n\n00:00:01.000 --> 00:00:03.500\nValeria: Buenos días, señor Andrés.\n\n00:00:04.000 --> 00:00:06.000\nAndrés: Buenos días, Valeria.\n';
+    check('1.5.61 subtítulos: el parser WebVTT saca los cues con inicio, fin y texto', (function () { var cues = T26.kdParseVtt1560(vtt61); return cues.length === 2 && cues[0].start === 1000 && cues[0].end === 3500 && cues[0].text.indexOf('Buenos días') >= 0 && cues[1].start === 4000; })());
+    var origFetch61 = window.fetch;
+    window.fetch = function (u) { return Promise.resolve({ ok: true, text: function () { return Promise.resolve(vtt61); } }); };
+    var ch61 = T26.kdChapterAt1558(T26.getKdramaActive1549()[0], 0);
+    T26.kdLoadSubs1560(ch61);
     await tick(); await tick();
-    check('1.5.60 subtítulos: al cargar el VTT se pintan los cues (.vsub) dentro del reproductor', qa('#kdVideoWrap1556 .vsub').length === 2 && qa('#kdVideoWrap1556 .vsub')[0].getAttribute('data-sub-start') === '1000' && qa('#kdVideoWrap1556 .vsub')[0].getAttribute('data-sub-end') === '3500');
-    window.fetch = origFetch60;
-    // Cambiar el idioma del CC se guarda por teléfono y se refleja en el botón.
+    check('1.5.61 subtítulos: al cargar el VTT se pintan los cues (.vsub) dentro del reproductor', qa('#kdVideoWrap1556 .vsub').length === 2 && qa('#kdVideoWrap1556 .vsub')[0].getAttribute('data-sub-start') === '1000' && qa('#kdVideoWrap1556 .vsub')[0].getAttribute('data-sub-end') === '3500');
+    window.fetch = origFetch61;
     window.__wrKdSubLang1560('en');
-    check('1.5.60 subtítulos: elegir inglés se guarda y el botón CC lo muestra', T26.kdSubLang1560() === 'en' && window.localStorage.getItem('wordred_kdsublang1560') === 'en' && $('kdCcBtn1560').textContent.indexOf('English') >= 0);
+    check('1.5.61 subtítulos: elegir inglés se guarda y el botón CC lo muestra', T26.kdSubLang1560() === 'en' && window.localStorage.getItem('wordred_kdsublang1560') === 'en' && $('kdCcBtn1560').textContent.indexOf('English') >= 0);
     window.__wrKdSubLang1560('es');
-    check('1.5.60 subtítulos: volver a español se guarda', T26.kdSubLang1560() === 'es' && window.localStorage.getItem('wordred_kdsublang1560') === 'es');
-    // Al cerrar, el video se para y se limpia.
+    check('1.5.61 subtítulos: volver a español se guarda', T26.kdSubLang1560() === 'es' && window.localStorage.getItem('wordred_kdsublang1560') === 'es');
     T26.openKdrama1549(0, 0);
     click($('kdClose1549'));
-    check('1.5.60 visor: al cerrar, el video se quita y se limpia la imagen del capítulo', !$('kdramaOverlay1549').classList.contains('on') && !$('kdVideo1556') && !$('kdImage1549').getAttribute('src'));
-    // Capítulo sin video: con una serie de prueba (forma originales, sin video) se ve su imagen con «Próximamente en video».
-    window.localStorage.setItem('wordred_kdramas1560', JSON.stringify({ at: Date.now(), kdramas: [{ id: 'drama-sinvideo60', name: 'Drama sin video 1.5.60', synopsis: 'Sinopsis de prueba sin video.', poster: 'dramas/sinvideo-portada.jpg', chapters: [{ n: 1, title: 'Capítulo sin video', text: 'Texto de más de cien caracteres para que la validación del catálogo de dramas originales lo acepte sin problema alguno.', image: 'dramas/sinvideo-cap1.jpg' }] }] }));
+    check('1.5.61 visor originales: al cerrar, el video se quita y se limpia la imagen del capítulo', !$('kdramaOverlay1549').classList.contains('on') && !$('kdVideo1556') && !$('kdImage1549').getAttribute('src'));
+    // Capítulo original sin video: imagen con «Próximamente en video» y sin botón CC.
+    T26.openKdrama1549(0, 1);
+    check('1.5.61 visor originales: el capítulo sin video muestra su imagen de escena con «Próximamente en video»', !$('kdSoon1556').classList.contains('hidden') && $('kdSoon1556').textContent.indexOf('Próximamente en video') >= 0 && !$('kdVideo1556') && !!$('kdImage1549').getAttribute('src'));
+    check('1.5.61 visor originales: sin video no hay botón CC', $('kdCcBtn1560').classList.contains('hidden'));
+    click($('kdClose1549'));
+    window.localStorage.removeItem('wordred_kdramas1561');
+    T26.resetKdramas1554();
+    T26.renderKdramaHome1549();
+    // La forma ShortMax por caché: se pinta con su etiqueta y su video de YouTube.
+    window.localStorage.setItem('wordred_kdramas1561', JSON.stringify({ at: Date.now(), kdramas: [{ id: 'drama-cache61', name: 'Drama en caché 1.5.61', synopsis: 'Sinopsis en caché.', poster: 'https://i.ytimg.com/vi/BBBBBBBBBBB/hqdefault.jpg', totalEps: 2, source: 'shortmax', eps: [{ ep: 1, videoId: 'BBBBBBBBBBB', title: 'Capítulo en caché', ytTitle: 'Capítulo en caché', thumb: 'https://i.ytimg.com/vi/BBBBBBBBBBB/hqdefault.jpg' }] }] }));
     T26.resetKdramas1554();
     T26.fetchKdramas1554();
     T26.renderKdramaHome1549();
+    check('1.5.61 caché: con la clave 1561 fresca se pinta lo guardado sin pedir al servidor', $('kdramaReels1549').textContent.indexOf('Drama en caché 1.5.61') >= 0 && $('kdramaReels1549').textContent.indexOf('ShortMax') >= 0);
     T26.openKdrama1549(0, 0);
-    check('1.5.60 visor: el capítulo sin video muestra su imagen de escena con «Próximamente en video»', !$('kdSoon1556').classList.contains('hidden') && $('kdSoon1556').textContent.indexOf('Próximamente en video') >= 0 && !$('kdVideo1556') && !!$('kdImage1549').getAttribute('src'));
-    check('1.5.60 visor: sin video no hay botón CC', $('kdCcBtn1560').classList.contains('hidden'));
-    click($('kdClose1549'));
-    window.localStorage.removeItem('wordred_kdramas1560');
-    T26.resetKdramas1554();
-    T26.renderKdramaHome1549();
-    // La forma DramaBox SIGUE valiendo (doble forma): con una caché DramaBox se pinta y se ve su video de YouTube.
-    window.localStorage.setItem('wordred_kdramas1560', JSON.stringify({ at: Date.now(), kdramas: [{ id: 'drama-cache60', name: 'Drama en caché 1.5.60', synopsis: 'Sinopsis en caché.', poster: 'https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg', totalEps: 2, source: 'dramabox', eps: [{ ep: 1, videoId: 'AAAAAAAAAAA', title: 'Capítulo en caché', ytTitle: 'Capítulo en caché', thumb: 'https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg' }] }] }));
-    T26.resetKdramas1554();
-    T26.fetchKdramas1554();
-    T26.renderKdramaHome1549();
-    check('1.5.60 caché: con la clave 1560 fresca se pinta lo guardado sin pedir al servidor', $('kdramaReels1549').textContent.indexOf('Drama en caché 1.5.60') >= 0 && $('kdramaReels1549').textContent.indexOf('DramaBox') >= 0);
-    T26.openKdrama1549(0, 0);
-    check('1.5.60 visor DramaBox: el capítulo gratis carga su video de YouTube con autoplay', !!$('kdYtFrame1558') && $('kdYtFrame1558').getAttribute('src').indexOf('https://www.youtube.com/embed/AAAAAAAAAAA?autoplay=1&rel=0&playsinline=1&enablejsapi=1') === 0);
-    check('1.5.60 miembros: el capítulo 2 de la serie en caché es de miembros (sin videoId)', (function () { var ch = T26.kdChapterAt1558(T26.getKdramaActive1549()[0], 1); return !!ch && ch.member === true && ch.videoId === null && ch.n === 2; })());
+    check('1.5.61 visor ShortMax: el capítulo gratis carga su video de YouTube con autoplay', !!$('kdYtFrame1558') && $('kdYtFrame1558').getAttribute('src').indexOf('https://www.youtube.com/embed/BBBBBBBBBBB?autoplay=1&rel=0&playsinline=1&enablejsapi=1') === 0);
+    check('1.5.61 miembros: el capítulo 2 de la serie en caché es de miembros (sin videoId)', (function () { var ch = T26.kdChapterAt1558(T26.getKdramaActive1549()[0], 1); return !!ch && ch.member === true && ch.videoId === null && ch.n === 2; })());
     click($('kdClose1549'));
     // Una caché con la forma vieja de originales AHORA SÍ vale (doble forma): se pinta, no se ignora.
-    window.localStorage.setItem('wordred_kdramas1560', JSON.stringify({ at: Date.now(), kdramas: [{ id: 'drama-cache-viejo', name: 'Drama viejo en caché', synopsis: 'Sinopsis vieja.', poster: 'dramas/cache-portada.jpg', chapters: [{ n: 1, title: 'Capítulo viejo', text: 'Texto de más de cien caracteres para que la validación del catálogo de dramas originales lo acepte sin problema alguno.', image: 'dramas/cache-cap1.jpg' }] }] }));
+    window.localStorage.setItem('wordred_kdramas1561', JSON.stringify({ at: Date.now(), kdramas: [{ id: 'drama-cache-viejo', name: 'Drama viejo en caché', synopsis: 'Sinopsis vieja.', poster: 'dramas/cache-portada.jpg', chapters: [{ n: 1, title: 'Capítulo viejo', text: 'Texto de más de cien caracteres para que la validación del catálogo de dramas originales lo acepte sin problema alguno.', image: 'dramas/cache-cap1.jpg' }] }] }));
     T26.resetKdramas1554();
     T26.fetchKdramas1554();
     await tick(); await tick();
     T26.renderKdramaHome1549();
-    check('1.5.60 caché: una caché con la forma de originales AHORA se acepta (doble forma)', $('kdramaReels1549').textContent.indexOf('Drama viejo en caché') >= 0);
-    window.localStorage.removeItem('wordred_kdramas1560');
+    check('1.5.61 caché: una caché con la forma de originales AHORA se acepta (doble forma)', $('kdramaReels1549').textContent.indexOf('Drama viejo en caché') >= 0);
+    window.localStorage.removeItem('wordred_kdramas1561');
     T26.resetKdramas1554();
     T26.renderKdramaHome1549();
-    window.localStorage.removeItem('wordred_kdramas1560');
+    window.localStorage.removeItem('wordred_kdramas1561');
     T26.resetKdramas1554();
     T26.renderKdramaHome1549();
+    // --- 1.5.61: video del muro a pantalla completa con rotación y resplandor del cargador ---
+    check('1.5.61 video muro: el reproductor propio trae play/pausa, progreso, tiempo, silencio, CC, pantalla completa y 6 velocidades', (function () { var h = T26.wrPlayerHtml('<video src="https://srv/v61.mp4" playsinline></video>', {}); return h.indexOf('wrPlay') >= 0 && h.indexOf('wrProg') >= 0 && h.indexOf('wrTime') >= 0 && h.indexOf('wrMute') >= 0 && h.indexOf('wrCc') >= 0 && h.indexOf('wrFull') >= 0 && h.indexOf('wrSpeedMenu') >= 0 && h.indexOf('0.5') >= 0 && h.indexOf('2') >= 0; })());
+    var wallPost61 = C26.createPost(st26, st26.me, { text: 'Video viejo 1.5.61', mediaList: [{ src: 'https://srv/viejo61.mp4', type: 'video' }], privacy: 'Público' });
+    T26.renderFeed();
+    await tick(); await tick();
+    check('1.5.61 video muro: un video ya publicado usa el mismo reproductor completo (sin versión recortada)', (function () { if (!wallPost61.ok) return false; var art = window.document.querySelector('article.post[data-post="' + wallPost61.post.id + '"] .wrPlayer'); return !!art && !!art.querySelector('.wrFull') && !!art.querySelector('.wrPlay') && !!art.querySelector('.wrProg') && !!art.querySelector('.wrMute') && !!art.querySelector('.wrCc') && !!art.querySelector('.wrSpeedMenu'); })());
+    check('1.5.61 video muro: al cambiar la pantalla completa, el botón cambia de icono (expandir/comprimir)', (function () { var btn = window.document.querySelector('.wrPlayer .wrFull'); if (!btn) return false; btn.innerHTML = 'X'; window.document.dispatchEvent(new window.Event('fullscreenchange')); return btn.innerHTML.indexOf('M8 3H5') >= 0; })());
+    st26.posts = st26.posts.filter(function (p) { return !wallPost61.ok || p.id !== wallPost61.post.id; });
+    T26.renderFeed();
+    await tick();
+    check('1.5.61 cargador: el resplandor existe en la página y es rojo, solo orillas y transitorio', !!$('chargerGlow1561') && (function () { var css = Array.prototype.map.call(window.document.querySelectorAll('style'), function (st) { return st.textContent; }).join('\n'); return /#chargerGlow1561\{[^}]*box-shadow:inset[^}]*rgba\(230,0,38/.test(css) && /@keyframes chargerGlowRise1561/.test(css) && /clip-path:inset\(100% 0 0 0\)/.test(css); })());
+    check('1.5.61 cargador: al conectar el cargador se enciende el resplandor y se apaga solo', (function () { var ok = window.__wrChargerGlow1561(); var on = $('chargerGlow1561').classList.contains('on'); return ok === true && on; })());
+    await sleep(1800);
+    check('1.5.61 cargador: pasados ~1.7 s el resplandor ya se apagó solo', !$('chargerGlow1561').classList.contains('on'));
     // --- 1.5.59: posición del muro (sustituye la regla de la 1.5.57) ---
     // Lanzamiento limpio -> arriba; regreso (aunque pasen más de 60 s
     // fuera, o tras morir por poca RAM) -> donde quedó. La marca de
@@ -7239,8 +7267,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     T26.go('feed');
     await tick();
     // --- 1.5.59: FAQ (la novedad es la 1.5.59, la 1.5.57 ya no está) ---
-    check('1.5.59 FAQ: la novedad es la 1.5.59 (≤400 caracteres, dice perfil, chat y muro) y la 1.5.57 ya no está', (function () { var f = T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.59?'; })[0]; return !!f && f.a.length <= 400 && f.a.indexOf('perfil') >= 0 && f.a.indexOf('derecha') >= 0 && T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.57?'; }).length === 0; })());
-    check('1.5.60 FAQ: la entrada de la 1.5.59 quedó corta (≤400 caracteres, sigue diciendo perfil y derecha)', (function () { var f = T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.59?'; })[0]; return !!f && f.a.length <= 400 && f.a.indexOf('perfil') >= 0 && f.a.indexOf('derecha') >= 0; })());
+    check('1.5.61 FAQ: la novedad es la 1.5.61 (≤400 caracteres, dice dramas mezclados, pantalla completa y cargador) y la 1.5.59 ya no está', (function () { var f = T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.61?'; })[0]; return !!f && f.a.length <= 400 && f.a.indexOf('ReelShort') >= 0 && f.a.indexOf('pantalla completa') >= 0 && f.a.indexOf('cargador') >= 0 && T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.59?'; }).length === 0; })());
+    check('1.5.61 FAQ: la entrada de la 1.5.60 quedó corta (≤400 caracteres, sigue diciendo dramas originales y Navegador)', (function () { var f = T26.getFaq().filter(function (x) { return x.q === '¿Qué hay de nuevo en la 1.5.60?'; })[0]; return !!f && f.a.length <= 400 && f.a.indexOf('originales') >= 0 && f.a.indexOf('Navegador') >= 0; })());
     // --- 1.5.58 publicar atómico: nada se muestra como publicado hasta que el servidor confirma; si falla, error claro + borrador + Reintentar ---
     T26.go('feed');
     await tick();
@@ -7311,6 +7339,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     console.log('FAIL: excepción — ' + (e && e.stack ? e.stack.split('\n').slice(0, 6).join('\n') : e));
   }
   console.log('\n==============================');
-  console.log('WordRed DOM v1.5.60 (jsdom) — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('WordRed DOM v1.5.61 (jsdom) — ' + pass + ' PASS, ' + fail + ' FAIL');
   process.exit(fail ? 1 : 0);
 })();
