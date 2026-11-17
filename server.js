@@ -191,6 +191,28 @@
  * YouTube). Cada 3 meses se cambia ese archivo y los dramas rotan sin
  * una versión nueva de la app. Nada más cambia en la 4.2.
  *
+ * v4.4: la aprobación de promociones ya NO usa la clave de creador
+ * (WordRed Creador no existe). Las rutas de dueño (GET
+ * /api/promotions/pending + POST /api/promotions/:id/approve y
+ * /reject + POST /api/creator-config) ahora exigen la cuenta
+ * principal: quien llama debe estar autenticado con su token y su
+ * correo verificado debe ser el de la variable OWNER_EMAIL (Render).
+ * Sin OWNER_EMAIL, 503; con otra cuenta, 403; sin sesión, 401. El
+ * correo se conoce porque el token de Google verificado trae el
+ * correo y el servidor lo usa como clave de la cuenta (igual que el
+ * teléfono para las cuentas por SMS). CREATOR_KEY queda sin uso y
+ * ya no se lee en el código (solo queda mencionada en el historial
+ * de la 4.3 de abajo). (3) /api/kdramas valida el nuevo
+ * esquema de dramas originales (capítulos con texto e imagen, sin
+ * videoId de YouTube). (4) Juego destacado Fantore Resurrección: GET
+ * /api/featured-game (la ficha vive en featured-game.json en la raíz
+ * del repo: datos del juego + sus 8 capturas reales; devuelve además
+ * las estadísticas reales del juego — calificación media y conteo del
+ * sistema de calificaciones de juegos que ya existe, 0 y 0 si nadie ha
+ * calificado) y GET /app/Fantore-Resurreccion.apk (sirve el APK del
+ * juego para instalarlo desde WordRed cuando no está instalado).
+ * Nada más cambia en la 4.4.
+ *
  * v4.3: WordRed Creador — (1) solicitudes de promoción: la app 1.5.53
  * ya NO activa la promoción sola con «Ya pagué»; manda POST
  * /api/promotions/request y el creador la aprueba o rechaza desde su
@@ -1060,12 +1082,12 @@ const app = express();
    parser (Express guarda el cuerpo entero en memoria); el límite real es
    el disco del servidor. */
 app.use(express.json({ limit: '1gb' }));
-app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Creator-Key'); if (req.method === 'OPTIONS') return res.sendStatus(204); next(); });
+app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization'); if (req.method === 'OPTIONS') return res.sendStatus(204); next(); });
 /* v3.1: ninguna petición se atiende antes de que el almacenamiento esté
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.3', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.4', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
 
 /* v3.5: actualización de la aplicación. La última versión vive en
    app-version.json junto al APK (WordRed.apk) en el repo: al publicar
@@ -1109,6 +1131,17 @@ app.get('/app/WordRed.apk', (req, res) => {
   if (!fs.existsSync(apkPath)) return res.status(404).json({ ok: false, error: 'La actualización no está disponible.' });
   res.setHeader('Content-Type', 'application/vnd.android.package-archive');
   res.setHeader('Content-Disposition', 'attachment; filename="WordRed.apk"');
+  return res.sendFile(apkPath);
+});
+
+/* v4.4: el APK de Fantore Resurrección, para instalar el juego desde
+   WordRed cuando no está instalado en el teléfono (el puente descarga
+   este enlace y abre el instalador del sistema). */
+app.get('/app/Fantore-Resurreccion.apk', (req, res) => {
+  var apkPath = path.join(__dirname, 'Fantore-Resurreccion.apk');
+  if (!fs.existsSync(apkPath)) return res.status(404).json({ ok: false, error: 'El juego no está disponible.' });
+  res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+  res.setHeader('Content-Disposition', 'attachment; filename="Fantore-Resurreccion.apk"');
   return res.sendFile(apkPath);
 });
 
@@ -1164,14 +1197,46 @@ app.get('/api/games-billboard', (req, res) => {
   return res.json({ ok: true, games: games });
 });
 
-/* v4.2: catálogo de dramas cortos (K-Dramas). Igual que las carteleras
+/* v4.4: juego destacado (Fantore Resurrección). Igual que las carteleras
+   de cine (v3.9) y juegos (v4.0): la ficha vive en featured-game.json en
+   la raíz del repo (datos del juego + capturas); al agregar capturas
+   reales se actualiza ese archivo y la página cambia sin una versión
+   nueva de la app. GET /api/featured-game es público (sin
+   autenticación). Se lee el archivo en cada petición para que un cambio
+   se note sin reiniciar el servidor. Sin el archivo, con JSON roto o
+   sin capturas responde 404: la app no inventa capturas y usa su ficha.
+   Las estadísticas vienen del sistema de calificaciones de juegos que
+   ya existe (gameStatsFor): sin calificaciones, media 0 y conteo 0. */
+function readFeaturedGame() {
+  try {
+    var raw = fs.readFileSync(path.join(__dirname, 'featured-game.json'), 'utf8');
+    var d = JSON.parse(raw);
+    if (!d || !d.game || !d.game.id || !d.game.name || !d.game.package || !Array.isArray(d.screenshots) || !d.screenshots.length) return null;
+    var shots = d.screenshots.filter(function (s) { return typeof s === 'string' && s; });
+    if (!shots.length) return null;
+    return {
+      game: { id: String(d.game.id), name: String(d.game.name), package: String(d.game.package), version: String(d.game.version || ''), logo: String(d.game.logo || ''), icon: String(d.game.icon || '') },
+      screenshots: shots
+    };
+  } catch (e) { return null; }
+}
+app.get('/api/featured-game', (req, res) => {
+  var fg = readFeaturedGame();
+  if (!fg) return res.status(404).json({ ok: false, error: 'Sin juego destacado por ahora.' });
+  return res.json({ ok: true, game: fg.game, screenshots: fg.screenshots, stats: gameStatsFor('fantore-resurreccion') });
+});
+
+/* v4.2: catálogo de dramas cortos. Igual que las carteleras
    de cine (v3.9) y juegos (v4.0): la lista vive en kdramas.json en la
-   raíz del repo (serie, capítulos con su video de YouTube); cada 3
-   meses se cambia ese archivo y los dramas rotan sin una versión nueva
-   de la app. GET /api/kdramas es público (sin autenticación). Se lee el
-   archivo en cada petición para que un cambio se note sin reiniciar
-   el servidor. Sin el archivo, con JSON roto o con la lista vacía
-   responde ok:false: la app no inventa dramas y usa su lista fija. */
+   raíz del repo; cada 3 meses se cambia ese archivo y los dramas
+   rotan sin una versión nueva de la app. GET /api/kdramas es público
+   (sin autenticación). Se lee el archivo en cada petición para que un
+   cambio se note sin reiniciar el servidor. Sin el archivo, con JSON
+   roto o con la lista vacía responde ok:false: la app no inventa
+   dramas y usa su lista fija.
+   v4.4: los dramas ya no son videos de YouTube (DramaBox): son
+   originales de WordRed, novela visual — cada serie trae sinopsis y
+   portada, y cada capítulo trae número, título, texto e imagen. */
 function readKdramas() {
   try {
     var raw = fs.readFileSync(path.join(__dirname, 'kdramas.json'), 'utf8');
@@ -1179,13 +1244,12 @@ function readKdramas() {
     var list = d && Array.isArray(d.kdramas) ? d.kdramas : null;
     if (!list || !list.length) return null;
     var clean = list.filter(function (s) {
-      return s && s.id && s.name && s.channel && s.poster && Array.isArray(s.eps) && s.eps.length &&
-        s.eps.every(function (e) { return e && typeof e.ep === 'number' && typeof e.videoId === 'string' && e.videoId.length === 11 && e.title && e.thumb; });
+      return s && s.id && s.name && s.synopsis && s.poster && Array.isArray(s.chapters) && s.chapters.length &&
+        s.chapters.every(function (c) { return c && typeof c.n === 'number' && c.title && typeof c.text === 'string' && c.text.length > 100 && c.image; });
     }).map(function (s) {
       return {
-        id: String(s.id), name: String(s.name), year: s.year || null, channel: String(s.channel),
-        totalEps: s.totalEps || s.eps.length, source: s.source || '', poster: String(s.poster),
-        eps: s.eps.map(function (e) { return { ep: e.ep, videoId: String(e.videoId), title: String(e.title), ytTitle: String(e.ytTitle || e.title), thumb: String(e.thumb) }; })
+        id: String(s.id), name: String(s.name), synopsis: String(s.synopsis), poster: String(s.poster),
+        chapters: s.chapters.map(function (c) { return { n: c.n, title: String(c.title), text: String(c.text), image: String(c.image) }; })
       };
     });
     return clean.length ? clean : null;
@@ -1773,16 +1837,23 @@ function promoRequestPublic(r) {
     createdAt: r.createdAt, decidedAt: r.decidedAt || null
   };
 }
-/* Clave del creador (v4.3): secreto compartido en la variable
-   CREATOR_KEY (Render). Se lee en cada petición para que las pruebas
+/* Cuenta principal (v4.4): la única que aprueba promociones y
+   guarda la configuración global. Se identifica por el correo
+   verificado de su cuenta de Google, leído de la variable
+   OWNER_EMAIL (Render). Se lee en cada petición para que las pruebas
    puedan simular que no está configurada. Sin la variable, las rutas
-   de creador responden 503; con clave faltante o incorrecta, 401.
-   NUNCA dejan pasar. */
-function requireCreator(req, res) {
-  const key = String(process.env.CREATOR_KEY || '').trim();
-  if (!key) { res.status(503).json({ ok: false, error: 'La verificación del creador no está configurada en el servidor.' }); return false; }
-  const given = String(req.headers['x-creator-key'] || '').trim();
-  if (!given || given !== key) { res.status(401).json({ ok: false, error: 'Clave de creador no válida.' }); return false; }
+   de dueño responden 503; sin sesión, 401; con otra cuenta, 403.
+   NUNCA dejan pasar. El correo se conoce porque authPhone resuelve
+   el token a la clave de la cuenta: para Google esa clave ES el
+   correo verificado (POST /api/auth/google emite el token para el
+   correo); para teléfono es el número, que nunca es el correo del
+   dueño y por eso responde 403. */
+function requireOwner(req, res) {
+  const owner = String(process.env.OWNER_EMAIL || '').trim().toLowerCase();
+  if (!owner) { res.status(503).json({ ok: false, error: 'La aprobación de la cuenta principal no está configurada en el servidor.' }); return false; }
+  const id = authPhone(req);
+  if (!id) { res.status(401).json({ ok: false, error: 'Sesión inválida.' }); return false; }
+  if (String(id).toLowerCase() !== owner) { res.status(403).json({ ok: false, error: 'Solo la cuenta principal puede hacer esto.' }); return false; }
   return true;
 }
 app.post('/api/promotions/request', async (req, res) => {
@@ -1815,12 +1886,12 @@ app.get('/api/promotions/mine', (req, res) => {
   return res.json({ ok: true, requests: mine.map(promoRequestPublic) });
 });
 app.get('/api/promotions/pending', (req, res) => {
-  if (!requireCreator(req, res)) return;
+  if (!requireOwner(req, res)) return;
   const list = promoRequests.filter(function (r) { return r.status === 'pending'; }).slice().sort(function (a, b) { return a.createdAt - b.createdAt; });
   return res.json({ ok: true, requests: list.map(promoRequestPublic) });
 });
 app.post('/api/promotions/:id/approve', async (req, res) => {
-  if (!requireCreator(req, res)) return;
+  if (!requireOwner(req, res)) return;
   const r = promoRequests.find(function (x) { return x.id === req.params.id; });
   if (!r) return res.status(404).json({ ok: false, error: 'Solicitud no encontrada.' });
   if (r.status !== 'pending') return res.status(400).json({ ok: false, error: 'Esta solicitud ya se decidió.' });
@@ -1843,7 +1914,7 @@ app.post('/api/promotions/:id/approve', async (req, res) => {
   return res.json({ ok: true, request: promoRequestPublic(r), post: post });
 });
 app.post('/api/promotions/:id/reject', async (req, res) => {
-  if (!requireCreator(req, res)) return;
+  if (!requireOwner(req, res)) return;
   const r = promoRequests.find(function (x) { return x.id === req.params.id; });
   if (!r) return res.status(404).json({ ok: false, error: 'Solicitud no encontrada.' });
   if (r.status !== 'pending') return res.status(400).json({ ok: false, error: 'Esta solicitud ya se decidió.' });
@@ -1874,7 +1945,7 @@ app.get('/api/creator-config', (req, res) => {
   return res.json({ ok: true, config: { order: creatorConfig.order.slice(), sizes: Object.assign({}, creatorConfig.sizes), updatedAt: creatorConfig.updatedAt || null } });
 });
 app.post('/api/creator-config', async (req, res) => {
-  if (!requireCreator(req, res)) return;
+  if (!requireOwner(req, res)) return;
   const body = req.body || {};
   if (body.reset === true) {
     creatorConfig = null;
