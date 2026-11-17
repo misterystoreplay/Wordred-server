@@ -2,282 +2,290 @@
   "ok": true,
   "kdramas": [
     {
-      "id": "el-contrato-de-la-heredera",
-      "name": "El contrato de la heredera",
-      "synopsis": "Valeria Mendoza, heredera de un imperio hotelero, debe casarse antes de cumplir treinta años para no perderlo todo. Su solución es un matrimonio de contrato con Andrés Rivera, un chef de barrio que necesita el dinero. Seis meses, reglas claras y cero sentimientos. O eso creían.",
-      "poster": "dramas/el-contrato-de-la-heredera-portada.jpg",
-      "chapters": [
+      "id": "la-doble-vida-de-mi-esposo-multimillonario",
+      "name": "La doble vida de mi esposo multimillonario",
+      "channel": "ReelShort Latinoamérica",
+      "totalEps": 70,
+      "source": "ReelShort",
+      "synopsis": "Sebastian de la Torre es el hijo bastardo de su familia; lo creen un perdedor, pero lleva una doble vida.",
+      "poster": "https://i.ytimg.com/vi/mJVKa6XzAHU/hqdefault.jpg",
+      "eps": [
         {
-          "n": 1,
-          "title": "La cláusula 30",
-          "text": "Valeria Mendoza tenía veintiocho años, un imperio hotelero a sus pies y un problema que no se resolvía con dinero: el testamento de su abuelo. Para heredar el grupo debía estar casada antes de cumplir treinta, y faltaban seis meses. Su madre ya tenía una lista de candidatos: hijos de empresarios, apellidos correctos, sonrisas ensayadas. Valeria los rechazó a todos en una sola cena. Esa misma noche, buscando aire, entró a un pequeño restaurante de barrio donde el chef servía personalmente cada plato. Andrés Rivera le llevó la cuenta con una sonrisa que no pedía nada y le dijo que la cocina era el único lugar donde nadie fingía. Valeria lo miró fijamente y, sin pensarlo dos veces, le hizo una propuesta absurda: un matrimonio de contrato por seis meses, con sueldo, reglas claras y cero sentimientos. Andrés se rio. Después preguntó cuánto pagaba. Y Valeria supo que había encontrado a su esposo.",
-          "image": "dramas/el-contrato-de-la-heredera-cap1.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794927855/rcz0cpahhnoi5jdmx7k6.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794927863/bcig9ng8kzziryqyhbxn.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794927864/pfr0l7oyjqdxshemg3di.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794927866/c2dxlkscxljzckeiwak8.vtt"
-          }
-        },
-        {
-          "n": 2,
-          "title": "Firmado bajo presión",
-          "text": "El contrato tenía catorce cláusulas. Vivir bajo el mismo techo. Acompañarse a todos los eventos. No hacer preguntas personales. Y la más importante, escrita por Valeria con letra firme: no enamorarse. Andrés firmó con la misma pluma con la que anotaba sus recetas y se mudó al penthouse con una sola maleta y su cuchillo de chef. La primera semana fue un desastre elegante: él cocinaba a las seis de la mañana y ella tenía reuniones a las siete; él dejaba cilantro en la cocina y ella dejaba tacones en el pasillo. Pero en la primera cena familiar, Andrés se ganó a la abuela con un caldo que llevaba el sabor de la casa de su infancia. La madre de Valeria, en cambio, no dejaba de mirarlo como se mira un error. Al salir, Valeria le susurró: «Te portaste bien». Andrés sonrió: «Es el contrato, señora Mendoza». Y a Valeria le molestó que sonara tan bien.",
-          "image": "dramas/el-contrato-de-la-heredera-cap2.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794931745/qtddsnvriywp2w0bjxwl.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931749/mefbmgsiim7hkzllfxhy.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931750/mo3okyyilgg7fglr0ws6.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931751/lft7hzwv7eaozijfbc23.vtt"
-          }
-        },
-        {
-          "n": 3,
-          "title": "Celos de mentira",
-          "text": "El exnovio de Valeria apareció en una gala benéfica con la intención de recuperarla frente a todos. Andrés, sin que nadie se lo pidiera, se puso de pie, le rodeó la cintura y dijo con una calma perfecta: «Mi esposa no baila con extraños». El salón entero los miró. Valeria sintió el corazón golpearle el vestido y, por primera vez, no supo si aquello era actuación. Esa noche, revisando los correos del grupo, descubrió algo peor: el abogado de la familia, el señor Campos, filtraba información a la prensa para que el matrimonio pareciera un fraude y anular la herencia. Valeria no durmió. A las tres de la mañana encontró a Andrés en la cocina, preparándole un té. «Mañana lo resolvemos», le dijo él. Y ella pensó que, de todos los hombres que había conocido, ese era el primero que la miraba como si el contrato no existiera. Valeria se quedó mirando la puerta por la que Andrés había salido, con el té ya frío entre las manos.",
-          "image": "dramas/el-contrato-de-la-heredera-cap3.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794931767/ngoscnrxieldivgaast2.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931771/ilx4ytpurfunvdfgqrz1.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931772/h2a5ccekr3efqx7c3mn8.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931773/z3m7uc8xxcgdbeoxthww.vtt"
-          }
-        },
-        {
-          "n": 4,
-          "title": "El contrato roto",
-          "text": "Valeria llevó las pruebas del sabotaje a la junta y rompió el contrato delante de todos. Renunciar al matrimonio falso era la única forma de proteger a Andrés, aunque eso significara perder la herencia. Salió del edificio sin mirar atrás y volvió al pequeño restaurante de barrio, donde todo había empezado. Andrés la esperaba con la cocina apagada y una sola mesa puesta. «Me enamoré el día que te llevé la cuenta», le dijo, «y llevo seis meses pagando el precio de fingir que no». Valeria lloró por primera vez en años. Días después, el notario le entregó una segunda carta de su abuelo: la herencia nunca fue por casarse, sino por amar de verdad. La boda fue pequeña, en el restaurante, con la abuela de testigo y el caldo de la infancia en el menú. Sin contrato. Sin cláusulas. Solo ellos dos. La abuela lloró de risa cuando Andrés le pidió la receta del caldo para ponerla en la carta del restaurante.",
-          "image": "dramas/el-contrato-de-la-heredera-cap4.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794931843/jhi9pzvafvbban1ndykw.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931846/ro8qtuhqxnvbdwazl63a.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931847/uvoswqrg95r5qp7lwoyu.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931848/mabw0cc9mxjjb9i1q70n.vtt"
-          }
+          "ep": 1,
+          "videoId": "mJVKa6XzAHU",
+          "title": "Capítulos 1 al 6",
+          "ytTitle": "La Doble Vida de Mi Esposo Multimillonario Cap 1 al 6 | ReelShort",
+          "thumb": "https://i.ytimg.com/vi/mJVKa6XzAHU/hqdefault.jpg"
         }
       ]
     },
     {
-      "id": "la-venganza-de-camila",
-      "name": "La venganza de Camila",
-      "synopsis": "Cinco años después de que su prometido y su mejor amiga la dejaran en la ruina, Camila Torres vuelve a la ciudad como directora de la empresa rival. Su plan es perfecto. Lo que no planeó fue a Mateo, el hermano de quien la traicionó.",
-      "poster": "dramas/la-venganza-de-camila-portada.jpg",
-      "chapters": [
+      "id": "arrebato-a-un-multimillonario",
+      "name": "Arrebató a un multimillonario",
+      "channel": "ReelShort Latinoamérica",
+      "totalEps": 20,
+      "source": "ReelShort",
+      "synopsis": "El prometido de Cora termina su compromiso; ella decide arrebatar a un multimillonario para ser su esposo.",
+      "poster": "https://i.ytimg.com/vi/w7YBkXThlzk/hqdefault.jpg",
+      "eps": [
         {
-          "n": 1,
-          "title": "Cinco años después",
-          "text": "Camila Torres bajó del avión con otro apellido, otro peinado y la misma rabia guardada bajo llave. Cinco años atrás, su prometido Rodrigo le había robado la empresa que ella levantó y su mejor amiga Fernanda había firmado cada papel de la traición. La dejaron sin dinero, sin nombre y sin nadie que le creyera. Ahora volvía como Camila Andrade, directora general de Grupo Andrade, la competencia que Rodrigo no podía ignorar. En su primera gala de negocios, Rodrigo le ofreció una copa sin reconocerla. Fernanda la miró dos veces y sonrió, segura de que era otra mujer con un vestido parecido. Camila brindó con ellos y pensó: «No saben quién soy. Perfecto». Esa noche, en su departamento vacío, abrió la carpeta con el plan: contratos, fechas, nombres. Todo estaba listo. Lo único que no tenía escrito era hasta dónde estaba dispuesta a llegar. Guardó la carpeta en el cajón y se prometió que, pasara lo que pasara, esta vez no se iría sin terminar lo que empezó.",
-          "image": "dramas/la-venganza-de-camila-cap1.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794931866/nqymcc6gtsdkub0r8hk2.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931869/w7p30cjwznxsjzozcf9e.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931870/e1xznbfxhbd38juj22iu.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931872/ohbuuiiystndbhbsgnlq.vtt"
-          }
-        },
-        {
-          "n": 2,
-          "title": "El plan en marcha",
-          "text": "El plan empezó con un contrato que Grupo Andrade le arrebató a la empresa de Rodrigo en una licitación limpia, impecable, imposible de impugnar. Fernanda exigió saber quién era la nueva directora; Rodrigo, en cambio, pidió una reunión para negociar. Camila aceptó con una condición: el proyecto lo llevaría Mateo, el hermano menor de Rodrigo, un arquitecto idealista que diseñaba casas para gente sin casa. Trabajar con Mateo no estaba en el plan. Él llegaba temprano, preguntaba por las personas antes que por los números y defendía cada decisión con una honestidad que a Camila le dolía mirar. Una tarde, revisando planos, Mateo le dijo: «Usted diseña empresas como yo diseño casas: pensando en quién va a vivir dentro». Camila bajó la mirada. Por primera vez en cinco años, alguien le hablaba sin querer nada a cambio. Esa noche, Camila repasó los planos una vez más y descubrió que, por primera vez, le importaba que el edificio quedara bien.",
-          "image": "dramas/la-venganza-de-camila-cap2.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794931897/d71pbksjqjrfltzf5uru.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931900/uxd88dgkjnw1ufnsynrc.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931901/ykttfm2v6qisuswidozz.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794931902/igxhjwbpwfzjns43ub7u.vtt"
-          }
-        },
-        {
-          "n": 3,
-          "title": "La cena equivocada",
-          "text": "Mateo la invitó a cenar para agradecerle el proyecto. Camila aceptó porque una cena era información, y la información era el plan. Pero en el restaurante, entre platos sencillos y risas que no ensayaba desde hacía años, Mateo le contó algo que no estaba en ninguna carpeta: cuando ella lo perdió todo, él fue el único que dijo en la familia que aquello había sido una injusticia. Nadie le hizo caso. Camila sintió que el plan se le resbalaba de las manos. Esa misma noche, Fernanda la llamó por teléfono: había reconocido su voz en una entrevista y quería verla. Camila colgó sin contestar y miró por la ventana. La venganza estaba a un paso de cumplirse y, sin embargo, lo único que quería era quedarse en esa cena equivocada, con la persona equivocada, que resultaba ser la correcta. Al llegar a casa se quitó los tacones, se sentó en el suelo de la cocina y se rio sola por primera vez en cinco años.",
-          "image": "dramas/la-venganza-de-camila-cap3.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794930776/vzhhqrgrnehw0w4ghagl.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794930790/va6tj7uycheseodzcqus.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794930791/rzbmrfogf4krdmwvraoe.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794930793/hlbov15nr90f1bbwdvah.vtt"
-          }
-        },
-        {
-          "n": 4,
-          "title": "Venganza o perdón",
-          "text": "Camila tenía los documentos que hundían a Rodrigo y a Fernanda: firmas, transferencias, fechas. En la junta decisiva, con todos mirándola, sacó la carpeta. Pero antes de abrirla, Mateo entró a la sala y le pidió cinco minutos. «No te conviertas en ellos», le dijo en voz baja. «Expón la verdad, pero no destruyas a los inocentes que trabajan ahí». Camila respiró hondo y cambió el plan en ese instante: entregó las pruebas a los auditores, no a la prensa, y renunció a quedarse con la empresa de Rodrigo. La verdad salió a la luz y cada quien pagó lo suyo, pero nadie más perdió su trabajo. Al salir del edificio, Mateo la esperaba con dos cafés. «¿Y ahora?», preguntó él. Camila sonrió, libre por fin: «Ahora empiezo de nuevo. ¿Me acompañas?». Y por primera vez en cinco años, caminó sin mirar atrás. Meses después, Camila inauguró una fundación para mujeres que empezaban de cero, y Mateo diseñó su primera sede.",
-          "image": "dramas/la-venganza-de-camila-cap4.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794930785/a3xnj4nn6rgpkxanlmjl.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794930794/x9zbxkrmwz46ppqahehb.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794930795/zmy1z2buiek1wvi02zsm.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794930796/rfoevp3r6gp45ogajfns.vtt"
-          }
+          "ep": 1,
+          "videoId": "w7YBkXThlzk",
+          "title": "Capítulos 1 al 10",
+          "ytTitle": "【Doblado ESP】[Cap 1 al 10] Arrebató a un multimillonario para ser mi esposo #ReelShort",
+          "thumb": "https://i.ytimg.com/vi/w7YBkXThlzk/hqdefault.jpg"
         }
       ]
     },
     {
-      "id": "la-doble-vida-de-elena",
-      "name": "La doble vida de Elena",
-      "synopsis": "De día, Elena Ruiz es la asistente invisible de un grupo editorial. De noche, es Luna, la novelista romántica más leída del país. Todo funciona hasta que su jefe, Daniel Vega, se obsesiona con contratar a Luna... sin saber que la tiene a dos escritorios de distancia.",
-      "poster": "dramas/la-doble-vida-de-elena-portada.jpg",
-      "chapters": [
+      "id": "atada-al-honor",
+      "name": "Atada al honor",
+      "channel": "ReelShort Latinoamérica",
+      "totalEps": 93,
+      "source": "ReelShort",
+      "synopsis": "Atrapada en un matrimonio concertado con Luca, el frío y peligrosamente seductor heredero.",
+      "poster": "https://i.ytimg.com/vi/TeKEjShQBlk/hqdefault.jpg",
+      "eps": [
         {
-          "n": 1,
-          "title": "La asistente invisible",
-          "text": "Elena Ruiz tenía veintiséis años y un talento especial para pasar desapercibida. En el grupo editorial Vega llevaba el café, ordenaba los manuscritos y arreglaba las agendas de todos, y nadie recordaba su apellido. Lo que nadie sabía era que cada noche, cuando la oficina se quedaba vacía, Elena se convertía en Luna, la novelista romántica más leída del país. Su última novela, «El jardín de las despedidas», llevaba diez semanas en el primer lugar. Esa mañana, su jefe, Daniel Vega, entró a la oficina agitando el periódico: Luna era un fenómeno y nadie sabía quién era. Elena asintió desde su escritorio, invisible como siempre, mientras en su bolso vibraba el teléfono: su editora le pedía el final de la próxima novela. Por la tarde, Daniel se quedó leyendo la novela en la oficina vacía y le confesó que la heroína le recordaba a alguien, a una mujer trabajadora y discreta a la que nadie notaba. Elena sonrió para sus adentros. El secreto estaba a salvo. O eso creía. Antes de dormir, Elena escribió tres páginas más y las guardó en el cajón, donde nadie las buscaría jamás.",
-          "image": "dramas/la-doble-vida-de-elena-cap1.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794927777/dx45jlgjly27vw9wc4ci.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794927792/xaoqoinkqayjslnuoiim.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794927794/xxvafrujpif6otyxapta.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794927797/xozgmbcjstzazzfzvabm.vtt"
-          }
-        },
-        {
-          "n": 2,
-          "title": "El jefe lector",
-          "text": "Daniel Vega anunció en la reunión que fichar a Luna era la prioridad del año: una firma exclusiva, una campaña enorme y una presentación que la sacara del anonimato. Y le encargó la misión a la persona en la que menos pensaba: Elena. «Tú eres la única que nunca me falla», le dijo, sin imaginar que le pedía que se encontrara a sí misma. Elena pasó la semana inventando excusas: Luna no daba entrevistas, Luna odiaba las cámaras, Luna estaba de viaje. Pero Daniel no se rendía: cada día dejaba en su escritorio una nota nueva con ideas para convencer a la autora, una portada de revista, una firma de libros con antifaz. Una tarde, Elena lo encontró leyendo su novela en el despacho, con los pies sobre la mesa y una sonrisa boba. «Esta mujer escribe como si me conociera», murmuró él, y le leyó en voz alta el fragmento que más le había llegado. Elena se dio la vuelta para que no le viera la cara. Lo hacía. Lo conocía mejor que nadie. Y cada día que pasaba, el secreto estaba un poco más cerca de descubrirse.",
-          "image": "dramas/la-doble-vida-de-elena-cap2.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794929938/ofptvvpmdoabcqtmggbt.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794929941/ja1knzr69120yanad3gp.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794929943/p9f3fyvvoe1gi3nk6wsv.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794929944/iarjzpt403jmgttnryxz.vtt"
-          }
-        },
-        {
-          "n": 3,
-          "title": "Casi descubierta",
-          "text": "La presentación del nuevo libro de Luna se celebró en una librería pequeña, con antifaz y voz baja para que nadie reconociera a la autora. Elena firmó doscientos ejemplares sin que nadie sospechara quién era, sonriendo detrás del antifaz mientras su editora la esperaba al teléfono. Pero al salir, se topó con Daniel Vega en la puerta. Había venido a ver a Luna y se quedó mirándola fijamente: esa voz, esa forma de sostener el bolígrafo, esa risa nerviosa. «¿Nos conocemos?», preguntó. Elena inventó una tos, se despidió deprisa y dejó caer su cuaderno en la huida. Daniel lo recogió y, en la primera página, encontró una frase subrayada, la misma que abría la novela de Luna. Se quedó quieto en mitad de la calle, con el cuaderno en la mano y el corazón latiéndole como si acabara de entenderlo todo. Esa noche no durmió. Y Elena, tampoco: llegó a casa con el corazón en la garganta y se pasó la noche mirando el teléfono, esperando que sonara.",
-          "image": "dramas/la-doble-vida-de-elena-cap3.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794928332/ucdyurj5joogi0ceqn5p.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794928340/vncwqgfrautdykpl4kvh.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794928342/tdyhcku6tc7meaifpslg.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794928343/g9cbol4zvdr1hg0eyhqz.vtt"
-          }
-        },
-        {
-          "n": 4,
-          "title": "Luna se revela",
-          "text": "El día de la presentación oficial, la sala estaba llena y Daniel esperaba en primera fila con el contrato de Luna en la mano. Las luces bajaron y una voz anunció a la autora. Elena subió al escenario con el antifaz puesto, miró al público y, despacio, se lo quitó. El silencio duró tres segundos. Daniel se puso de pie sin darse cuenta, con el contrato temblándole entre las manos. «Soy Elena Ruiz», dijo ella, «la asistente invisible. Y también soy Luna». La sala estalló en aplausos. Después, en el camerino, Daniel no le habló del contrato. Le habló de la novela, del capítulo que lo hizo llorar y de la asistente que llevaba dos años sin ver. «¿Cenamos?», preguntó al fin. «Sin agenda, sin manuscritos». Elena sonrió: «Solo si me dejas pagar yo esta vez». Y Luna, por fin, dejó de esconderse. Al día siguiente, el periódico publicó la foto de Luna sin antifaz y la editorial recibió mil pedidos en una hora.",
-          "image": "dramas/la-doble-vida-de-elena-cap4.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794929822/mlnsfjhvyuthwl2ooeun.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794929832/dt5iumccm8hyq2jdcvit.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794929833/hwn4atwcy1uwoozpf6mn.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794929835/qhyulqpg0b5ljd1miu6a.vtt"
-          }
+          "ep": 1,
+          "videoId": "TeKEjShQBlk",
+          "title": "Capítulos 1 al 11",
+          "ytTitle": "[doblado] Atada al honor EP 1-11  | ReelShort",
+          "thumb": "https://i.ytimg.com/vi/TeKEjShQBlk/hqdefault.jpg"
         }
       ]
     },
     {
-      "id": "cartas-a-medianoche",
-      "name": "Cartas a medianoche",
-      "synopsis": "Cada medianoche, Lucía Herrera encuentra una carta bajo su puerta que describe exactamente lo que le pasará al día siguiente. Cuando una carta advierte un peligro, sigue las pistas hasta la librería de Gabriel, un hombre que escribe el futuro... o que lo recuerda.",
-      "poster": "dramas/cartas-a-medianoche-portada.jpg",
-      "chapters": [
+      "id": "atrape-el-corazon-de-un-multimillonario",
+      "name": "Atrapé el corazón de un multimillonario",
+      "channel": "ReelShort Latinoamérica",
+      "totalEps": 64,
+      "source": "ReelShort",
+      "synopsis": "Romance y drama con un multimillonario protector que reclama su corazón.",
+      "poster": "https://i.ytimg.com/vi/9QRaq93t-aE/hqdefault.jpg",
+      "eps": [
         {
-          "n": 1,
-          "title": "La primera carta",
-          "text": "Lucía Herrera encontró la primera carta bajo su puerta un martes a medianoche y su vida dejó de ser normal para siempre. Sin remitente y con una letra cuidadosa de otra época, la carta anunciaba tres cosas imposibles: que se le caería el café, que discutiría con su jefa y que conocería a alguien que olía a libros viejos. Lucía se rio y guardó el sobre en un cajón, segura de que era una broma. Pero al día siguiente todo se cumplió, en el mismo orden, palabra por palabra, y en la librería de la esquina chocó con Gabriel, un hombre que olía exactamente a libros viejos. Esa noche no durmió esperando la medianoche, y la carta llegó, puntual como un tren, anunciando lluvia y un paraguas prestado bajo un cielo despejado. Cuando la lluvia cayó a la mañana siguiente, Lucía entendió que alguien escribía su futuro antes de que sucediera. Ahora solo le queda una pregunta: quién está detrás de esas cartas y por qué la eligió a ella.",
-          "image": "dramas/cartas-a-medianoche-cap1.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794929800/rlsvqw3izmh2fqko1j4t.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794929815/mei9lmjn23pdnvuiq5l3.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794929816/kdayoi6h6m2u4lwrlxn5.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794929818/tgkt3aydvfgxngmr8tkm.vtt"
-          }
-        },
-        {
-          "n": 2,
-          "title": "El remitente",
-          "text": "Lucía decidió atrapar al remitente y seguir el rastro del papel hasta su origen. La marca de agua en forma de luna la llevó a la papelería La Luna, cerrada hace más de veinte años, y a don Esteban, su antiguo dueño, que recordaba a un niño flaco que compraba ese papel semana tras semana para escribirle el futuro a una niña. La pista terminó en la librería más vieja del barrio, frente a Gabriel, un librero de gafas redondas que negaba ser el autor de las cartas pero conocía detalles imposibles: el nombre de su gato, la canción que tarareaba al cocinar y su miedo a los truenos. «Las cartas no predicen el futuro», le dijo, mirándola por encima de las gafas. «Solo recuerdan lo que va a pasar». Lucía salió de la librería con más preguntas que respuestas y una certeza nueva: Gabriel mentía, y mentía muy mal. Esa noche esperó despierta junto a la puerta, escuchó unos pasos detenerse frente a ella y entendió que el remitente era real, que caminaba despacio y que conocía su edificio como su propia casa.",
-          "image": "dramas/cartas-a-medianoche-cap2.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794929812/vj37xbwdamwcghqcgxkh.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794929819/arbw2jvfkj142ok2mntl.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794929821/gbygtitktr8v8biwzzrf.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794929823/xfr6xjhab4l8bqwa22cn.vtt"
-          }
-        },
-        {
-          "n": 3,
-          "title": "Lo que la carta no dijo",
-          "text": "La carta de aquella medianoche era distinta: más corta, con la letra temblorosa. «Mañana alguien que quieres estará en peligro. No llegues tarde». Lucía leyó la frase veinte veces. ¿Alguien que quieres? ¿Su madre, su hermana, Gabriel? Pasó la mañana llamando a todos, y todos estaban bien. En la oficina, su jefa, la señora Ramírez, notó su cara de no haber dormido y, al escuchar que alguien que quería podía estar en peligro, le permitió irse a resolverlo y dejar el informe para mañana. Lucía salió corriendo hacia la librería, llamando a su madre y a su hermana para confirmar que seguían en casa. Al atardecer, al final de la calle, vio a Gabriel cruzando sin mirar, con la cabeza metida en un libro, mientras un camión se acercaba rápido por la avenida. Lucía gritó su nombre y corrió como nunca había corrido, y lo empujó a la acera justo a tiempo. Los dos quedaron en el suelo, respirando agitados, con el libro abierto en una página subrayada. Era su letra. Era su historia. Gabriel le confesó que él escribe las cartas cada noche, y que la de hoy no decía quién estaba en peligro porque el peligro era él mismo. «Por eso escribo cada noche. Para que nunca llegues tarde». Y Lucía entendió que el peligro nunca había sido el camión: era no saber a quién tenía que cuidar. Esa noche, Lucía no durmió. Se quedó mirando el techo, pensando en cuántas cartas más harían falta para decirlo todo.",
-          "image": "dramas/cartas-a-medianoche-cap3.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794933279/sgpobzz0mwro85z4j90o.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933301/fchfnmx16dzgyrnatqwq.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933302/dekntekmwk46viagf0eu.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933303/osffld0pt1esij0rtxax.vtt"
-          }
-        },
-        {
-          "n": 4,
-          "title": "La última carta",
-          "text": "Gabriel lo confesó todo en la trastienda de la librería, entre cajas de libros y olor a lluvia. Escribía las cartas desde que eran niños: Lucía le enseñó a leer en la biblioteca del barrio y él, a cambio, le prometió escribirle el futuro. Cuando ella se mudó, él siguió escribiendo, carta tras carta, año tras año, esperando el día en que volviera. El papel venía de la papelería La Luna, que cerró hace más de veinte años: Don Esteban, su dueño, se lo vendía hoja por hoja desde que Gabriel era un niño. «Nunca fueron predicciones», dijo, sacando un sobre viejo. «Eran promesas. Yo me aseguraba de que pasaran». Lucía abrió el sobre: dentro había una sola frase, escrita por él con doce años: «Cuando vuelvas, te voy a querer». Se miraron como dos niños que por fin se encuentran. Y esa medianoche, por primera vez, la carta la escribió Lucía: «Mañana te voy a querer yo también». La dejó bajo la puerta de la librería. Gabriel la leyó al amanecer. Y sonrió. La guardó junto a la suya, en el cajón de su escritorio, una al lado de la otra. A la mañana siguiente, Lucía encontró una carta nueva bajo su puerta y, por primera vez, no tuvo miedo de leerla. Decía que mañana iban a desayunar juntos, y pasado mañana también. Las cartas ya no predicen el futuro: ahora lo prometen. Y la última carta nunca fue la última: fue la primera que escribieron los dos juntos.",
-          "image": "dramas/cartas-a-medianoche-cap4.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794933298/lqs6lt0vvba1fimogjw5.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933304/huiauu5ydjoxaxiziqpq.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933305/wbcvmael7kd96yng3reo.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933306/vaynjewynv6jtrkyoqyy.vtt"
-          }
+          "ep": 1,
+          "videoId": "9QRaq93t-aE",
+          "title": "Capítulos 1 al 7",
+          "ytTitle": " Atrapé el corazón de un multimillonario Cap 1 al 7 | ReelShort",
+          "thumb": "https://i.ytimg.com/vi/9QRaq93t-aE/hqdefault.jpg"
         }
       ]
     },
     {
-      "id": "la-otra-yo",
-      "name": "La otra yo",
-      "synopsis": "Mariana Solís limpia habitaciones en el hotel más lujoso de la ciudad. Un día la confunden con Isabella Duarte, la hija perdida de la familia dueña. Acepta hacerse pasar por ella una semana para saldar una deuda. Pero hay una foto vieja que lo cambia todo.",
-      "poster": "dramas/la-otra-yo-portada.jpg",
-      "chapters": [
+      "id": "tuve-un-bebe-sin-ti",
+      "name": "Tuve un bebé sin ti",
+      "channel": "ReelShort Latinoamérica",
+      "totalEps": 59,
+      "source": "ReelShort",
+      "synopsis": "Ellie logra un embarazo mediante FIV y su vida da un giro que no esperaba.",
+      "poster": "https://i.ytimg.com/vi/LDsKkqn-eUk/hqdefault.jpg",
+      "eps": [
         {
-          "n": 1,
-          "title": "La confusión",
-          "text": "Mariana Solís llevaba tres años limpiando habitaciones en el hotel más lujoso de la ciudad. Conocía cada pasillo, cada llave y cada secreto que los huéspedes dejaban atrás. Una mañana, mientras limpiaba la suite presidencial, llegó la familia Duarte buscando a Isabella, su hija perdida hacía veinte años. La abuela entró a la suite, vio a Mariana y se llevó las manos a la boca: era idéntica a su hija. La misma cara, el mismo lunar junto al ojo, el mismo dije en forma de luna que Mariana llevaba desde niña. «Isabella», susurró la abuela, con las manos temblando. Mariana retrocedió con el trapo en la mano: «Señora, yo solo limpio aquí». Pero la familia ya la miraba como se mira un milagro. Diego, el abogado de la familia, le pidió cinco minutos y le habló del dije, del lunar y de una niña que se perdió en un mercado. Mariana negó ser Isabella, defendió su vida, su madre y su trabajo, pero la abuela no dejaba de mirarla como quien encuentra lo perdido. Y Mariana, por primera vez en su vida, sintió que su cara era una puerta. Mariana terminó su turno sin decir una palabra y se fue a casa con el dije apretado en el puño, como si fuera a escaparse. Esa noche se miró al espejo y se preguntó si su cara era suya o prestada.",
-          "image": "dramas/la-otra-yo-cap1.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794933026/q8wisw2md8bkoz1dwyy7.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933039/ixjdptyar3ezb5vakmue.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933040/bmnkifo4fzsotzz3sm7s.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933041/vudnsfgkynpacnmhk3pm.vtt"
-          }
-        },
+          "ep": 1,
+          "videoId": "LDsKkqn-eUk",
+          "title": "Capítulos 1 al 9",
+          "ytTitle": "[doblado]Tuve un bebé sin ti EP 1-9 | ReelShort",
+          "thumb": "https://i.ytimg.com/vi/LDsKkqn-eUk/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "proteger-su-cuerpo-reclamar-su-corazon",
+      "name": "Proteger su cuerpo, reclamar su corazón",
+      "channel": "ReelShort Latinoamérica",
+      "totalEps": 53,
+      "source": "ReelShort",
+      "synopsis": "Drama romántico de ReelShort, doblado al español latino.",
+      "poster": "https://i.ytimg.com/vi/56hbMu08uU4/hqdefault.jpg",
+      "eps": [
         {
-          "n": 2,
-          "title": "Una semana",
-          "text": "Diego, el abogado de la familia, le hizo la propuesta en la cocina del hotel, lejos de todos: una semana haciéndose pasar por Isabella, con cenas, fotos y una presentación formal, a cambio de saldar la deuda del hospital de su madre. Mariana dijo que no. Después pensó en su madre, en las cuentas y en la voz de la abuela diciendo su nombre. Dijo que sí, con una condición: nadie le preguntaría por el pasado que no recordaba, y si quería parar, paraba sin explicaciones. La primera cena familiar fue un examen: nombres, fechas, anécdotas de una niña que ella nunca fue. Mariana respondió con sonrisas y silencios, inventó un cumpleaños debajo de una mesa y la familia la abrazó como si nunca se hubiera ido. En casa, su madre le preguntó por qué llegaba tarde, y Mariana le mintió por primera vez para protegerla. Esa noche, en su cuarto de empleada, se miró al espejo. Por fuera era Isabella, con su vestido y su sonrisa prestada. Por dentro seguía siendo Mariana, con el uniforme colgado y el dije en forma de luna apretado contra el pecho. Y no sabía cuál de las dos le daba más miedo perder. En el espejo del cuarto de empleada se practicó la sonrisa de Isabella hasta que dejó de parecerle prestada.",
-          "image": "dramas/la-otra-yo-cap2.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794933034/hfs08i2fkfmrvawbfxbr.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933042/trg97mhmov1xe4ccodgh.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933044/qx5ophxqnqtknxsnw9e2.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933045/qrfdburnmdlyj2shgw2u.vtt"
-          }
-        },
+          "ep": 1,
+          "videoId": "56hbMu08uU4",
+          "title": "Capítulos 1 al 9",
+          "ytTitle": "Proteger su cuerpo, reclamar su corazón EP 1-9  | ReelShort",
+          "thumb": "https://i.ytimg.com/vi/56hbMu08uU4/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "reina-alfa-traicionada",
+      "name": "Reina Alfa traicionada renace de sus cenizas",
+      "channel": "ReelShort Latinoamérica",
+      "totalEps": 69,
+      "source": "ReelShort",
+      "synopsis": "Nessa, la Reina Loba Secreta, tiene a su lobo sellado para huir con su pareja.",
+      "poster": "https://i.ytimg.com/vi/Q7JOr97YLTY/hqdefault.jpg",
+      "eps": [
         {
-          "n": 3,
-          "title": "La foto vieja",
-          "text": "En el tercer día, la abuela le enseñó el álbum familiar. Página tras página, Mariana vio crecer a una niña que era ella: la misma cara, el mismo pelo, la misma risa. Hasta que llegó a una foto que la dejó sin aire: la niña, de unos cinco años, llevaba puesto el dije en forma de luna. El mismo dije que Mariana llevaba desde niña, el que su madre decía haberle comprado en un mercado. «Esa foto es de la noche en que te perdimos», dijo la abuela, con la voz rota. «Te soltaste de mi mano en el mercado y cuando miré ya no estabas». Mariana tocó la foto con la yema de los dedos y sintió un recuerdo que no era suyo: un mercado, muchas luces, una mano que se suelta. Se levantó sin decir nada y fue a buscar a su madre. Necesitaba escuchar la verdad de la única persona que la había criado.",
-          "image": "dramas/la-otra-yo-cap3.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794933455/ngpuabehdma3jxrqumqy.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933472/dpj7hgea8h31hxtsl34p.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933473/jtao51eolyqrxdsnnfhh.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933474/yjm2bg6kuaxlp75b8tbe.vtt"
-          }
-        },
+          "ep": 1,
+          "videoId": "Q7JOr97YLTY",
+          "title": "Capítulos 1 al 12",
+          "ytTitle": "[doblado] Reina Alfa traicionada renace de sus cenizas Cal 1-12 | Reelshort",
+          "thumb": "https://i.ytimg.com/vi/Q7JOr97YLTY/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "francotirador-americano-el-ultimo-disparo",
+      "name": "Francotirador americano: el último disparo",
+      "channel": "ReelShort Latinoamérica",
+      "totalEps": 63,
+      "source": "ReelShort",
+      "synopsis": "Carl Oliver, legendario tirador conocido como el Rey de las Armas, se oculta como trabajador de mantenimiento hasta que debe proteger a Jane y su hija.",
+      "poster": "https://i.ytimg.com/vi/lr_w2Un4WyM/hqdefault.jpg",
+      "eps": [
         {
-          "n": 4,
-          "title": "La verdad",
-          "text": "Su madre lloró antes de hablar. Hacía veinte años había encontrado a una niña perdida en el mercado, sin nadie que la reclamara, y la había criado como suya sin contarle nunca la verdad. El dije era de la niña; la foto, también. Mariana no se enojó. La abrazó largo rato y entendió que tenía dos madres y dos vidas, y que ninguna cancelaba a la otra. Al día siguiente, en la presentación formal, Mariana se puso de pie frente a toda la familia y dijo la verdad completa: era Isabella Duarte, y también era Mariana Solís, y no pensaba renunciar a ninguna de las dos. La abuela lloró. Su madre, desde la última fila, sonrió. Y Diego, el abogado, la esperaba en la puerta del hotel con dos cafés y una pregunta que llevaba una semana guardando: «¿Cenamos? Esta vez sin contratos». Mariana sonrió: «Esta vez, sí». Y cada domingo, Mariana volvía a limpiar su propio cuarto, porque había cosas que no quería dejar de ser.",
-          "image": "dramas/la-otra-yo-cap4.jpg",
-          "video": "https://res.cloudinary.com/bekxop7h/video/upload/v1794933470/p3ib07jdlprsdgf9owky.mp4",
-          "subtitles": {
-            "es": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933475/yxe8owgwty984cjkrqu5.vtt",
-            "en": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933475/a9wbcoaxeqycrsmfkf1z.vtt",
-            "pt": "https://res.cloudinary.com/bekxop7h/raw/upload/v1794933476/vnn3ywsftpr11y3z14jf.vtt"
-          }
+          "ep": 1,
+          "videoId": "lr_w2Un4WyM",
+          "title": "Capítulos 1 al 20",
+          "ytTitle": "[doblado] Francotirador americano: el último disparo EP 1-20  | ReelShort",
+          "thumb": "https://i.ytimg.com/vi/lr_w2Un4WyM/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "te-amo-mas-que-a-la-vida",
+      "name": "Te amo más que a la vida",
+      "channel": "ReelShort Latinoamérica",
+      "totalEps": 81,
+      "source": "ReelShort",
+      "synopsis": "Durante la fiesta de aniversario de bodas de Eric y Grace, su hermanastra Amanda aparece y exige que Grace le devuelva a Eric.",
+      "poster": "https://i.ytimg.com/vi/vbQyrBPwNW4/hqdefault.jpg",
+      "eps": [
+        {
+          "ep": 1,
+          "videoId": "vbQyrBPwNW4",
+          "title": "Capítulos 1 al 8",
+          "ytTitle": "[doblado]Te amo más que a la vida  | ReelShort",
+          "thumb": "https://i.ytimg.com/vi/vbQyrBPwNW4/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "no-quiero-ser-tu-novia",
+      "name": "¡No quiero ser tu novia!",
+      "channel": "ReelShort Latinoamérica",
+      "totalEps": 1,
+      "source": "ReelShort",
+      "synopsis": "Drama romántico corto de ReelShort, doblado al español latino.",
+      "poster": "https://i.ytimg.com/vi/NFMJDUvpgE0/hqdefault.jpg",
+      "eps": [
+        {
+          "ep": 1,
+          "videoId": "NFMJDUvpgE0",
+          "title": "Capítulo 1",
+          "ytTitle": "[doblado] ¡No quiero ser tu novia! | ReelShort",
+          "thumb": "https://i.ytimg.com/vi/NFMJDUvpgE0/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "un-final-feliz-en-las-vegas",
+      "name": "Un final feliz en Las Vegas",
+      "channel": "ReelShort Latinoamérica",
+      "totalEps": 67,
+      "source": "ReelShort",
+      "synopsis": "Ella es una stripper que intenta sobrevivir y escapar de su pasado. Él es el billonario que jamás la olvidó.",
+      "poster": "https://i.ytimg.com/vi/R2QXvidprZE/hqdefault.jpg",
+      "eps": [
+        {
+          "ep": 1,
+          "videoId": "R2QXvidprZE",
+          "title": "Capítulos iniciales",
+          "ytTitle": "Entré a Su Club Para Sobrevivir… ¡Sin Saber Que Era el Hombre Que Nunca Me Olvidó!",
+          "thumb": "https://i.ytimg.com/vi/R2QXvidprZE/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "agente-de-sombras",
+      "name": "Agente de sombras",
+      "channel": "ReelShort Latinoamérica",
+      "totalEps": 72,
+      "source": "ReelShort",
+      "synopsis": "El mejor agente secreto del mundo debe proteger a su hija de seis años mientras se hace pasar por su niñero.",
+      "poster": "https://i.ytimg.com/vi/L0gKIf3ch3w/hqdefault.jpg",
+      "eps": [
+        {
+          "ep": 1,
+          "videoId": "L0gKIf3ch3w",
+          "title": "Capítulos iniciales",
+          "ytTitle": "Se Hace Pasar por Niñero para Proteger a una Niña… ¡Pero Es el Mejor Espía del Mundo!",
+          "thumb": "https://i.ytimg.com/vi/L0gKIf3ch3w/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "no-es-la-novia-que-el-queria",
+      "name": "No es la novia que él quería",
+      "channel": "ReelShort Latinoamérica",
+      "totalEps": 58,
+      "source": "ReelShort",
+      "synopsis": "Layla ve cómo Asher la traiciona al escapar con su hermana Vivian; ella acepta ocupar el lugar de su hermana y casarse con Lucian.",
+      "poster": "https://i.ytimg.com/vi/MQxrnvd5y10/hqdefault.jpg",
+      "eps": [
+        {
+          "ep": 1,
+          "videoId": "MQxrnvd5y10",
+          "title": "Capítulos iniciales",
+          "ytTitle": "¡Mi pareja me traicionó con mi hermana… y terminé casándome con el Rey Alfa más temido!",
+          "thumb": "https://i.ytimg.com/vi/MQxrnvd5y10/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "tras-7-anos-presa-volvi-como-ninera",
+      "name": "Tras 7 años presa injustamente, volví como niñera…",
+      "channel": "ReelShort Latinoamérica",
+      "totalEps": 1,
+      "source": "ReelShort",
+      "synopsis": "Tras 7 años presa injustamente, vuelve como niñera y el CEO amnésico vuelve a enamorarse de ella.",
+      "poster": "https://i.ytimg.com/vi/dcadRI5cn40/hqdefault.jpg",
+      "eps": [
+        {
+          "ep": 1,
+          "videoId": "dcadRI5cn40",
+          "title": "Capítulos iniciales",
+          "ytTitle": "Tras 7 años presa injustamente, volví como niñera… ¡y el CEO amnésico volvió a enamorarse de mí!",
+          "thumb": "https://i.ytimg.com/vi/dcadRI5cn40/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "mama-papa-es-invencible",
+      "name": "¡Mamá, papá es invencible!",
+      "channel": "ShortMax - Watch Dramas & Show",
+      "totalEps": 1,
+      "source": "ShortMax",
+      "synopsis": "Drama corto de ShortMax, doblado al español latino: romance, secretos y giros inesperados.",
+      "poster": "https://i.ytimg.com/vi/ElHRIz3Lnks/hqdefault.jpg",
+      "eps": [
+        {
+          "ep": 1,
+          "videoId": "ElHRIz3Lnks",
+          "title": "Capítulos iniciales",
+          "ytTitle": "[Doblado] ¡Mamá, papá es invencible! | Descarga ShortMax para el episodio completo",
+          "thumb": "https://i.ytimg.com/vi/ElHRIz3Lnks/hqdefault.jpg"
+        }
+      ]
+    },
+    {
+      "id": "el-renacer-de-la-esposa-gorda",
+      "name": "El Renacer de la Esposa Gorda",
+      "channel": "ShortMax - Watch Dramas & Show",
+      "totalEps": 1,
+      "source": "ShortMax",
+      "synopsis": "Drama corto de ShortMax, doblado al español latino: romance, secretos y giros inesperados.",
+      "poster": "https://i.ytimg.com/vi/rEux7aoyRZo/hqdefault.jpg",
+      "eps": [
+        {
+          "ep": 1,
+          "videoId": "rEux7aoyRZo",
+          "title": "Capítulos iniciales",
+          "ytTitle": "[Doblado] El Renacer de la Esposa Gorda | GET ShortMax APP to watch the FULL EPISODE",
+          "thumb": "https://i.ytimg.com/vi/rEux7aoyRZo/hqdefault.jpg"
         }
       ]
     }
