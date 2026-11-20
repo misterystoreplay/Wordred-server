@@ -1,4 +1,4 @@
-# WordRed Web 1.2 — NOTAS
+# WordRed Web 1.3 — NOTAS
 
 Versión web de WordRed: se abre con un enlace en el navegador, sin
 descargar ni instalar nada. Las actualizaciones llegan solas al abrir
@@ -19,6 +19,13 @@ buscador del Inicio (la búsqueda sigue con la lupa de la barra de
 arriba). El reloj, el clima y «+ Agregar apartado» se quedan en el
 Inicio como están.
 
+La Web 1.3 mueve los Eventos del perfil: ya no van justo tras la
+cabecera, van ABAJO de la caja «¿Qué estás pensando?» (mismo
+contenido y misma función: lista, botón «Crear» y diálogo de
+creación). Como invitado no hay caja «¿Qué estás pensando?», así
+que ahí los Eventos se quedan donde estaban. Todo lo demás de la
+1.2 queda igual.
+
 ## Qué hay aquí
 
 - `index.html`, `app.js`, `core.js`, `games.js`, `ytplayer.html`,
@@ -28,12 +35,13 @@ Inicio como están.
 - `games.js`, `ytplayer.html`, `qrcode.js`, `jsqr.js`: byte-idénticos
   a los de Android 1.5.64.
 - `app.js`, `index.html`: copias ADAPTADAS con cambios documentados,
-  cada uno marcado «Web 1.2» (la 1.1 marcó los suyos «Web 1.1» y la
-  1.0 los suyos «Web 1.0»). En la 1.2 el diff contra Android es:
+  cada uno marcado «Web 1.3» (la 1.2 marcó los suyos «Web 1.2», la
+  1.1 los suyos «Web 1.1» y la 1.0 los suyos «Web 1.0»). En la 1.3
+  el diff contra Android es:
   `app.js` pierde ~1.950 líneas y `index.html` ~326; la prueba Node
   comprueba que lo quitado es solo código de cajón/actualizaciones/
   teléfono/buscador del inicio y que lo añadido lleva la marca
-  «Web 1.2».
+  «Web 1.3».
 - `core.js`: en la 1.2 se quitaron las dos funciones del buscador del
   inicio (`foldSearchText1562`, `searchAllFolded1562`); su diff
   contra Android es de 50 líneas en 3 hunks (el de la 1.0, la nota
@@ -410,19 +418,21 @@ Por qué Pages y no las otras opciones:
 
 ## Pruebas
 
-- `node tests/test-web.js`: **262 PASS, 0 FAIL** (archivos, diffs
-  «Web 1.2» contra Android 1.5.64, sintaxis, sin referencias a lo
+- `node tests/test-web.js`: **268 PASS, 0 FAIL** (archivos, diffs
+  «Web 1.3» contra Android 1.5.64, sintaxis, sin referencias a lo
   quitado en la 1.1 ni en la 1.2, barras que se ocultan, Mercado en
-  el centro, Inicio en rojo, barra simétrica, Eventos en el perfil,
-  sin buscador del Inicio, regla de Inicio y desplazamiento, FAQ 28,
+  el centro, Inicio en rojo, barra simétrica, Eventos en el perfil
+  abajo de «¿Qué estás pensando?», sin buscador del Inicio, regla
+  de Inicio y desplazamiento, FAQ 29,
   servidor 4.9 en vivo).
 - `tests/test-web-dom.js` (Electron + xvfb, con servidor HTTP
-  local): **24 PASS, 0 FAIL** (arranque, versión Web 1.2, pantalla
+  local): **24 PASS, 0 FAIL** (arranque, versión Web 1.3, pantalla
   de inicio, tarjetas de actualización y Windows NO EXISTEN, barra
   sin Aplicaciones ni cajón con Mercado en el centro e Inicio en
   rojo y más pequeña, barra simétrica medida en el DOM a 430, 360
   y 1280 px, Inicio sin buscador ni Eventos/Páginas con reloj,
-  clima y agregar, Eventos en el perfil con creación real de un
+  clima y agregar, Eventos en el perfil ABAJO de «¿Qué estás
+  pensando?» (orden real del DOM) con creación real de un
   evento, puente mínimo, feed en vivo, 48 dramas en vivo, sonda
   PUT permitida con la 4.9 en vivo, botón de Google sin
   errores, inicio de sesión real por teléfono con cuenta NUEVA en

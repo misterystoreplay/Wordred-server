@@ -8,7 +8,7 @@ var C = window.WordRedCore;
    última versión del servidor (GET /api/app/latest). Tiene que ser
    igual que versionCode/versionName del AndroidManifest.xml. */
 var APP_VERSION_CODE = 79;
-var APP_VERSION_NAME = 'Web 1.2'; /* Web 1.2: contenido de Android 1.5.64. */
+var APP_VERSION_NAME = 'Web 1.3'; /* Web 1.3: contenido de Android 1.5.64. */
 var LS_KEY = 'wordred_state_v1';
 var state = loadState();
 ensure1526State(); /* 1.5.26: rellenar los campos nuevos en estados guardados de la 1.5.25. */
@@ -3307,6 +3307,7 @@ var FAQ = [
   { q: '¿Cada cuánto llegan dramas y aplicaciones nuevas?', a: 'Cada 2 semanas llegan más capítulos y más series de dramas, todos gratis y doblados en español latino. Y cada semana se suman aplicaciones nuevas: la etiqueta junto a «Dramas» las nombra todas (ahora ReelShort, DramaBox y ShortMax).' },
   { q: '¿Qué hay de nuevo en la Web 1.1?', a: 'Las barras de arriba y de abajo ahora son transparentes y se ocultan solas al bajar, y vuelven al subir. Mercado está en el centro de la barra de abajo, Inicio está en rojo, y se quitaron el cajón de aplicaciones, las actualizaciones y las opciones que solo funcionan en el teléfono.' },
   { q: '¿Qué hay de nuevo en la Web 1.2?', a: 'Los 5 iconos de la barra de abajo ahora miden lo mismo y quedan equidistantes y centrados. Los Eventos se mudaron al perfil, donde estaba el navegador; la fila de Eventos y Páginas salió del Inicio, y el buscador del Inicio se quitó: para buscar, toca la lupa de la barra de arriba.' },
+  { q: '¿Qué hay de nuevo en la Web 1.3?', a: 'Los Eventos del perfil ahora están abajo de «¿Qué estás pensando?», en vez de estar arriba, justo después de la cabecera. Todo lo demás sigue igual.' }, /* Web 1.3: los Eventos bajan debajo de «¿Qué estás pensando?». */
 
 ];
 function renderFaq() {
@@ -8605,9 +8606,11 @@ window.__wrShareOwnProfile = function () {
   toast('Para compartir fuera necesitas la app instalada en el teléfono.');
 };
 /* Web 1.2: los Eventos viven en el perfil, en el lugar que deja el
-   botón del Navegador (tras la cabecera del perfil): la sección se
-   pinta con el perfil y su lista la llena renderEvents(), que también
-   se llama al pintar el perfil. El botón «Crear» abre el diálogo con
+   botón del Navegador: la sección se pinta con el perfil y su lista
+   la llena renderEvents(), que también se llama al pintar el perfil.
+   Web 1.3: la sección ya no va tras la cabecera: va ABAJO de la caja
+   «¿Qué estás pensando?» (se pinta justo después de thinkBoxHtml1559
+   en renderOwnProfile). El botón «Crear» abre el diálogo con
    onclick (se recrea al pintar el perfil, así que el listener del
    inicio de la app ya no existe). */
 function profileEventsHtml1560() {
@@ -8667,7 +8670,7 @@ function renderOwnProfile() {
     '</div>' +
     '<div class="ownHeadRow">' +
     '<div class="ownHeadCol">' +
-    '<h2 class="ownName">' + esc(p.name) + verifiedBadgeHtml(state.me) + '<button class="ownPromoCoin1547" aria-label="Promociones" title="Promociones" onclick="window.__wrOpenPromotionsHub()"><span class="coinW1547">W</span></button><button class="ownShareBtn1559" aria-label="Compartir perfil" title="Compartir perfil" onclick="window.__wrShareOwnProfile()">' + ic('share', 18) + '</button><button class="ownEditBtn" aria-label="Editar perfil" title="Editar perfil" onclick="window.__wrEditProfile()">' + ic('edit', 18) + '</button></h2>' + /* 1.5.26 (10) */ /* 1.5.59: el botón de compartir va ANTES de Editar */ /* Web 1.2: el botón del Navegador se quitó; en su lugar van los Eventos (tras la cabecera). */
+    '<h2 class="ownName">' + esc(p.name) + verifiedBadgeHtml(state.me) + '<button class="ownPromoCoin1547" aria-label="Promociones" title="Promociones" onclick="window.__wrOpenPromotionsHub()"><span class="coinW1547">W</span></button><button class="ownShareBtn1559" aria-label="Compartir perfil" title="Compartir perfil" onclick="window.__wrShareOwnProfile()">' + ic('share', 18) + '</button><button class="ownEditBtn" aria-label="Editar perfil" title="Editar perfil" onclick="window.__wrEditProfile()">' + ic('edit', 18) + '</button></h2>' + /* 1.5.26 (10) */ /* 1.5.59: el botón de compartir va ANTES de Editar */ /* Web 1.2: el botón del Navegador se quitó del perfil. */ /* Web 1.3: los Eventos van abajo de «¿Qué estás pensando?». */
     /* v1.5.25: la biografía con sus datos va en la columna izquierda,
        JUSTO ABAJO DEL NOMBRE y al lado de la foto: antes quedaba debajo
        de toda la fila (que mide lo del avatar, 92 px) y se veía una banda
@@ -8679,7 +8682,6 @@ function renderOwnProfile() {
     '</div>' +
     '<div class="ownStats"><div><b>' + friends + '</b><span>amigos</span></div><div><b>' + posts.length + '</b><span>publicaciones</span></div><div><b>' + saved.length + '</b><span>guardadas</span></div></div>' +
     '</div>' +
-    profileEventsHtml1560() + /* Web 1.2: los Eventos en el perfil, tras la cabecera (donde estaba el Navegador). */
     /* 1.5.26: recuerdos (2) y atajos a Shorts guardados (43),
        programadas (6), borradores (14) y enlaces guardados (59).
        1.5.27: la tarjeta de la canción (33) ya no se muestra aquí.
@@ -8699,6 +8701,7 @@ function renderOwnProfile() {
     memoriesProfileHtml1526() +
     '<div class="profileShortcuts1539"><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenSavedShorts()">Shorts guardados</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenScheduled()">Programadas</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenDrafts()">Borradores</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenSavedLinks()">Enlaces guardados</button></div>' +
     thinkBoxHtml1559() + /* 1.5.60: «¿Qué estás pensando?» va ARRIBA de las secciones destacadas (corrección a la 1.5.59, que lo dejó abajo) */
+    profileEventsHtml1560() + /* Web 1.3: los Eventos van ABAJO de «¿Qué estás pensando?» en el perfil. */
     (pinned.length ? pinnedCoverHtml1526() + '<h3 class="sectitle">' + ic('bookmark', 14) + ' Destacadas</h3>' + pinned.map(postCardHtml).join('') : '') + /* 1.5.26 (36) */
     featuredGameProfileHtml1559() + /* 1.5.59: Gamer Premium se queda abajo de las destacadas, antes de «Mis publicaciones» */
     '<h3 class="sectitle">Mis publicaciones</h3>' +
@@ -15724,7 +15727,7 @@ var TUTORIAL_STEPS_1533 = [
   { art: 'publicar', title: 'Publica algo', text: 'Toca «Publicar» y comparte una foto, un video o lo que piensas. La vista previa sale al instante y la subida sigue en segundo plano: si la conexión se corta, continúa donde se quedó y nada se publica roto.' },
   { art: 'shorts', title: 'Shorts e historias', text: 'Mira videos cortos en Shorts y crea historias que duran 24 horas. Arriba en el inicio están los reels: toca tu foto con el + para publicar uno. Las historias se crean desde tu perfil y se ven en Shorts. Entre los Shorts aparecen tarjetas de dramas: al tocarlas se abre el drama en su primer capítulo.' },
   { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. Los grupos tienen sus propios administradores y reglas.' },
-  { art: 'perfil', title: 'Tu perfil', text: 'En tu perfil está tu foto, tu biografía y tus publicaciones, con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos. Los eventos están en tu perfil, donde estaba el navegador. Toca el engrane para ir a Ajustes.' } /* Web 1.2: los Eventos están en el perfil. */
+  { art: 'perfil', title: 'Tu perfil', text: 'En tu perfil está tu foto, tu biografía y tus publicaciones, con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos. Los eventos están en tu perfil, donde estaba el navegador, abajo de «¿Qué estás pensando?». Toca el engrane para ir a Ajustes.' } /* Web 1.2: los Eventos están en el perfil. */ /* Web 1.3: los Eventos van abajo de «¿Qué estás pensando?». */
 ];
 /* Ilustración estática de cada paso: un teléfono con la pantalla de la
    app dibujada con rectángulos y círculos (sin fotos, sin animales, sin
