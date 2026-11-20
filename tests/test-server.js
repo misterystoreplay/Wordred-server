@@ -1,5 +1,5 @@
 'use strict';
-/* Pruebas del servidor WordRed 4.8 — los datos quedan PARA SIEMPRE en
+/* Pruebas del servidor WordRed 4.9 — los datos quedan PARA SIEMPRE en
    MongoDB (y el respaldo JSON sigue funcionando sin MONGODB_URI).
    Se arranca el servidor de verdad como proceso hijo (node server.js)
    contra un MongoDB en memoria (mongodb-memory-server) y se comprueba
@@ -142,7 +142,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   /* ---- modo MongoDB ---- */
   let proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   let health = await waitHealth(PORT);
-  check('4.4 MongoDB: /api/health dice version 4.8', !!(health && health.version === '4.8'), health);
+  check('4.4 MongoDB: /api/health dice version 4.9', !!(health && health.version === '4.9'), health);
   check('3.6 MongoDB: /api/health dice storage mongodb y mongo true', !!(health && health.storage === 'mongodb' && health.mongo === true), health);
 
   /* ---- actualización de la app (v3.5): GET /api/app/latest y
@@ -1041,7 +1041,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir, WORDRED_TEST_FAIL_WRITES: '1' });
   health = await waitHealth(PORT);
-  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 4.6', !!(health && health.version === '4.8' && health.storage === 'mongodb'), health);
+  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 4.9', !!(health && health.version === '4.9' && health.storage === 'mongodb'), health);
   const delFail = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con MongoDB roto, DELETE devuelve 500 (no un éxito falso)', delFail.status === 500 && !!(delFail.json && delFail.json.ok === false), delFail);
   check('3.3 MongoDB: con MongoDB roto, DELETE explica el error real', !!(delFail.json && delFail.json.error && delFail.json.error.indexOf('No se pudo guardar el borrado') >= 0), delFail.json && delFail.json.error);
@@ -1052,7 +1052,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.8'), health);
+  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.9'), health);
   const delFailOk = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con las escrituras sanas, el borrado sí funciona (DELETE ok)', !!(delFailOk.json && delFailOk.json.ok), delFailOk);
   const feedFailOk = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
@@ -1080,7 +1080,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.8 MongoDB: la antigüedad de A se atrasó 8 días en MongoDB (para probar la verificación)', backRes.matchedCount === 1 && backRes.modifiedCount === 1, { matchedCount: backRes.matchedCount, modifiedCount: backRes.modifiedCount });
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
   health = await waitHealth(PORT);
-  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 4.8 y storage mongodb', !!(health && health.version === '4.8' && health.storage === 'mongodb'), health);
+  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 4.9 y storage mongodb', !!(health && health.version === '4.9' && health.storage === 'mongodb'), health);
 
   const feedB2 = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, la publicación de A sigue ahí y B la sigue viendo', !!(feedB2.json && feedB2.json.ok && feedB2.json.posts.some(p => p.id === postId)), feedB2.json && feedB2.json.posts.length);
@@ -1161,7 +1161,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT3 = 34533;
   const proc3 = startServer(PORT3, { MONGODB_URI: uri, DATA_DIR: dataDir44, OWNER_EMAIL: OWNER_EMAIL_44 });
   const health3 = await waitHealth(PORT3);
-  check('4.4 dueño: el servidor con OWNER_EMAIL arranca (health 4.8)', !!(health3 && health3.version === '4.8'), health3);
+  check('4.4 dueño: el servidor con OWNER_EMAIL arranca (health 4.9)', !!(health3 && health3.version === '4.9'), health3);
   const reg44D = await register(PORT3, '526666666666');
   const reg44E = await register(PORT3, '527777777777');
   check('4.4 promociones: dos teléfonos se registran en el servidor del dueño', reg44D.ok && reg44E.ok, { reg44D, reg44E });
@@ -1251,7 +1251,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT2 = 34532;
   const proc2 = startServer(PORT2, { DATA_DIR: jsonDir });
   const health2 = await waitHealth(PORT2);
-  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 4.8, storage json y mongo false', !!(health2 && health2.version === '4.8' && health2.storage === 'json' && health2.mongo === false), health2);
+  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 4.9, storage json y mongo false', !!(health2 && health2.version === '4.9' && health2.storage === 'json' && health2.mongo === false), health2);
   const regJ = await register(PORT2, '524444444444');
   check('3.3 JSON: el registro sigue funcionando sin MongoDB', regJ.ok, regJ);
   const postJ = await api(PORT2, 'POST', '/api/posts', { text: 'Publicación en modo JSON' }, regJ.token);
@@ -1291,12 +1291,12 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const proc4 = startServerDir(PORT4, origDir, { DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'wordred-test46-origdata-')) });
   const health4 = await waitHealth(PORT4);
   const kdOrig = await api(PORT4, 'GET', '/api/kdramas');
-  check('4.6 dramas: con un kdramas.json de dramas originales, GET /api/kdramas lo sirve (forma antigua aceptada)', !!(health4 && health4.version === '4.8' && kdOrig.json && kdOrig.json.ok && kdOrig.json.kdramas.length === 1 && kdOrig.json.kdramas[0].chapters && kdOrig.json.kdramas[0].chapters[0].text && kdOrig.json.kdramas[0].chapters[0].text.length > 100), kdOrig.json);
+  check('4.6 dramas: con un kdramas.json de dramas originales, GET /api/kdramas lo sirve (forma antigua aceptada)', !!(health4 && health4.version === '4.9' && kdOrig.json && kdOrig.json.ok && kdOrig.json.kdramas.length === 1 && kdOrig.json.kdramas[0].chapters && kdOrig.json.kdramas[0].chapters[0].text && kdOrig.json.kdramas[0].chapters[0].text.length > 100), kdOrig.json);
   await stopServer(proc4);
 
   await mongod.stop();
   console.log('\n==============================');
-  console.log('Servidor WordRed 4.8 — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('Servidor WordRed 4.9 — ' + pass + ' PASS, ' + fail + ' FAIL');
   if (fail) { console.log('Fallos: ' + failures.join(' | ')); process.exit(1); }
 })().catch((e) => {
   console.error('ERROR en las pruebas: ' + (e && e.stack ? e.stack : e));
