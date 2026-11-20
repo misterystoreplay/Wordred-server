@@ -1,4 +1,4 @@
-# WordRed Web 1.4 — NOTAS
+# WordRed Web 1.5 — NOTAS
 
 Versión web de WordRed: se abre con un enlace en el navegador, sin
 descargar ni instalar nada. Las actualizaciones llegan solas al abrir
@@ -283,6 +283,367 @@ y que el navegador no restaure el desplazamiento al cargar).
    visible queda en «Acerca de»: «WordRed Web 1.4 · contenido
    de Android 1.5.64».
 
+## Qué cambió en la Web 1.5 (todo marcado «Web 1.5», sufijo 1550)
+
+70 novedades en una versión, todas confirmadas por el dueño en
+lotes («Todas»). El conteo: el primer encargo traía 3, y cada lote
+añadió 6 más hasta 68; el dueño confirmó además 3 que se habían
+quedado fuera de la cuenta (instalar como app, audio en segundo
+plano y subidas en segundo plano), así que el total real era 71.
+El 2026-11-20 ~14:57 el dueño quitó los mini-juegos (trivia en
+grupos): el total queda en 70.
+Excluido: «Ver quién visitó tu perfil» — ya existe en el perfil
+(botón «Quienes vieron tu perfil»).
+
+**Cómo está hecho.** Casi todo el trabajo nuevo vive en un solo
+bloque al final de `app.js` (funciones con sufijo `1550`, antes de
+`boot1544()`), más ediciones quirúrgicas en los puntos que ya
+existían (tarjeta de publicación, comentarios, chat, historias,
+grupos, compositor, visor de dramas, Ajustes). El servidor pasa de
+4.9 a **5.0** (nuevos conjuntos de datos, endpoints y un barrido
+cada 30 s). `core.js` NO se toca. Lo que ya existía en la base
+1.5.64 no se reconstruyó: se verificó y se conectó (voz en chat,
+lives, encuestas, comentarios con foto, insignia, sugerencias,
+vistas, fijar, cumpleaños, menciones en comentarios, fondos de
+perfil, historias con música, bloquear/reportar, encuestas y
+reacciones en historias, respuestas en comentarios, notas de
+perfil, canciones en el compositor, grupos privados, estadísticas
+de historias, ahorro de datos, texto grande y QR ya estaban;
+lo que faltaba era el extremo del servidor, el botón visible o
+la conexión con la pantalla).
+
+1. **Notificaciones push reales (con la pestaña cerrada).**
+   `sw.js` en la raíz de `web/` (alcance `./`), clave VAPID
+   generada con `web-push` (en `package.json` del servidor, Render
+   lo instala al desplegar). La clave PÚBLICA vive en el código
+   web; la PRIVADA solo en la variable de entorno de Render
+   (`VAPID_PRIVATE_KEY`) — no está en ningún archivo del repo ni
+   en estas notas. Las suscripciones se guardan por teléfono en
+   MongoDB (`pushSubs`); el servidor empuja al comentar, al dar
+   Me gusta, al mencionar, al seguir un drama con capítulo nuevo
+   y 1 h antes de un evento confirmado. En Ajustes hay un
+   interruptor real (con explicación antes de pedir el permiso).
+   Sin claves en el entorno, el servidor arranca igual con push
+   desactivado en silencio.
+2. **Guardados.** «Guardar» en publicaciones y en dramas (serie);
+   la lista «Guardados» vive en el perfil, a un toque, con quitar.
+   Por navegador (`localStorage` `wordred_saved_v1`, solo lo tuyo,
+   sobrevive a recargar) — se dice en la FAQ.
+3. **Diseño ancho (≥1024 px).** `wide15.css` (todo dentro de
+   `@media (min-width:1024px)`) + `web15-wide.js`: la columna
+   central crece (hasta 880 px a 1280, 1000 px a 1600) y dos
+   barras fijas con datos reales — sugerencias de amigos
+   (`friendSuggestions`, con Seguir) y Guardados (contador real)
+   + Dramas destacados (del servidor, caché ≤1 min). En el
+   teléfono (≤430 px) no cambia nada: verificado por geometría
+   DOM a 390 px.
+4. **Compartir por WhatsApp.** En publicaciones, historias y
+   dramas: `wa.me` con título + enlace profundo
+   (`?post=`, `?drama=`, `?perfil=`), que la app abre al cargar.
+   Límite honesto: Pages sirve un solo `index.html`, así que
+   WhatsApp puede no dibujar la vista previa rica por publicación;
+   el texto y el enlace funcionan igual.
+5. **Seguir dramas.** Servidor (`dramaFollows`): al entrar un
+   capítulo nuevo en el catálogo, los seguidores reciben el aviso
+   (push + campana). La primera lectura registra el catálogo en
+   silencio, sin avisar de todo lo que ya había.
+6. **Buscar y filtrar dramas.** En la sección Dramas: buscar por
+   nombre y filtrar por app (Todas/ReelShort/ShortMax/DramaBox),
+   en vivo al teclear, con estado vacío. La barra se pinta una
+   vez y solo las tarjetas se vuelven a dibujar (si no, el input
+   perdería el foco en cada tecla).
+7. **Estadísticas del dueño (solo dueño).** Visitas a la web y
+   dramas más vistos (`webStats`), con endpoints y sondeo previo:
+   la pantalla solo aparece si el servidor responde 200; a los
+   demás no se les muestra nada. También solo para el dueño:
+   solicitudes de verificación y reportes de la comunidad.
+8. **Reels a pantalla completa con deslizamiento.** El visor de
+   Shorts ya era a pantalla completa (100dvh) con deslizamiento
+   táctil, flechas y botones; se verificó que los gestos no
+   pelean con las barras ni con la barra de abajo.
+9. **Notas de voz en chats y en publicaciones.** `MediaRecorder`
+   → ruta real de medios → reproducción en línea con duración.
+   Sin permiso de micrófono, mensaje claro.
+10. **Instalar como app (PWA).** `manifest.json` + el mismo
+    `sw.js` (un solo worker: push + instalación + Sync). Icono
+    192 del logo existente; abre a pantalla completa sin la barra
+    del navegador. Alcance: solo la carpeta `web/`.
+11. **Audio en segundo plano.** Media Session API (controles en
+    la pantalla de bloqueo: reproducir/pausar, título, anterior/
+    siguiente entre Shorts). Límite: el navegador puede suspender
+    pestañas en segundo plano; el audio suena mientras la pestaña
+    siga viva.
+12. **Subidas en segundo plano.** Service worker + Background
+    Sync (`wordred-upload-sync`) donde el navegador lo permite
+    (Chrome Android; Safari/Firefox no) + reanudar al reabrir.
+    El servidor ya sabía reanudar (`/api/media/status`); nunca
+    se reinicia desde cero.
+13. **Transmisiones en vivo.** ws + WebRTC en malla (ya existía
+    en la base). Límite: malla entre pocos; sin escala de
+    TikTok-Live; solo mientras el transmisor sigue conectado;
+    nunca se finge un vivo con un video grabado.
+14. **Traducción de publicaciones y comentarios.** «Ver
+    traducción» con el endpoint gratuito de Google (gtx,
+    verificado desde esta VM; MyMemory se agotó ese día y quedó
+    solo como respaldo), con caché local. Nunca reemplaza el
+    original; se puede ocultar. Puede fallar por límite del
+    servicio gratuito.
+15. **Encuestas en publicaciones (2–4 opciones) y en historias
+    (2 opciones).** Voto único por cuenta, resultados en vivo con
+    porcentajes, en el servidor. En historias, el dueño ve quién
+    votó qué.
+16. **Comentarios con foto.** Por la ruta real de medios;
+    miniatura en el comentario, toque para verla grande.
+17. **Insignia verificada (solo la otorga el dueño).** CAMBIO DE
+    CONDUCTA DELIBERADO: pedirla ya NO concede sola al cumplir
+    los criterios — queda `pending` y solo el dueño la concede o
+    la quita (endpoints con `requireOwner`). La pantalla explica
+    el flujo nuevo.
+18. **Sugerencias de amigos.** «Gente que quizá conozcas» con
+    amigos de amigos y conteo de mutuos; solo cuentas reales,
+    con botón Seguir. También en la barra lateral ancha.
+19. **Reacciones con emoji en publicaciones y comentarios.**
+    Seis emojis (❤️ 😂 😮 😢 😡 👍), una por persona, cambiable,
+    con conteos por emoji y «quién reaccionó» (visible para quien
+    puede ver la publicación). En publicaciones usa el endpoint
+    de Me gusta existente (reacciones con nombre, guardadas en el
+    servidor); el endpoint nuevo `/api/posts/:id/react` quedó
+    disponible para clientes API y cubierto por pruebas.
+20. **Llamadas de video y de voz en grupo.** Malla WebRTC: una
+    conexión por participante, señalización por el mismo
+    `/api/call-signal` (el `payload` lleva `groupId` y viaja
+    opaco). Hasta 6 participantes; invitación con «Unirse» o
+    rechazo. Límite: malla, no escala a grupos grandes.
+21. **Vistas de publicaciones.** Solo cuando la publicación se
+    ve de verdad en pantalla (IntersectionObserver ≥50%), en el
+    servidor, sin contar las propias, una vez por navegador. El
+    autor las ve en sus publicaciones.
+22. **Fijar publicaciones (máx. 3, en el perfil) y fijar
+    comentarios (el autor, uno por publicación, arriba del todo).**
+23. **Recordatorios de cumpleaños.** Solo de amigos que
+    compartieron su fecha; el año solo se muestra si el amigo lo
+    permite; nunca se inventa un cumpleaños. Con «🎂 Felicitar»,
+    que abre el chat con el mensaje listo.
+24. **Menciones con @.** Autocompletado desde la lista de
+    amigos en el compositor; el mencionado recibe aviso en la
+    campana; tocar la mención abre su perfil. El servidor valida
+    (solo amigos, máx. 10). Cambiar el nombre no rompe las
+    menciones viejas: se resuelven por teléfono.
+25. **Archivar publicaciones e historias.** Archivadas: ocultas
+    del feed y del perfil, no borradas; «Archivados» en el perfil
+    para restaurar o borrar de verdad. Las historias caducadas
+    van al «Archivo de historias» privado (máx. 100, solo tú).
+26. **Fondos de perfil.** Los que ya tenía la app (degradados,
+    portada, acento); visibles para quien visita el perfil.
+27. **Historias con música.** Las 12 canciones reales de Kevin
+    MacLeod del catálogo; suenan mientras se ve la historia.
+28. **Descargar tus publicaciones.** Solo las tuyas: foto/video
+    (el archivo) o texto (`.txt`).
+29. **Bloquear y reportar.** Bloquear: sus publicaciones y
+    comentarios desaparecen para ti y no puede escribirte.
+    Reportar: a un post o a una persona, con motivo; el dueño ve
+    la lista con nombres. Nada se banea solo sin revisión del
+    dueño.
+30. **Mensajes que se autodestruyen.** Por mensaje: 1 minuto,
+    1 hora o 1 día (botón ⏱ junto a Enviar; se muestra lo que
+    queda). El servidor los poda de verdad al leer; también
+    existe el ajuste por conversación de antes. No evita
+    capturas de pantalla.
+31. **Subtítulos automáticos.** El botón CC muestra las pistas
+    reales de subtítulos cuando el video las trae (dramas
+    originales); en videos de los demás sin pistas no hay
+    subtítulos que inventar. La precisión depende del audio y
+    del idioma; no es un servicio de pago.
+32. **Estado en línea.** Punto verde por presencia ws (solo si
+    el otro está conectado Y no ocultó su estado). Cada quien
+    puede ocultar el suyo en Ajustes.
+33. **Compartir pantalla en videollamadas.** Ya existía en la
+    base 1.5.64 (`getDisplayMedia`, botón en la llamada); se
+    verificó. Funciona donde el navegador lo permite (escritorio,
+    Chrome Android).
+34. **Filtros de foto antes de publicar.** Sepia, blanco y negro,
+    brillo, contraste, cálido, frío — aplicados de verdad con
+    canvas ANTES de publicar, así la foto publicada ya lleva el
+    filtro. Solo fotos.
+35. **Texto grande y modo lectura.** Ajuste de tamaño en Ajustes
+    (ya existía) + modo lectura por publicación larga (fuente
+    grande, sin acciones ni distracciones).
+36. **Eventos en grupos + recordatorios.** Crear eventos dentro
+    de un grupo (solo miembros), confirmar asistencia; el
+    servidor avisa 1 h antes (barrido cada 30 s, push donde se
+    pueda, campana si no).
+37. **Silenciar sin bloquear.** Sus publicaciones y comentarios
+    dejan de aparecer en tu feed; sigues siguiéndolo; no se
+    entera. Se puede quitar el silencio cuando quieras.
+38. **QR de tu perfil.** Reusa `qrcode.js`; desde tu perfil, con
+    descarga.
+39. **Historial de Me gusta.** «Me gusta» en tu perfil, con
+    quitar el Me gusta desde ahí.
+40. **Respuestas en comentarios.** Hilos con `parentId`, con
+    contador de respuestas.
+41. **Notas de perfil.** Nota corta bajo tu nombre (máx. 60
+    caracteres, en el servidor), editable y removible, visible
+    para visitantes.
+42. **Retomar videos.** Guarda dónde dejaste un video largo
+    (≥60 s) y ofrece «Retomar desde M:SS». Por navegador
+    (`localStorage` `wordred_resume_v1`), no por cuenta.
+43. **Buscar y fijar chats.** Buscar por texto o por nombre en
+    la vista Mensajes; fijar chats arriba de la lista (1 a 1 y
+    grupos), con quitar fijado.
+44. **Ahorro de datos.** Interruptor en Ajustes que de verdad
+    cambia la carga: sin autoplay de videos y sin cargar las
+    portadas pesadas (ya existía en la base).
+45. **Cambiar tu nombre.** Desde Ajustes, con comprobación de
+    unicidad en el servidor (409 si otro lo tiene, sin importar
+    mayúsculas). El inicio sigue por teléfono; no se rompe.
+46. **Stickers propios.** De una foto tuya: recorte circular en
+    canvas, subida por la ruta real de medios y guardado en tu
+    paquete (máx. 24). Se envían en chats como `stickerCustom`
+    (nuevo campo en el servidor, solo URL http(s) ya subida;
+    `data:` rechazado).
+47. **Compartir canciones en publicaciones.** Las 12 canciones
+    reales del catálogo (selector del compositor, ya existía);
+    se reproducen en línea en el feed.
+48. **Ver quién reaccionó.** Lista de nombres por emoji, visible
+    para quien puede ver la publicación.
+49. **Foto con doble cámara.** Frontal + trasera a la vez
+    (picture-in-picture) donde el navegador permite abrir dos
+    cámaras; si solo deja una, aviso honesto y foto normal.
+50. **Editar comentarios.** Solo los tuyos, con marca «editado»
+    y fecha, en el servidor.
+51. **Borrar mensajes para todos.** El mensaje queda como
+    «Mensaje eliminado» en su lugar, para los dos lados
+    (lápida en el servidor, no borrado silencioso).
+52. **Copiar enlace de una publicación.** URL directa
+    (`?post=<id>`) que abre esa publicación exacta en la web.
+53. **No molestar.** 1 hora / 8 horas / hasta mañana; mientras
+    está activo no se crea ni aviso en la app ni push (el
+    servidor lo respeta en `notify()`), con indicador visible
+    arriba a la derecha.
+54. **Programar historias.** Fecha y hora en los dos creadores;
+    el servidor las publica a su hora (barrido cada 30 s) y viven
+    24 h desde entonces. Si el envío falla, queda pendiente y se
+    reintenta; no se muestra como historia viva antes de tiempo.
+55. **Grupos privados.** El interruptor «secreto» ya existía:
+    no aparece en búsquedas, solo se entra por invitación.
+56. **Reacciones rápidas en historias.** Emoji rápido; el dueño
+    ve quién reaccionó con qué (ya existía en el servidor).
+57. **Negocio en tu perfil.** Nombre, qué vendes y botón de
+    WhatsApp (número validado, 8–15 dígitos). El Marketplace
+    queda como está.
+58. **Estadísticas de tus historias.** Quién la vio y cuántas
+    vistas por historia, solo para el dueño de la historia (el
+    botón dice ahora «Estadísticas · quién la vio»).
+59. **Escuchar juntos y ver juntos.** En un grupo, por ws: cada
+    teléfono reproduce su propia copia (canción del catálogo real
+    o drama de YouTube); reproducir/pausar (y posición, en
+    dramas) se sincronizan lo mejor posible, no muestra a muestra.
+60. **Exportar tus datos.** JSON descargable desde Ajustes: solo
+    tus datos (perfil, publicaciones, historias, mensajes, chats
+    de grupo donde estás, amigos, grupos, eventos, avisos), con
+    tope.
+61. **Tutorial y FAQ.** Tutorial actualizado en su lugar (6
+    pasos). La FAQ tiene una entrada nueva («¿Qué hay de nuevo
+    en la Web 1.5?», con las 70) y quedó en 31 entradas. La
+    versión visible queda en «Acerca de»: «WordRed Web 1.5 ·
+    contenido de Android 1.5.64». La entrada vieja de avisos se
+    corrigió (el push ya existe; antes decía que en la web no
+    había avisos fuera de la página).
+62. **Servidor 5.0.** Nuevos conjuntos (`pushSubs`,
+    `dramaFollows`, `webStats`, `verifyRequests`, `storyArchive`,
+    `eventReminders`, `dnd`), endpoints nuevos
+    (push, seguir dramas, estadísticas, verificar, reacciones,
+    archivar, reportes del dueño, presencia, No molestar,
+    archivo de historias, exportar), barrido cada 30 s
+    (recordatorios de eventos, publicar historias programadas,
+    archivar caducadas), y `notify()` con push + respeto a No
+    molestar. La salud dice 5.0 (con campo `push`).
+
+**Limpieza (no es novedad, no va en la FAQ).** Al cargar, la Web
+1.5 quita de la copia local de Eventos cualquier evento llamado
+«Prueba Web 1.3» o que empiece por «Prueba Web 1.» (los dejaron
+las pruebas de la web; la Web 1.3 dejó uno en el teléfono del
+dueño porque la web solo sumaba eventos del servidor y nunca
+quitaba ninguno). Si uno vuelve a aparecer en el servidor, se
+cancela ahí (`POST /api/events/:id/cancel`, solo su creador
+puede). Ningún otro evento se toca jamás.
+
+**Mercado más ancho + filtros compactos (no es novedad, no va en
+la FAQ).** Los anuncios del Mercado ahora ocupan casi todo el ancho
+de la pantalla: la sección recupera 8 px por lado del relleno de
+`main` y en el teléfono hay una sola columna (antes siempre 2, con
+tarjetas de ~178 px a 390 px); en escritorio, 2 columnas dentro del
+diseño ancho. Medido en el DOM antes del cambio: tarjeta ~178 px a
+390 px, ~163 px a 360 px; pila de filtros (de la búsqueda al
+primer anuncio) 551 px a 390 px, 592 px a 360 px, 413 px a 1280 px.
+Después del cambio: tarjeta 407 px a 430 px (1 columna), 2
+columnas en escritorio sin desborde; la pila, con los filtros
+plegados detrás del botón «Filtros», medía 195 px a 430 px, así
+que en una segunda vuelta se apretaron los márgenes y rellenos de
+las dos filas de pestañas, la búsqueda y los selectores y quedó en
+≤170 px a 430 px (comprobado en el DOM, W37) (nada se quitó: los 7
+controles — búsqueda, categorías, precio mín./máx., orden, entrega
+y negociable — siguen ahí y el filtro de precio mínimo filtra de
+verdad). Ninguna información del anuncio se quitó ni se ocultó.
+
+**Flujo de entrada (no es novedad, no va en la FAQ).** Sin
+cuenta/sesión, al abrir la web van primero las opciones de cuenta
+(teléfono, Google o correo, con el botón «Explorar como
+invitado» bien visible; con cuentas guardadas, la lista para
+elegir otra) — antes del feed. Con la sesión abierta se va
+directo a Inicio, sin pantallas de autenticación ni parpadeo (la
+vista de autenticación nace oculta). Y un enlace compartido
+(`?post=`, `?drama=`, `?perfil=`) tiene prioridad sobre las
+opciones de cuenta: sin sesión y sin cuentas guardadas se entra
+como invitado y se abre esa publicación (o drama/perfil)
+directamente, con las opciones de cuenta disponibles en el aviso
+de invitado; con cuentas guardadas van primero las opciones y el
+enlace se abre al elegir cuenta; y después de verificar el número
+o de crear la cuenta desde un enlace, se sigue cayendo en esa
+publicación, no en el inicio genérico. Antes de este cambio el
+enlace solo se leía con sesión abierta: sin sesión se perdía al
+mostrar la pantalla de cuentas y nunca se abría la publicación.
+Implementado con `parseDeepLink1550` / `openDeepLink1550` /
+`openPendingDeepLink1550` (el enlace se guarda al arrancar en
+`boot1544` y se abre al entrar por cada camino: invitado,
+verificación, creación de cuenta y cambio de cuenta). Causa real
+encontrada al probar: un invitado nuevo nunca sincroniza el inicio
+(sin sesión no hay WebSocket ni pull del servidor: `connectServer`
+y el intervalo de 60 s exigen `state.me`), así que la publicación
+compartida no estaba en su copia local y el enlace se perdía. Por
+eso `fetchDeepLinkPost1550` la busca por id en el servidor
+(`GET /api/posts/:id`, nuevo en el servidor 5.0, público como el
+inicio, con la misma visibilidad y 404 para archivadas o no
+visibles) y la guarda en la copia local antes de abrirla; si el
+servidor es anterior a 5.0, busca en el inicio (`GET /api/feed`,
+100 recientes). Límite honesto: si la publicación se borró, se
+archivó o no es visible para invitados, el enlace cae en el inicio
+sin errores.
+
+**Cierre de sesión + ventana de inicio rediseñada (no es novedad,
+no va en la FAQ).** Al confirmar «Cerrar sesión» sale una burbuja
+con la W grande traslúcida (el logo de WordRed a opacidad .55) y
+el mensaje «Cerrando cuenta» centrado, sobre fondo traslúcido; a
+los ~1,4 s se cierra y aparecen las cuentas disponibles para
+elegir otra (si no hay cuentas guardadas, la ventana de inicio).
+El cierre es de verdad: además de `C.logout` (que pone `me` en
+null), se borra el token del servidor (`serverToken = ''`) antes
+de guardar, así que no queda sesión en el servidor; al volver a
+una cuenta se restaura su token guardado. La ventana de inicio
+de sesión tiene ahora fondo traslúcido (`rgba(10,2,3,.45)` con
+desenfoque, se ve el degradado rojo de la app detrás), una W
+gigante traslúcida de marca de agua (340 px, opacidad .10) y la
+tarjeta es un cristal oscuro traslúcido como las ventanas
+flotantes de la app. Todas las opciones de entrada siguen
+exactamente igual (teléfono, Google, correo, invitado). Las
+reglas del flujo de entrada no cambian: sin sesión van primero
+las opciones de cuenta; con sesión, directo a Inicio; los enlaces
+compartidos siguen cayendo en la publicación exacta. Comprobado
+en el DOM (W39): burbuja visible con la W y el mensaje, sesión
+cerrada (sin cuenta ni token), cuentas disponibles después,
+volver a entrar desde la lista, ventana rediseñada a 360 px sin
+desborde y entrar de verdad desde ella por teléfono.
+
 ## Qué se conservó y por qué (sí funciona en la web)
 
 - **Llamadas dentro de WordRed** (botón de llamada en el chat,
@@ -395,14 +756,33 @@ y que el navegador no restaure el desplazamiento al cargar).
   ejemplo, al cargar imágenes), la posición puede quedar a unas
   publicaciones de distancia.
 
-## Servidor 4.9 — EN VIVO
+## Servidor 5.0 — EN EL ÁRBOL (pendiente de publicar en vivo)
 
-El servidor 4.9 está en vivo desde la publicación de la Web 1.0:
-`/api/health` responde 4.9 y el preflight CORS ya devuelve
+El servidor 5.0 está en el árbol de trabajo
+(`~/workspace/wordred-server-v35/`, sin publicar todavía): `/api/health`
+responde 5.0 (con campo `push`) y el preflight CORS ya devuelve
 `Access-Control-Allow-Methods` (GET, POST, PUT, DELETE, OPTIONS),
 así que editar y borrar publicaciones, grupos, anuncios y cuenta
-funcionan desde la web. La Web 1.1 no cambia el servidor (sigue 4.9).
-Tampoco la 1.2.
+funcionan desde la web. La Web 1.5 lo necesita: sin el 5.0 en vivo,
+el push, el seguir dramas, la verificación por el dueño, las
+reacciones a comentarios, el archivo, los reportes del dueño, la
+presencia, No molestar, las historias programadas y la
+exportación degradan con aviso (nada se rompe, nada se finge).
+También es nuevo en 5.0 `GET /api/posts/:id` (público, misma
+visibilidad que el inicio): lo usa el flujo de entrada para abrir
+la publicación de un enlace compartido aunque el navegador nunca
+haya sincronizado el inicio.
+
+**Variables de entorno nuevas en Render** (las pone el dueño en el
+panel de Render, nunca en el repo): `VAPID_PUBLIC_KEY` (la clave
+pública del par VAPID, también en el código web) y
+`VAPID_PRIVATE_KEY` (la privada, solo ahí). Sin ellas, el servidor
+arranca igual con el push desactivado en silencio.
+
+El servidor 4.9 sigue en vivo hasta que se publique el 5.0:
+`/api/health` responde 4.9 y el preflight CORS ya devuelve
+`Access-Control-Allow-Methods` (GET, POST, PUT, DELETE, OPTIONS).
+La Web 1.1 no cambia el servidor (sigue 4.9). Tampoco la 1.2.
 
 ## Publicar la web (recomendado: GitHub Pages)
 
@@ -467,34 +847,64 @@ Por qué Pages y no las otras opciones:
 
 ## Pruebas
 
-- `node tests/test-web.js`: **273 PASS, 0 FAIL** (archivos, diffs
-  «Web 1.4» contra Android 1.5.64, sintaxis, sin referencias a lo
-  quitado en la 1.1 ni en la 1.2, barras que se ocultan, Mercado en
-  el centro, Inicio en rojo, barra simétrica, Eventos en el perfil
-  abajo de «¿Qué estás pensando?», sin buscador del Inicio, regla
-  de Inicio y desplazamiento, FAQ 30, botón «Saltar anuncio» libre
-  (clase kdYtOn1558 al cargar el video de YouTube y quitada al
-  pararlo),
-  servidor 4.9 en vivo).
+- `node tests/test-web.js`: **335 PASS, 0 FAIL** (log
+  `~/workspace/kd150/test-web-15-node11.log`): archivos, diffs
+  «Web 1.5» contra Android 1.5.64 (app.js 3.649 líneas cambiadas,
+  index.html 447, core.js sin tocar), sintaxis, sin referencias a
+  lo quitado en la 1.1 ni en la 1.2, barras que se ocultan, Mercado
+  en el centro, Inicio en rojo, barra simétrica, Eventos en el
+  perfil abajo de «¿Qué estás pensando?», sin buscador del Inicio,
+  regla de Inicio y desplazamiento, FAQ 31, botón «Saltar anuncio»
+  libre (clase kdYtOn1558 al cargar el video de YouTube y quitada
+  al pararlo), las 70 novedades (push VAPID, Guardados, dramas con
+  búsqueda/filtro/seguir, estadísticas del dueño, reacciones,
+  archivar, No molestar, autodestrucción, presencia, stickers,
+  llamadas de grupo, historias programadas, escuchar/ver juntos,
+  exportar, menciones, filtros de foto, verificación por el dueño,
+  retomar videos, enlaces profundos, flujo de entrada con
+  `fetchDeepLinkPost1550`, limpieza de eventos de prueba, Mercado
+  ancho + filtros compactos), PWA + diseño ancho, y el servidor
+  5.0 en el árbol (con `GET /api/posts/:id` para los enlaces
+  compartidos).
 - `tests/test-web-dom.js` (Electron + xvfb, con servidor HTTP
-  local): **28 PASS, 0 FAIL** (arranque, versión Web 1.4, pantalla
-  de inicio, tarjetas de actualización y Windows NO EXISTEN, barra
-  sin Aplicaciones ni cajón con Mercado en el centro e Inicio en
-  rojo y más pequeña, barra simétrica medida en el DOM a 430, 360
-  y 1280 px, Inicio sin buscador ni Eventos/Páginas con reloj,
-  clima y agregar, Eventos en el perfil ABAJO de «¿Qué estás
-  pensando?» (orden real del DOM) con creación real de un
-  evento, puente mínimo, feed en vivo, 48 dramas en vivo, sonda
-  PUT permitida con la 4.9 en vivo, botón de Google sin
-  errores, inicio de sesión real por teléfono con cuenta NUEVA en
-  cada run, feed dibujado, barras que se ocultan al bajar y vuelven
-  al subir, regla de Inicio y desplazamiento —doble toque a arriba,
-  un toque restaura la posición, cargar arriba—, drama
-  reproduciéndose con el botón «Saltar anuncio» libre (medido en el
-  DOM a 430, 360 y 1280 px: el iframe termina donde empieza la barra
-  y nada tapa su esquina inferior derecha; al cerrar se quita la
-  clase) y sin errores de consola). La cuenta de prueba se borra del servidor al final
-  de cada run (desde el proceso principal, con DELETE directo). La
-  prueba usa un teléfono nuevo en cada run porque el servidor solo
-  deja pedir 3 códigos por hora y por número: con un número fijo la
-  prueba se agota al tercer run (eso pasó una vez: 429).
+  local): **56 PASS, 0 FAIL** (log
+  `~/workspace/kd150/test-web-15-dom12.log`): todo lo de la 1.4
+  (arranque, versión Web 1.5, pantalla de inicio, tarjetas de
+  actualización y Windows NO EXISTEN, barra sin Aplicaciones ni
+  cajón con Mercado en el centro e Inicio en rojo y más pequeña,
+  barra simétrica medida en el DOM a 430, 360 y 1280 px, Inicio sin
+  buscador ni Eventos/Páginas con reloj, clima y agregar, Eventos
+  en el perfil ABAJO de «¿Qué estás pensando?» con creación real
+  de un evento, puente mínimo, feed en vivo, 48 dramas en vivo,
+  sonda PUT, botón de Google sin errores, inicio de sesión real
+  por teléfono con cuenta NUEVA en cada run, feed dibujado, barras
+  que se ocultan al bajar y vuelven al subir, regla de Inicio y
+  desplazamiento, drama reproduciéndose con el botón «Saltar
+  anuncio» libre a 430, 360 y 1280 px y sin errores de consola)
+  MÁS lo de la 1.5: push/service worker, Guardados (publicación +
+  drama, sobreviven a recargar), diseño ancho a 1280 px y teléfono
+  intacto a 390 px, búsqueda y filtro de dramas, chat con búsqueda
+  y No molestar, pantallas del dueño ocultas para otros, Reels a
+  pantalla completa, guardar/seguir dramas, limpieza del evento
+  «Prueba Web 1.3» (W36), Mercado ancho + filtros compactos con
+  medidas a 390/360/1280 px (W37) y flujo de entrada (W38):
+  sin sesión van primero las cuentas con invitado claro, con
+  sesión directo a Inicio, y el enlace `?post=` abre ESA
+  publicación como invitado, tras verificar y con sesión. La
+  cuenta de prueba se borra del servidor al final de cada run
+  (desde el proceso principal, con DELETE directo). La prueba usa
+  un teléfono nuevo en cada run porque el servidor solo deja pedir
+  3 códigos por hora y por número: con un número fijo la prueba se
+  agota al tercer run (eso pasó una vez: 429).
+- Servidor 5.0 (`~/workspace/wordred-server-v35/`,
+  `node tests/test-server.js`): **495 PASS, 0 FAIL** (log
+  `~/workspace/kd150/test-server-50-run8.log`), incluidos los 4
+  nuevos de `GET /api/posts/:id` (trae la publicación sin sesión,
+  404 si no existe o está archivada).
+- Android (`~/workspace/goals/wordred-2/files/wordred/`,
+  `node tests/test-wordred.js`): **2.476 PASS, 0 FAIL** (log
+  `~/workspace/kd150/test-wordred-50-run3.log`; los pins de
+  versión ya dicen 5.0).
+
+En la 1.4 las pruebas decían (histórico): `node tests/test-web.js`
+**273 PASS, 0 FAIL** y `tests/test-web-dom.js` **28 PASS, 0 FAIL**.

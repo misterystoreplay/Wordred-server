@@ -1,0 +1,103 @@
+/* WordRed Web 1.5 — diseño ancho (pantallas grandes).
+   Todo vive dentro de @media (min-width:1024px): en el teléfono
+   (<=430 px) no cambia nada. Las dos barras laterales solo se ven
+   en ancho; en el teléfono quedan ocultas por el atributo hidden
+   del marcado y por este archivo, que no las muestra por debajo
+   de 1024 px. El pie y la barra de abajo no se tocan. */
+@media (min-width:1024px){
+  :root{
+    --wr-side:240px;
+    --wr-gap:16px;
+    --wr-main:calc(100vw - (var(--wr-side) * 2) - (var(--wr-gap) * 2) - 32px);
+  }
+  /* La columna central crece con la pantalla y queda centrada entre
+     las dos barras laterales. */
+  #appView main{max-width:var(--wr-main)}
+  /* Barras laterales fijas, pegadas a la columna central, con su
+     propio desplazamiento vertical. */
+  #wideLeft1550,#wideRight1550{
+    display:block;
+    position:fixed;
+    top:70px;
+    bottom:calc(84px + env(safe-area-inset-bottom, 0px));
+    width:var(--wr-side);
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:14px;
+    z-index:30;
+    scrollbar-width:thin;
+    scrollbar-color:rgba(255,255,255,.18) transparent;
+  }
+  #wideLeft1550::-webkit-scrollbar,#wideRight1550::-webkit-scrollbar{width:8px}
+  #wideLeft1550::-webkit-scrollbar-thumb,#wideRight1550::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:4px}
+  #wideLeft1550{left:calc(50% - (var(--wr-main) / 2) - var(--wr-gap) - var(--wr-side))}
+  #wideRight1550{right:calc(50% - (var(--wr-main) / 2) - var(--wr-gap) - var(--wr-side))}
+  /* A partir de 1280 px las barras se quedan en 240 px para que la
+     columna central sí crezca (a 1280 px llega a 736 px; el tope de
+     880 px se alcanza a 1400 px). Antes las barras pasaban a 280 px
+     y la columna se quedaba en 640 px, igual que en el teléfono. */
+  @media (min-width:1280px){
+    :root{
+      --wr-side:240px;
+      --wr-gap:16px;
+      --wr-main:min(880px, calc(100vw - (var(--wr-side) * 2) - (var(--wr-gap) * 2) - 32px));
+    }
+  }
+  /* A partir de 1600 px la columna central llega hasta 1000 px. */
+  @media (min-width:1600px){
+    :root{
+      --wr-side:300px;
+      --wr-gap:32px;
+      --wr-main:min(1000px, calc(100vw - (var(--wr-side) * 2) - (var(--wr-gap) * 2) - 32px));
+    }
+  }
+  .wide1550-sec{margin-bottom:20px}
+  .wide1550-sec:last-child{margin-bottom:0}
+  .wide1550-title{font-size:15px;font-weight:800;margin:2px 2px 10px}
+  .wide1550-list .wide1550-row + .wide1550-row{border-top:1px solid var(--line)}
+  .wide1550-row{display:flex;align-items:center;gap:10px;padding:8px 2px;cursor:pointer}
+  .wide1550-row:hover .wide1550-name{color:var(--red2)}
+  .wide1550-avatar{
+    position:relative;flex:0 0 40px;width:40px;height:40px;border-radius:50%;
+    background:#3a1218;display:flex;align-items:center;justify-content:center;
+    font-weight:800;color:#ffb3bd;font-size:17px;overflow:hidden;
+  }
+  .wide1550-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .wide1550-who{flex:1;min-width:0}
+  .wide1550-name{display:block;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wide1550-mutual{font-size:12px;color:var(--mut)}
+  .wide1550-follow{
+    flex:0 0 auto;background:linear-gradient(135deg, var(--red), var(--red2));
+    color:#fff;font-weight:700;border-radius:10px;padding:7px 12px;font-size:13px;
+  }
+  .wide1550-follow:disabled{opacity:.55;cursor:default}
+  .wide1550-empty{font-size:13px;color:var(--mut);padding:6px 2px}
+  .wide1550-offline{font-size:13px;color:var(--mut);padding:6px 2px}
+  .wide1550-saved{
+    display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+    background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:14px;
+    padding:12px;font-size:15px;font-weight:700;color:var(--txt);
+  }
+  .wide1550-saved:hover{border-color:var(--red2)}
+  .wide1550-count{
+    margin-left:auto;background:var(--red);color:#fff;border-radius:999px;
+    min-width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:800;padding:0 7px;
+  }
+  .wide1550-list .wide1550-drama + .wide1550-drama{border-top:1px solid var(--line)}
+  .wide1550-drama{display:flex;gap:10px;align-items:center;padding:8px 2px;cursor:pointer}
+  .wide1550-drama:hover .wide1550-drama-name{color:var(--red2)}
+  .wide1550-poster{
+    position:relative;flex:0 0 44px;width:44px;height:66px;border-radius:10px;overflow:hidden;
+    background:linear-gradient(160deg, #E60026, #7a0e1d);display:flex;align-items:center;
+    justify-content:center;font-weight:800;font-size:20px;color:#fff;
+  }
+  .wide1550-poster img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .wide1550-drama-body{flex:1;min-width:0}
+  .wide1550-drama-name{font-size:14px;font-weight:700;line-height:1.25}
+  .wide1550-drama-app{font-size:12px;color:var(--mut);margin-top:2px}
+  .wide1550-follow:focus-visible,.wide1550-saved:focus-visible,.wide1550-row:focus-visible,.wide1550-drama:focus-visible{outline:2px solid var(--red2);outline-offset:2px}
+}

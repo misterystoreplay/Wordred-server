@@ -8,7 +8,7 @@ var C = window.WordRedCore;
    última versión del servidor (GET /api/app/latest). Tiene que ser
    igual que versionCode/versionName del AndroidManifest.xml. */
 var APP_VERSION_CODE = 79;
-var APP_VERSION_NAME = 'Web 1.4'; /* Web 1.4: contenido de Android 1.5.64. */
+var APP_VERSION_NAME = 'Web 1.5'; /* Web 1.5: contenido de Android 1.5.64. */
 var LS_KEY = 'wordred_state_v1';
 var state = loadState();
 ensure1526State(); /* 1.5.26: rellenar los campos nuevos en estados guardados de la 1.5.25. */
@@ -275,11 +275,13 @@ function formatText(text) {
    muestra como texto: se quita del texto y se devuelve aparte (urls)
    para dibujarlo como tarjeta (recuadro) con título y dominio.
    Devuelve {html, urls}. Las palabras del texto se quedan. */
-function formatPostText(text) {
+function formatPostText(text, post) {
   var urls = C.extractUrls(text);
   var html = esc(C.stripUrls(text));
   html = html.replace(/\*\*([^\*\n]+)\*\*/g, '<b>$1</b>');
   html = html.replace(/(^|[^*])\*([^\n*]+)\*/g, '$1<i>$2</i>');
+  /* Web 1.5 (24): las @menciones se vuelven enlaces al perfil. */
+  if (typeof linkifyMentions1550 === 'function') html = linkifyMentions1550(html, post);
   return { html: html, urls: urls };
 }
 /* Tamaño legible: 2,4 MB / 350 KB / 12 B (v1.2). */
@@ -1168,6 +1170,7 @@ $('confirmNo').addEventListener('click', function () {
    apps). */
 $('shareChoiceInside').addEventListener('click', function () { window.__wrShareInside(); });
 $('shareChoiceOutside').addEventListener('click', function () { window.__wrShareOutside(); });
+$('shareChoiceWhatsApp').addEventListener('click', function () { window.__wrShareWhatsApp1550(); }); /* Web 1.5: compartir por WhatsApp. */
 /* 1.5.45: apilado — la pantalla recién abierta siempre va AL FRENTE.
    Antes el z-index era fijo por CSS (.overlay z-80, panel de subida
    z-85, Shorts z-90) y las pantallas abiertas desde otra quedaban
@@ -2011,6 +2014,10 @@ async function finishServerLogin(email, name, photo, hasProfile) {
     enterApp();
     connectServer();
     pullFromServer();
+    /* Web 1.5 (flujo de entrada): si se llegó por un enlace
+       compartido, después de entrar se abre esa publicación (o
+       drama/perfil), no el inicio genérico. */
+    openPendingDeepLink1550();
     toast('¡Hola de nuevo, ' + r.profile.name + '!');
     return;
   }
@@ -2087,6 +2094,10 @@ $('authFinish').addEventListener('click', function () {
   C.seedDemo(state);
   save();
   enterApp();
+  /* Web 1.5 (flujo de entrada): si se llegó por un enlace
+     compartido, después de crear la cuenta se abre esa publicación
+     (o drama/perfil), no el inicio genérico. */
+  openPendingDeepLink1550();
   /* v1.4: la foto de perfil se sube al servidor para que a todos les
      aparezca en vivo; sin conexión queda en la cola. */
   state.settings.profileDirty = true;
@@ -3179,6 +3190,10 @@ function enterGuest() {
   C.seedDemo(state);
   save();
   enterApp();
+  /* Web 1.5 (flujo de entrada): si se llegó por un enlace
+     compartido, la publicación (o drama/perfil) se abre al entrar
+     como invitado, no el inicio genérico. */
+  openPendingDeepLink1550();
 }
 /* 1.5.44: pantalla de cuentas sin parpadeo. La vista de autenticación
    nace oculta en el HTML (authView con class="hidden") para que al
@@ -3199,7 +3214,142 @@ function showAccountsScreen1544() {
   }
 }
 function boot1544() {
-  if (state.me && state.profiles[state.me]) { enterApp(); } else { showAccountsScreen1544(); }
+  /* Web 1.5 (flujo de entrada): el enlace profundo se lee antes de
+     decidir la pantalla. Con sesión → directo a Inicio (boot1550
+     abre el enlace). Sin sesión y con enlace, sin cuentas guardadas
+     → se entra como invitado y se abre esa publicación/drama/perfil
+     directamente (las opciones de cuenta quedan en el aviso de
+     invitado); con cuentas guardadas van primero las opciones de
+     cuenta y el enlace se abre al elegir una. Sin enlace → cuentas. */
+  pendingDeepLink1550 = parseDeepLink1550();
+  if (state.me && state.profiles[state.me]) { enterApp(); boot1550(); return; }
+  if (pendingDeepLink1550 && !(state.accounts || []).length) { enterGuest(); return; }
+  showAccountsScreen1544();
+}
+/* Web 1.5: tareas de arranque — visita, dueño, No molestar, seguidos
+   de dramas y enlaces profundos (?post=, ?drama=, ?perfil=). */
+/* Web 1.5 (limpieza, no es novedad): los eventos de prueba de las
+   pruebas de la web («Prueba Web 1.3» y cualquier «Prueba Web 1.…»)
+   no deben quedarse en Eventos. La Web 1.3 dejó uno en el teléfono
+   del dueño porque la web solo sumaba eventos del servidor a la
+   copia local y nunca quitaba ninguno (el servidor ya no lo tiene,
+   pero el teléfono lo seguía mostrando). Esta migración los quita
+   de la copia local al cargar; si uno vuelve a aparecer en el
+   servidor, se cancela ahí (solo su creador puede cancelarlo: si
+   no eres el creador, el servidor responde 403 y solo se quita en
+   local, una vez por sesión y por evento para no repetir la
+   llamada). Ningún otro evento se toca jamás. */
+function isTestEvent1550(ev) {
+  var n = ev && ev.name ? String(ev.name) : '';
+  return n === 'Prueba Web 1.3' || n.indexOf('Prueba Web 1.') === 0;
+}
+var testEventsCancelTried1550 = {};
+function cancelTestEvent1550(ev) {
+  if (!ev || !ev.id || ev.status === 'Cancelado' || testEventsCancelTried1550[ev.id]) return;
+  testEventsCancelTried1550[ev.id] = true;
+  pushToServer('/api/events/' + encodeURIComponent(ev.id) + '/cancel', 'POST', {});
+}
+function cleanTestEvents1550() {
+  if (!Array.isArray(state.events) || !state.events.length) return 0;
+  var removed = state.events.filter(function (e) { return isTestEvent1550(e); });
+  if (!removed.length) return 0;
+  state.events = state.events.filter(function (e) { return !isTestEvent1550(e); });
+  save();
+  removed.forEach(function (e) { cancelTestEvent1550(e); });
+  return removed.length;
+}
+/* Web 1.5 (Mercado): filtros plegables — todos siguen ahí y
+   funcionando, solo ocupan menos: la búsqueda y el botón quedan en
+   una fila; las categorías, el precio y el orden se pliegan detrás
+   de «Filtros». */
+window.__wrToggleMarketFilters1550 = function () {
+  var p = document.getElementById('marketFilters1550');
+  var b = document.getElementById('marketFiltersToggle1550');
+  if (!p) return;
+  var open = p.classList.contains('hidden');
+  p.classList.toggle('hidden', !open);
+  if (b) b.textContent = open ? 'Filtros ▾' : 'Filtros ▸';
+};
+/* Web 1.5 (flujo de entrada): el enlace profundo (?post=, ?drama=,
+   ?perfil=) tiene prioridad sobre la pantalla de cuentas. Se lee al
+   arrancar y se guarda en pendingDeepLink1550; se abre en cuanto se
+   entra a la app, ya sea con sesión, como invitado o después de
+   verificar el número (o de elegir cuenta). Sin enlace y sin sesión
+   van primero las opciones de cuenta (registro / entrar) con el
+   botón de invitado; con sesión se va directo a Inicio. */
+var pendingDeepLink1550 = null;
+function parseDeepLink1550() {
+  var q = null;
+  try { q = new URLSearchParams(location.search); } catch (e) { return null; }
+  if (!q) return null;
+  var post = q.get('post'), drama = q.get('drama'), perfil = q.get('perfil');
+  if (!post && !drama && !perfil) return null;
+  return { post: post || null, drama: drama || null, perfil: perfil || null };
+}
+/* Web 1.5 (flujo de entrada): un invitado nuevo nunca sincroniza el
+   inicio (sin sesión no hay WebSocket ni pull del servidor), así que
+   la publicación compartida se busca por id en el servidor y se
+   guarda en la copia local; si no está (borrada, archivada o no
+   visible para invitados) el servidor responde 404 y se queda en el
+   inicio, sin errores ni avisos. Una sola búsqueda por id y por
+   carga de página. */
+function fetchDeepLinkPost1550(postId, onFound) {
+  if (!postId || fetchDeepLinkPost1550._for === postId) return;
+  fetchDeepLinkPost1550._for = postId;
+  function done(p) {
+    if (!p) return;
+    if (!state.posts.some(function (x) { return x.id === p.id; })) { state.posts.unshift(p); save(); }
+    if (typeof window.__wrOpenPost === 'function') window.__wrOpenPost(postId);
+    if (typeof onFound === 'function') { try { onFound(); } catch (e) {} }
+  }
+  try {
+    C.serverFetch(state, '/api/posts/' + encodeURIComponent(postId), 'GET').then(function (r) {
+      var p = r && r.ok && r.data && r.data.post;
+      if (p) { done(p); return; }
+      /* Servidor anterior a 5.0 (sin GET por id): buscar en el inicio. */
+      return C.serverFetch(state, '/api/feed', 'GET').then(function (r2) {
+        var list = (r2 && r2.ok && r2.data && r2.data.posts) || [];
+        var found = null;
+        list.forEach(function (x) { if (x && x.id === postId) found = x; });
+        if (found) done(found);
+      });
+    }).catch(function () {});
+  } catch (e) {}
+}
+function openDeepLink1550(link) {
+  if (!link) return;
+  var postId = link.post, dramaId = link.drama, perfil = link.perfil;
+  var tries = 0;
+  var timer = setInterval(function () {
+    tries++;
+    if (postId) {
+      var post = state.posts.filter(function (p) { return p.id === postId; })[0];
+      if (post) { clearInterval(timer); if (typeof window.__wrOpenPost === 'function') window.__wrOpenPost(postId); return; }
+      fetchDeepLinkPost1550(postId, function () { clearInterval(timer); });
+    } else if (dramaId) {
+      clearInterval(timer);
+      if (typeof kdOpen1549 === 'function') { fetchKdramas1554(); setTimeout(function () { var all = kdActiveCatalog1549(); var idx = -1; all.forEach(function (s, i) { if (String(s.id) === String(dramaId)) idx = i; }); if (idx >= 0) kdOpen1549(idx, 0); }, 1200); }
+      return;
+    } else if (perfil) {
+      clearInterval(timer);
+      if (typeof window.__wrOpenProfile === 'function') window.__wrOpenProfile(perfil);
+      return;
+    }
+    if (tries > 10) clearInterval(timer);
+  }, 800);
+}
+function openPendingDeepLink1550() {
+  var link = pendingDeepLink1550 || parseDeepLink1550();
+  pendingDeepLink1550 = null;
+  if (link) openDeepLink1550(link);
+}
+function boot1550() {
+  cleanTestEvents1550();
+  pushVisitPing1550();
+  probeOwnerFeatures1550();
+  refreshDnd1550();
+  getDramaFollows1550(true);
+  openPendingDeepLink1550();
 }
 function renderGuestBanner() {
   var b = $('guestBanner');
@@ -3287,7 +3437,7 @@ var FAQ = [
   { q: '¿Cómo vendo algo en el Marketplace?', a: 'Toca «Publicar anuncio»: título, precio en MXN, categoría y fotos. También puedes poner WhatsApp, marca, precio negociable y entrega. También hay grupos de ventas con su propio menú.' },
   { q: '¿Cómo envío mensajes, archivos y notas de voz?', a: 'Abre el perfil de un amigo y toca «Mensaje», o el icono de mensajes arriba, después de la lupa. Puedes mandar texto, fotos, videos, archivos y notas de voz. En «Mensajes» también puedes crear un grupo: toca «Nuevo grupo» y elige a tus amigos.' },
   { q: '¿Cómo llamo dentro de la app?', a: 'Dentro de un chat toca el teléfono: la llamada es por internet, con los dos en línea, con video o solo voz. En la Web no se puede llamar por teléfono: eso solo funciona con la app instalada en el teléfono.' },
-  { q: '¿Por qué no me llegan las notificaciones?', a: 'Revisa en Ajustes → Notificaciones qué avisos tienes activos: los avisos aparecen en la campana. En la Web no hay avisos fuera de la página: no llegan notificaciones al teléfono.' },
+  { q: '¿Por qué no me llegan las notificaciones?', a: 'Revisa en Ajustes → Notificaciones qué avisos tienes activos: los avisos aparecen en la campana. Para que lleguen con la pestaña cerrada, activa «Notificaciones push»: el navegador te pedirá permiso una vez y los avisos de comentarios y Me gusta en tus publicaciones llegan aunque no estés en la página. Si activas «No molestar», los avisos se silencian hasta que termine.' },
   { q: '¿Cómo bloqueo o reporto a alguien?', a: 'Abre su perfil y toca «Bloquear» o «Reportar». Al bloquear, esa persona no ve tu perfil ni tus publicaciones y no puede escribirte. En Ajustes → Bloqueados puedes desbloquear.' },
   { q: '¿Cómo apoyo al creador de WordRed?', a: 'En Ajustes → «Apoyar a WordRed» están los datos para una transferencia. Es voluntario y ayuda a seguir mejorando la app.' },
   { q: '¿Dónde quedaron Avisos, Mensajes y Amigos?', a: 'La barra de abajo tiene Inicio, Shorts, Mercado, Grupos y Perfil. Los mensajes están arriba, después de la lupa; los avisos, en la campana; y Amigos, en tu Perfil, en la fila de accesos rápidos. Tu actividad también está en tu Perfil, tocando «Tu actividad».' },
@@ -3309,6 +3459,7 @@ var FAQ = [
   { q: '¿Qué hay de nuevo en la Web 1.2?', a: 'Los 5 iconos de la barra de abajo ahora miden lo mismo y quedan equidistantes y centrados. Los Eventos se mudaron al perfil, donde estaba el navegador; la fila de Eventos y Páginas salió del Inicio, y el buscador del Inicio se quitó: para buscar, toca la lupa de la barra de arriba.' },
   { q: '¿Qué hay de nuevo en la Web 1.3?', a: 'Los Eventos del perfil ahora están abajo de «¿Qué estás pensando?», en vez de estar arriba, justo después de la cabecera. Todo lo demás sigue igual.' }, /* Web 1.3: los Eventos bajan debajo de «¿Qué estás pensando?». */
   { q: '¿Qué hay de nuevo en la Web 1.4?', a: 'En los dramas, el botón «Saltar anuncio» de YouTube ya se puede presionar: antes la barra de abajo del visor lo tapaba. Ahora el video termina arriba de la barra y la esquina donde sale el botón queda libre. Los anuncios los pone YouTube y no se pueden quitar.' }, /* Web 1.4: el botón de saltar anuncios ya se puede presionar. */
+  { q: '¿Qué hay de nuevo en la Web 1.5?', a: 'Mucho: notificaciones push reales (con la pestaña cerrada), Guardados para publicaciones y dramas, diseño ancho en computadora, compartir por WhatsApp, seguir dramas con aviso de capítulos nuevos, buscar y filtrar dramas, reels a pantalla completa con deslizamiento, notas de voz en chats y en publicaciones, instalar la Web como app, audio en segundo plano, subidas que no mueren al cerrar la pestaña, transmisiones en vivo, traducción de publicaciones y comentarios, encuestas en publicaciones e historias, fotos en comentarios, insignia verificada (solo la otorga el dueño), sugerencias de amigos, reacciones con emoji en publicaciones y comentarios, videollamadas y llamadas de voz en grupo, vistas de tus publicaciones, fijar publicaciones y comentarios, recordatorios de cumpleaños, menciones con @, archivar publicaciones e historias, fondos de perfil, historias con música, descargar tus publicaciones, bloquear y reportar, mensajes que se autodestruyen, subtítulos automáticos, estado en línea, compartir pantalla en llamadas, filtros de foto antes de publicar, texto grande y modo lectura, eventos en grupos con recordatorios, silenciar sin bloquear, QR de tu perfil, historial de Me gusta, respuestas en comentarios, notas de perfil, retomar videos donde los dejaste, buscar y fijar chats, ahorro de datos, cambiar tu nombre, stickers propios, compartir canciones, ver quién reaccionó, foto con doble cámara, editar comentarios, borrar mensajes para todos, copiar enlace de una publicación, modo No molestar, programar historias, grupos privados, reacciones rápidas en historias, negocio en tu perfil, estadísticas de tus historias, escuchar y ver juntos en grupo, y exportar tus datos. Los avisos push y las subidas en segundo plano dependen de lo que permita tu navegador; la traducción usa un servicio gratuito y puede fallar a veces; lo guardado vive en este navegador.' }, /* Web 1.5: 70 novedades. */
 
 ];
 function renderFaq() {
@@ -3687,7 +3838,7 @@ function renderShortItem() {
       (s.text && !storyPlainTextOverlaid(s) && !s.backgroundColor ? '<div class="shortsCaption">' + formatText(s.text) + '</div>' : '') +
       storySongHtml +
       storyExtrasHtml1526(s) + /* 1.5.26 (7/9/29/13): encuesta, reacciones, enlace, distintivo de cercanos */
-      (s.author === state.me ? '<button class="btn ghost small" onclick="window.__wrOpenStoryViewers(\'' + s.id + '\')"> Ver quién la vio</button> <button class="btn danger small" onclick="window.__wrDeleteShort()">Borrar mi historia</button>' : '');
+      (s.author === state.me ? '<button class="btn ghost small" onclick="window.__wrOpenStoryViewers(\'' + s.id + '\')"> Estadísticas · quién la vio</button> <button class="btn danger small" onclick="window.__wrDeleteShort()">Borrar mi historia</button>' : '');
   } else {
     var post = it.post;
     var media = (post.mediaList && post.mediaList.length ? post.mediaList : [{ src: post.media, type: post.mediaType }]).filter(function (m) { return m.src; });
@@ -4979,13 +5130,14 @@ function kdramasSaveCache1554(list) {
 }
 function fetchKdramas1554() {
   var cached = kdramasReadCache1554();
-  if (cached) { kdServerCatalog1554 = cached; renderKdramaHome1549(); return; }
+  if (cached) { kdServerCatalog1554 = cached; kdramasCache1550 = cached; renderKdramaHome1549(); return; }
   if (kdServerFetch1554) return;
   kdServerFetch1554 = (async function () {
     try {
       var r = await C.serverFetchWithRetry(state, '/api/kdramas', 'GET', null, { attempts: 1, timeoutMs: 6000 });
       if (r && r.ok && r.data && kdramasValid1554(r.data.kdramas)) {
         kdServerCatalog1554 = r.data.kdramas;
+        kdramasCache1550 = r.data.kdramas;
         kdramasSaveCache1554(r.data.kdramas);
       } else {
         kdServerCatalog1554 = null;
@@ -5050,11 +5202,31 @@ function kdRenderSectionBadge1562() {
   var el = $('kdSectionBadge1562');
   if (el) el.textContent = kdSectionApps1562().join(' · ');
 }
-function renderKdramaHome1549() {
-  var box = $('kdramaReels1549');
-  if (!box) return;
-  kdRenderSectionBadge1562();
-  box.innerHTML = kdActiveCatalog1549().map(function (s, i) {
+var kdSearchText1550 = '';
+var kdSearchApp1550 = 'all';
+/* Web 1.5 (6): buscar dramas por nombre y filtrar por aplicación, en
+   vivo al teclear. La barra se pinta una vez; solo las tarjetas se
+   vuelven a dibujar al filtrar (si no, el input perdería el foco). */
+function kdFilteredCatalog1550() {
+  var all = kdActiveCatalog1549();
+  var q = kdSearchText1550.trim().toLowerCase();
+  return all.filter(function (s) {
+    if (kdSearchApp1550 !== 'all' && (s.source || '') !== kdSearchApp1550) return false;
+    if (q && (s.name || '').toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  });
+}
+function kdRenderTiles1550() {
+  var tiles = document.getElementById('kdTiles1550');
+  if (!tiles) return;
+  var all = kdActiveCatalog1549();
+  var list = kdFilteredCatalog1550();
+  if (!list.length) {
+    tiles.innerHTML = '<div class="empty" style="margin:8px">No hay dramas con ese nombre' + (kdSearchApp1550 !== 'all' ? ' en ' + esc(kdSearchApp1550) : '') + '. Prueba con otro nombre o quita el filtro.</div>';
+    return;
+  }
+  tiles.innerHTML = list.map(function (s) {
+    var i = all.indexOf(s);
     /* 1.5.55: sin lazy (las 5 portadas son el contenido de la sección) y
        con red de seguridad: si la portada falla, la tarjeta muestra el
        nombre bien visible sobre el fondo rojo, nunca un hueco vacío.
@@ -5065,12 +5237,28 @@ function renderKdramaHome1549() {
        (kdPoster1563); si no carga, primero se intenta la miniatura de
        YouTube y luego el respaldo rojo. */
     var tag = kdAppTag1561(s);
+    var marks = (isDramaFollowed1550(s.id) ? ' · Siguiendo' : '') + (isSaved1550('drama', s.id) ? ' · Guardado' : '');
     return '<div class="reelTile" data-kd-series="' + i + '" role="button" aria-label="' + esc(s.name) + '">' +
       '<img src="' + esc(kdPoster1563(s)) + '" data-kd-fallback="' + esc(s.poster) + '" data-kd-kind="dramaTile" onerror="window.__wrKdPosterFallback1563(this)" alt="">' +
-      '<div class="kdTileLabel1549"><div class="kdTileName1549">' + esc(s.name) + '</div><div class="kdTileSub1549">' + esc(kdSeriesLabel1549(s)) + ' · ' + tag + '</div></div>' +
+      '<div class="kdTileLabel1549"><div class="kdTileName1549">' + esc(s.name) + '</div><div class="kdTileSub1549">' + esc(kdSeriesLabel1549(s)) + ' · ' + tag + marks + '</div></div>' +
       '<span class="kdBadge1549">' + tag + '</span></div>';
   }).join('');
 }
+function renderKdramaHome1549() {
+  var box = $('kdramaReels1549');
+  if (!box) return;
+  kdRenderSectionBadge1562();
+  var apps = ['all', 'ReelShort', 'ShortMax', 'DramaBox'];
+  box.innerHTML = '<div style="margin:0 8px 10px"><input id="kdSearch1550" type="search" placeholder="Buscar dramas por nombre…" value="' + esc(kdSearchText1550) + '" style="width:100%">' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">' + apps.map(function (a) {
+      return '<button class="chip' + (kdSearchApp1550 === a ? ' on' : '') + '" onclick="window.__wrKdFilter1550(\'' + a + '\')">' + (a === 'all' ? 'Todas' : a) + '</button>';
+    }).join('') + '</div></div><div id="kdTiles1550"></div>';
+  var inp = document.getElementById('kdSearch1550');
+  if (inp) inp.addEventListener('input', function () { kdSearchText1550 = inp.value; kdRenderTiles1550(); });
+  kdRenderTiles1550();
+}
+window.__wrKdSearch1550 = function (v) { kdSearchText1550 = v || ''; kdRenderTiles1550(); };
+window.__wrKdFilter1550 = function (app) { kdSearchApp1550 = app; renderKdramaHome1549(); };
 /* 1.5.55: ninguna tarjeta queda en blanco si una imagen no carga. La
    causa de la 1.5.54 era la ruta con un 'assets/' de más (la página
    carga desde file:///android_asset/index.html, así que 'assets/...'
@@ -5092,6 +5280,8 @@ function kdOpen1549(seriesIdx, epIdx) {
   kdSeriesIdx1549 = Math.max(0, Math.min(kdActiveCatalog1549().length - 1, seriesIdx || 0));
   var s = kdCurrentSeries1549();
   kdEpIdx1549 = Math.max(0, Math.min(kdSeriesTotal1558(s) - 1, epIdx || 0));
+  /* Web 1.5 (7): contar la vista de verdad, cuando el drama se abre. */
+  if (s) pushDramaViewPing1550(s.id);
   /* 1.5.58: en el teléfono el capítulo se abre en el reproductor
      nativo (segundo WebView con base https, donde YouTube sí
      reproduce: desde file:// el reproductor da Error 153). Sin puente
@@ -5202,6 +5392,15 @@ function kdLoadCurrent1549() {
   kdStopNovel1549();
   if ($('kdSeriesTitle1549')) $('kdSeriesTitle1549').textContent = s.name;
   if ($('kdEpTitle1549')) $('kdEpTitle1549').textContent = kdEpLabel1549(ch) + ' · ' + ch.title + ' · ' + kdAppTag1561(s);
+  /* Web 1.5: seguir/guardar/compartir/ver juntos en el visor. */
+  var kfb = $('kdFollowBtn1550');
+  if (kfb) { kfb.textContent = isDramaFollowed1550(s.id) ? 'Siguiendo ✓' : 'Seguir'; kfb.onclick = function () { window.__wrToggleDramaFollow1550(s.id); setTimeout(function () { kdLoadCurrent1549(); }, 300); }; }
+  var ksb = $('kdSaveBtn1550');
+  if (ksb) { ksb.textContent = isSaved1550('drama', s.id) ? 'Guardado ✓' : 'Guardar'; ksb.onclick = function () { window.__wrToggleDramaSave1550(s.id); kdLoadCurrent1549(); }; }
+  var kshb = $('kdShareBtn1550');
+  if (kshb) kshb.onclick = function () { window.__wrShareDrama1550(s.id); };
+  var kwb = $('kdWatchBtn1550');
+  if (kwb) kwb.onclick = function () { openWatchTogetherPicker1550(s.id); };
   var wrap = $('kdVideoWrap1556');
   var img = $('kdImage1549');
   var soon = $('kdSoon1556');
@@ -5579,8 +5778,14 @@ $('storyPublish').addEventListener('click', async function () {
   if (storyAudience === 'close') storyData1526.audience = 'close';
   if (storyBgColor) storyData1526.backgroundColor = storyBgColor;
   if (storySharedShortId) storyData1526.sharedShortId = storySharedShortId;
+  /* Web 1.5 (61): programar — el servidor la publica a su hora (5.0). */
+  var schedInput = $('storySchedule1550');
+  var schedTs = schedInput && schedInput.value ? new Date(schedInput.value).getTime() : 0;
+  if (schedTs > Date.now()) storyData1526.publishAt = schedTs;
+  else if (schedInput && schedInput.value) toast('Esa fecha ya pasó: la historia se publica ahora.');
   var r = C.createStory(state, state.me, storyData1526);
   if (!r.ok) { toast(r.error); return; }
+  if (storyData1526.publishAt) { r.story.publishAt = storyData1526.publishAt; r.story.status = 'scheduled'; }
   save();
   if (r.story) {
     /* v1.4: lo que quedó en local se sube solo al reconectar. */
@@ -5592,14 +5797,18 @@ $('storyPublish').addEventListener('click', async function () {
        se reintenta sola y se avisa). */
     if (bgUploadHasServer1529()) r.story.pendingSync = true;
     save();
-    confirmStoryPublish1529(r.story);
+    var conf1550 = await confirmStoryPublish1529(r.story);
+    /* Web 1.5 (61): si quedó programada en el servidor, no se muestra
+       como historia viva: vive en «Historias programadas». */
+    if (r.story.status === 'scheduled' && conf1550.ok) { state.stories = state.stories.filter(function (s) { return s.id !== r.story.id; }); save(); }
   }
+  if (schedInput) schedInput.value = '';
   $('storyText').value = '';
   storyPollQ = ''; storyPollOpts = ['', '']; storyLink = ''; storyAudience = 'all'; storyVoice = null; storyCover = ''; storyBgColor = ''; storySharedShortId = '';
   window.__wrClearMedia();
   hideOverlay('storyCreateOverlay');
   renderStories();
-  toast('Historia publicada. Dura 24 horas.');
+  toast(storyData1526.publishAt ? 'Historia programada. Se publica sola a su hora.' : 'Historia publicada. Dura 24 horas.');
 });
 
 /* ---------------- editor de historias (v1.2, ola 6) ----------------
@@ -5859,6 +6068,11 @@ async function publishStoryEdited() {
     sharedShortId: storySharedShortId || undefined
   });
   if (!r.ok) { toast(r.error); return; }
+  /* Web 1.5 (61): programar desde el editor — el servidor la publica
+     a su hora (5.0). */
+  var schedEdit1550 = $('storyEditSchedule1550');
+  var schedTs1550 = schedEdit1550 && schedEdit1550.value ? new Date(schedEdit1550.value).getTime() : 0;
+  if (schedTs1550 > Date.now()) { r.story.publishAt = schedTs1550; r.story.status = 'scheduled'; }
   save();
   if (r.story) {
     /* v1.4: lo que quedó en local se sube solo al reconectar. */
@@ -5870,8 +6084,10 @@ async function publishStoryEdited() {
        se reintenta sola y se avisa). */
     if (bgUploadHasServer1529()) r.story.pendingSync = true;
     save();
-    confirmStoryPublish1529(r.story);
+    var confEdit1550 = await confirmStoryPublish1529(r.story);
+    if (r.story.status === 'scheduled' && confEdit1550.ok) { state.stories = state.stories.filter(function (s) { return s.id !== r.story.id; }); save(); }
   }
+  if (schedEdit1550) schedEdit1550.value = '';
   hideOverlay('storyEditorOverlay');
   $('storyText').value = '';
   storyPollQ = ''; storyPollOpts = ['', '']; storyLink = ''; storyAudience = 'all'; storyVoice = null; storyCover = ''; storyBgColor = ''; storySharedShortId = '';
@@ -6368,6 +6584,7 @@ function openComposer(targetId, kind) {
   composerSong = null;
   composerSongSuggestion = null;
   composerSongAuto = false;
+  composerFilterOriginal1550 = ''; composerFilterCurrent1550 = 'none'; composerMentionPhones1550 = {}; /* Web 1.5 (24/34) */
   editingPostId = null;
   editPollLocked = false;
   composerDraftId1558 = null; /* 1.5.58: un compositor nuevo no retoma ningún borrador */
@@ -6742,7 +6959,7 @@ $('postItalic').addEventListener('click', function () { wrapSelection('*', '*');
 /* Vista previa de varias fotos/videos en el compositor (v1.2). */
 function renderComposerMediaList() {
   var box = $('postMediaPrev');
-  if (!composerMediaList.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+  if (!composerMediaList.length) { box.classList.add('hidden'); box.innerHTML = ''; composerFilterOriginal1550 = ''; composerFilterCurrent1550 = 'none'; return; }
   box.innerHTML = '<div class="medialist">' + composerMediaList.map(function (m, i) {
     /* 1.5.30: la previa provisional (blob:) se dibuja por su tipo, no
        por la extensión del src (que no lleva ninguna). */
@@ -6755,7 +6972,7 @@ function renderComposerMediaList() {
       (m.type === 'video' ? '<button type="button" class="cover-pick-btn" onclick="window.__wrOpenCoverPicker(' + i + ')" aria-label="Carátula" title="Carátula" style="position:absolute;top:4px;left:4px;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center">' + ic('image', 19) + '</button>' : '') +
       (m.type === 'video' ? '<button type="button" onclick="window.__wrEditVideo(' + i + ')" aria-label="Editar video" title="Editar video" style="position:absolute;top:4px;left:52px;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:1px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center">' + ic('video', 19) + '</button>' : '') +
       '</div>';
-  }).join('') + '</div>';
+  }).join('') + '</div>' + composerFilterRowHtml1550();
   box.classList.remove('hidden');
 }
 window.__wrRemoveComposerMedia = function (i) {
@@ -6829,7 +7046,7 @@ $('postAddPoll').addEventListener('click', function () {
 });
 $('pollAddOption').addEventListener('click', function () {
   var wrap = $('pollOptions');
-  if (wrap.querySelectorAll('input').length >= 6) { toast('La encuesta admite hasta 6 opciones.'); return; }
+  if (wrap.querySelectorAll('input').length >= 4) { toast('La encuesta admite de 2 a 4 opciones.'); return; }
   var inp = document.createElement('input');
   inp.type = 'text';
   inp.maxLength = 80;
@@ -6907,7 +7124,8 @@ $('postPublish').addEventListener('click', function () {
     videoEdits: composerMediaList[0] && composerMediaList[0].videoEdits ? composerMediaList[0].videoEdits : null,
     privacy: $('postPrivacy').value,
     groupId: groupId,
-    pageId: pageId
+    pageId: pageId,
+    mentions: composerMentionsList1550() /* Web 1.5 (24): @menciones */
   };
   /* Ola 10: si se está modificando una publicación, la encuesta con votos
      no se toca (no se envía el campo poll). */
@@ -7072,7 +7290,7 @@ function postCardHtml(post) {
   if (shared) {
     /* v1.5.14: el enlace del texto compartido también va en tarjeta, no
        como texto crudo (igual que el texto propio). */
-    var sharedText = formatPostText(shared.text || '');
+    var sharedText = formatPostText(shared.text || '', shared);
     sharedHtml = '<div class="shared"><b>' + esc(profileName(shared.author)) + '</b> ' + demoBadge(shared.author) +
       (sharedText.html ? '<div style="margin-top:4px;white-space:pre-wrap;word-break:break-word">' + sharedText.html + '</div>' : '') +
       postLinkCardsHtml(sharedText.urls, shared.link) +
@@ -7107,7 +7325,7 @@ function postCardHtml(post) {
   /* v1.5.14: el texto propio con enlaces va sin el enlace crudo: las
      palabras se muestran y cada enlace se dibuja como tarjeta
      (recuadro) justo después del texto. */
-  var postText = post.text ? formatPostText(post.text) : null;
+  var postText = post.text ? formatPostText(post.text, post) : null;
   var postTextHtml = '';
   if (postText) {
     if (postText.html) postTextHtml += '<p class="text' + (post.bg && post.bg !== 'none' ? ' postbg-' + post.bg : '') + '">' + postText.html + '</p>';
@@ -7164,7 +7382,14 @@ function postCardHtml(post) {
       return '<button class="' + (myReaction === r ? 'on' : '') + '" onclick="window.__wrReact(\'' + post.id + '\',\'' + r + '\')">' + C.REACTION_EMOJI[r] + ' ' + r + '</button>';
     }).join('') +
     '</div>' +
-    '<div style="text-align:right;margin-top:4px"><button class="tiny" style="color:var(--mut)" onclick="window.__wrToggleReactions(\'' + post.id + '\')">Más reacciones</button></div>' +
+    '<div style="text-align:right;margin-top:4px"><button class="tiny" style="color:var(--mut)" onclick="window.__wrToggleReactions(\'' + post.id + '\')">Más reacciones</button>' +
+    /* Web 1.5: copiar enlace, quién reaccionó, modo lectura; en las
+       propias, archivar y descargar. */
+    ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrCopyPostLink1550(\'' + post.id + '\')">Copiar enlace</button>' +
+    ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrWhoReacted1550(\'' + post.id + '\')">Quién reaccionó</button>' +
+    ((post.text && post.text.length > 280) ? ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrToggleReading1550(\'' + post.id + '\')">Lectura</button>' : '') +
+    (author === state.me ? ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrArchivePost1550(\'' + post.id + '\')">Archivar</button> <button class="tiny" style="color:var(--mut)" onclick="window.__wrDownloadPost1550(\'' + post.id + '\')">Descargar</button>' : '') +
+    '</div>' +
     postViewsHtml1526(post) + /* 1.5.26 (4): vistas reales de tus publicaciones */
     sharesRowHtml1526(post) + /* 1.5.26 (42): quién compartió */
     liveShareButtonHtml(post) +
@@ -7172,6 +7397,8 @@ function postCardHtml(post) {
 }
 function renderFeed() {
   var feed = C.feedFor(state, state.me);
+  /* Web 1.5 (41): los silenciados no salen en el inicio local tampoco. */
+  feed = feed.filter(function (p) { return !isMuted1526(p.author); });
   /* 1.5.26 (45): filtro de palabras (solo en este teléfono) y (61) inicio
      solo de amigos. Las ocultas no se borran: siguen en el servidor. */
   feed = C.filterFeedWords(feed, state.wordFilter || []).visible;
@@ -7929,6 +8156,7 @@ window.__wrSave = function (postId) {
   var r = C.toggleSave(state, state.me, postId);
   if (!r.ok) { toast(r.error); return; }
   save();
+  mirrorPostSaved1550(postId, r.saved);
   renderFeed();
   toast(r.saved ? 'Publicación guardada.' : 'Ya no está guardada.');
 };
@@ -8024,7 +8252,9 @@ function renderPostDetail(postId) {
   var html = postCardHtml(post);
   html += '<div class="comments">';
   if (!post.comments.length) html += '<p class="muted">Sin comentarios todavía. Sé la primera persona en comentar.</p>';
-  post.comments.forEach(function (c) { html += commentHtml(post, c, false); });
+  /* Web 1.5: el comentario fijado va primero. */
+  var commentsSorted1550 = (post.comments || []).slice().sort(function (a, b) { return ((post.pinnedComment === b.id) ? 1 : 0) - ((post.pinnedComment === a.id) ? 1 : 0); });
+  commentsSorted1550.forEach(function (c) { html += commentHtml(post, c, false); });
   html += '<div class="commentform"><input id="commentInput" type="text" placeholder="Escribe un comentario... Usa @ para mencionar a un amigo." autocomplete="off"><input type="file" id="commentMediaInput" accept="image/*,video/*" class="hidden"><button class="btn ghost" type="button" title="Foto o video" onclick="document.getElementById(\'commentMediaInput\').click()"></button><button class="btn" onclick="window.__wrAddComment()">Comentar</button></div>' + /* 1.5.26 (11/24) */
     '<div id="commentMediaPrev" class="hidden" style="margin-top:8px"></div>' +
     '<div id="commentMentionBox"></div></div>';
@@ -8145,10 +8375,22 @@ function commentHtml(post, c, isReply, topId) {
   /* v2.3: el comentario también con el estilo de los Shorts: columna
      vertical a la derecha con corazón (me gusta al comentario), burbuja
      (responder) y compartir. Eliminar queda como texto en los datos. */
+  /* Web 1.5: reacciones con emoji (19), fijar (40) y editar (60).
+     El comentario fijado lleva su marca; el editado, «editado». */
+  var cReactCounts1550 = {};
+  Object.keys(c.reactions || {}).forEach(function (ph) { var e = c.reactions[ph]; if (e) cReactCounts1550[e] = (cReactCounts1550[e] || 0) + 1; });
+  var cReactRow1550 = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">' + REACT_EMOJIS_1550.map(function (e) {
+    var n = cReactCounts1550[e] || 0;
+    var mine = c.reactions && c.reactions[state.me] === e;
+    return '<button class="tiny" style="border:1px solid ' + (mine ? 'var(--red2)' : 'var(--line)') + ';border-radius:999px;padding:2px 8px;background:' + (mine ? 'rgba(var(--acc-rgb),.18)' : 'transparent') + '" onclick="window.__wrReactComment1550(\'' + post.id + '\',\'' + c.id + '\',\'' + e + '\')">' + e + (n ? ' ' + n : '') + '</button>';
+  }).join('') + '</div>';
+  var pinnedMark1550 = (post.pinnedComment === c.id) ? ' · <span style="color:var(--red);font-weight:700">Fijado</span>' : '';
   var html = '<div class="comment' + (isReply ? ' reply' : '') + '">' + avatarHtml(c.author) +
-    '<div class="bubble"><b>' + esc(profileName(c.author)) + demoBadge(c.author) + '</b><p>' + cTextHtml1526 + '</p>' + cMediaHtml1526 + commentTranslateHtml1526(post, c) +
-    '<div class="meta">' + C.timeAgo(c.createdAt) + ' · ' + C.formatDateTime(c.createdAt) +
-    ((c.author === state.me || post.author === state.me) ? ' · <button onclick="window.__wrDeleteComment(\'' + post.id + '\',\'' + c.id + '\')">Eliminar</button>' : '') + '</div></div>' +
+    '<div class="bubble"><b>' + esc(profileName(c.author)) + demoBadge(c.author) + '</b><p>' + cTextHtml1526 + '</p>' + cMediaHtml1526 + commentTranslateHtml1526(post, c) + cReactRow1550 +
+    '<div class="meta">' + C.timeAgo(c.createdAt) + ' · ' + C.formatDateTime(c.createdAt) + (c.edited ? ' · editado' : '') + pinnedMark1550 +
+    ((c.author === state.me || post.author === state.me) ? ' · <button onclick="window.__wrDeleteComment(\'' + post.id + '\',\'' + c.id + '\')">Eliminar</button>' : '') +
+    (c.author === state.me ? ' · <button onclick="window.__wrEditComment1550(\'' + post.id + '\',\'' + c.id + '\')">Editar</button>' : '') +
+    ((post.author === state.me && !isReply) ? ' · <button onclick="window.__wrPinComment1550(\'' + post.id + '\',\'' + c.id + '\')">' + (post.pinnedComment === c.id ? 'Quitar fijo' : 'Fijar') + '</button>' : '') + '</div></div>' +
     '<div class="shortsRail commentRail">' +
     '<button class="like-btn ' + (liked ? 'on' : '') + '" aria-label="Me gusta" onclick="window.__wrLikeComment(\'' + post.id + '\',\'' + c.id + '\')">' + ic('heart', 22) + '<span class="cnt">' + C.commentLikeCount(c) + '</span></button>' +
     '<button aria-label="Responder" onclick="window.__wrReplyTo(\'' + top + '\')">' + ic('message', 22) + '<span class="cnt">' + (c.replies || []).length + '</span></button>' +
@@ -8408,13 +8650,14 @@ function renderProfileDetail(phone) {
     '<h2 style="margin-top:8px">' + esc(p.name) + demoBadge(phone) + verifiedBadgeHtml(phone) + '</h2>' + /* 1.5.26 (10) */
     (p.bio ? '<p class="muted">' + esc(p.bio) + '</p>' : '') +
     (p.note ? '<p class="muted"> ' + esc(p.note) + '</p>' : '') + /* 1.5.26 (30): nota en el perfil */
+    businessCardHtml1550(phone, false) + /* Web 1.5 (67): el negocio se ve en el perfil. */
     profileBioHtml(phone) +
     '<div class="statrow"><div><b>' + (showFriends ? friends : '—') + '</b><span>amigos</span></div><div><b>' + (showPosts ? posts.length : '—') + '</b><span>publicaciones</span></div></div>' +
     '<div class="profileBtns">' + btn + '<button class="btn ghost" onclick="window.__wrOpenChat(\'' + phone + '\')">' + ic('message', 16) + ' Mensaje</button><button class="btn ghost" onclick="window.__wrOpenSellerProfile(\'' + phone + '\')">' + ic('bag', 16) + ' Perfil de ventas</button>' +
     (C.isBlockedBy(state, state.me, phone)
       ? '<button class="btn ghost" onclick="window.__wrUnblockUser(\'' + phone + '\')">Desbloquear</button>'
       : '<button class="btn ghost" onclick="window.__wrBlockUser(\'' + phone + '\')">Bloquear</button>') +
-    '<button class="btn ghost" onclick="window.__wrToggleMute(\'' + phone + '\')">' + (isMuted1526(phone) ? ' Silenciado' : 'Silenciar avisos') + '</button>' + /* 1.5.26 (31): solo apaga avisos */
+    '<button class="btn ghost" onclick="window.__wrToggleMute(\'' + phone + '\')">' + (isMuted1526(phone) ? 'Quitar silencio' : 'Silenciar') + '</button>' + /* Web 1.5 (41): silenciar oculta sus publicaciones del inicio, sin bloquear y sin avisarle. */
     '<button class="btn ghost wide" onclick="window.__wrReportUser(\'' + phone + '\')">Reportar</button></div></div>' +
     theirSong1526 +
     (showPosts
@@ -8705,6 +8948,7 @@ function renderOwnProfile() {
        grabaciones de lives y la tienda); mismo contenido y mismo conteo. */
     memoriesProfileHtml1526() +
     '<div class="profileShortcuts1539"><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenSavedShorts()">Shorts guardados</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenScheduled()">Programadas</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenDrafts()">Borradores</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenSavedLinks()">Enlaces guardados</button></div>' +
+    ownExtras1550() + /* Web 1.5: Guardados, Archivados, Me gusta, QR, nota, negocio, archivo de historias y, solo para el dueño, estadísticas/verificaciones/reportes. */
     thinkBoxHtml1559() + /* 1.5.60: «¿Qué estás pensando?» va ARRIBA de las secciones destacadas (corrección a la 1.5.59, que lo dejó abajo) */
     profileEventsHtml1560() + /* Web 1.3: los Eventos van ABAJO de «¿Qué estás pensando?» en el perfil. */
     (pinned.length ? pinnedCoverHtml1526() + '<h3 class="sectitle">' + ic('bookmark', 14) + ' Destacadas</h3>' + pinned.map(postCardHtml).join('') : '') + /* 1.5.26 (36) */
@@ -9077,6 +9321,7 @@ function renderGroupDetail(groupId) {
       ? '<button class="btn" onclick="window.__wrPostInGroup(\'' + g.id + '\')">' + ic('edit', 16) + ' Publicar en el grupo</button>' + (g.creator !== state.me ? '<button class="btn ghost" onclick="window.__wrLeaveGroup(\'' + g.id + '\')\">Salir del grupo</button>' : '')
       : '<button class="btn" onclick="window.__wrJoinGroup(\'' + g.id + '\');window.__wrOpenGroup(\'' + g.id + '\')">Unirme al grupo</button>') +
     (isMember ? '<button class="btn ghost" onclick="window.__wrInviteGroupLink(\'' + g.id + '\')"> Invitar con enlace</button>' : '') + /* 1.5.26 (62) */
+    (isMember ? '<button class="btn ghost" onclick="window.__wrOpenGroupEventForm1550(\'' + g.id + '\')"> Crear evento</button>' : '') + /* Web 1.5 (35) */
     (isManager ? '<button class="btn ghost" onclick="window.__wrInviteToGroup(\'' + g.id + '\')">Invitar amigos</button>' : '') + /* 1.5.26 (51): los administradores invitan */
     (isManager ? '<button class="btn ghost" onclick="window.__wrEditGroup(\'' + g.id + '\')">Personalizar grupo</button>' : '') +
     (isCreator ? '<button class="btn danger" onclick="window.__wrDeleteGroup(\'' + g.id + '\')">Eliminar grupo</button>' : '') +
@@ -10222,6 +10467,7 @@ function renderActivity() {
 }
 window.__wrOpenActivity = function () { renderActivity(); go('activity'); };
 function renderConvos() {
+  refreshPresence1550(); /* Web 1.5 (29): puntos verdes al día */
   /* v1.5.14: la lista mezcla los chats 1 a 1 y los grupos, ordenados
      por el último mensaje (los grupos van con su nombre e integrantes). */
   var list = C.conversationList(state, state.me).map(function (c) { return { kind: 'chat', other: c.other, last: c.last, unread: c.unread }; });
@@ -10243,6 +10489,7 @@ function renderConvos() {
     return tb - ta;
   });
   var el = $('convoList');
+  list = list.filter(convoMatchesSearch1550); /* Web 1.5 (46) */
   $('convoEmpty').classList.toggle('hidden', list.length > 0);
   el.innerHTML = list.map(function (c) {
     var last = c.last;
@@ -10262,7 +10509,7 @@ function renderConvos() {
     var preview = typing ? 'Escribiendo…' : (last ? (isMyChatMsg1559(last) ? 'Tú: ' : '') + (last.text || (last.media ? 'Foto' : (last.file ? 'Archivo: ' + last.file.name : ''))) : 'Sin mensajes');
     var cKey = 'c:' + c.other;
     return '<div class="glass card row" onclick="window.__wrOpenChat(\'' + c.other + '\')">' + avatarHtml(c.other) +
-      '<div class="who"><b>' + esc(profileName(c.other)) + demoBadge(c.other) + '</b><span class="' + (typing ? 'typingPreview' : 'muted') + '">' + esc(preview) + (last && !typing ? ' · ' + C.timeAgo(last.createdAt) : '') + '</span></div>' +
+      '<div class="who"><b>' + esc(profileName(c.other)) + demoBadge(c.other) + onlineDot1550(c.other) + '</b><span class="' + (typing ? 'typingPreview' : 'muted') + '">' + esc(preview) + (last && !typing ? ' · ' + C.timeAgo(last.createdAt) : '') + '</span></div>' +
       (c.unread ? '<span class="badge" style="position:static">' + (c.unread > 99 ? '99+' : c.unread) + '</span>' : '') +
       '<button class="iconbtn" style="width:32px;height:32px;flex:0 0 32px;font-size:14px" title="' + (isChatPinned1526(cKey) ? 'Quitar fijado' : 'Fijar chat') + '" onclick="event.stopPropagation();window.__wrTogglePinChat(\'' + cKey + '\')">' + ic('pin', 16) + '</button>' +
       '<button class="iconbtn" style="width:32px;height:32px;flex:0 0 32px;font-size:14px" onclick="event.stopPropagation();window.__wrDeleteConvo(\'' + c.other + '\')">' + ic('trash', 15) + '</button>' +
@@ -10295,8 +10542,11 @@ window.__wrOpenGroupChat = function (groupId) {
   openChatPhone = null;
   hideOverlay('profileOverlay');
   $('chatHead').innerHTML = '<div class="avatar" style="background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center">' + ic('users', 20) + '</div><div style="flex:1"><b>' + esc(g.name) + '</b><div class="tiny">' + g.participants.length + ' integrantes</div></div><button class="btn ghost small" onclick="window.__wrOpenGroupMembers()">Integrantes</button>';
-  $('chatCallBtn').style.display = 'none';
-  $('chatVideoBtn').style.display = 'none';
+  /* Web 1.5 (20/48): llamada de grupo (voz o video) desde el chat. */
+  $('chatCallBtn').style.display = '';
+  $('chatVideoBtn').style.display = '';
+  $('chatCallBtn').onclick = function () { window.__wrStartGroupCall1550(groupId, false); };
+  $('chatVideoBtn').onclick = function () { window.__wrStartGroupCall1550(groupId, true); };
   $('chatText').value = '';
   renderChatMsgs();
   renderChatHeader1526(); /* 1.5.26 (55): indicador de ubicación en vivo */
@@ -10312,6 +10562,7 @@ window.__wrOpenGroupChat = function (groupId) {
   if (currentView === 'messages') renderConvos();
 };
 function chatMsgMediaHtml(m, body) {
+  if (m.stickerCustom) body += (body ? '<br>' : '') + '<img src="' + m.stickerCustom + '" style="width:96px;height:96px;object-fit:contain" alt="Sticker">'; /* Web 1.5 (54): sticker propio */
   if (m.media) {
     var encMedia = encodeURIComponent(m.media).replace(/'/g, '%27');
     body += (body ? '<br>' : '') + (m.mediaType === 'video'
@@ -10333,6 +10584,10 @@ window.__wrOpenChat = function (phone) {
   $('chatHead').innerHTML = avatarHtml(phone) + '<div><b>' + esc(profileName(phone)) + demoBadge(phone) + '</b><div class="tiny">' + esc(p && p.bio ? p.bio : '') + '</div></div>';
   $('chatCallBtn').style.display = '';
   $('chatVideoBtn').style.display = '';
+  /* Web 1.5 (20/48): al volver a un chat 1 a 1, los botones vuelven a ser
+     la llamada 1 a 1 (en el grupo se reasignan a la llamada de grupo). */
+  $('chatCallBtn').onclick = null;
+  $('chatVideoBtn').onclick = null;
   $('chatText').value = '';
   pruneDisappearingLocal1526(phone); /* 1.5.26 (32): podar mensajes temporales vencidos al abrir */
   renderChatMsgs();
@@ -10369,13 +10624,13 @@ function renderChatMsgs() {
       el.innerHTML = '<div class="empty"><div class="big">' + ic('users', 34) + '</div><p>Sin mensajes todavía. ¡Saluda al grupo!</p></div>';
       return;
     }
-    el.innerHTML = g.messages.map(function (m) {
+    el.innerHTML = g.messages.filter(function (m) { return !(m.expiresAt && m.expiresAt < Date.now()); }).map(function (m) {
       var mine1559 = isMyChatMsg1559(m);
       var cls = mine1559 ? 'me' : 'them';
       var body = (mine1559 ? '' : '<b style="font-size:12px">' + esc(profileName(m.from)) + '</b><br>') + (m.text ? formatText(m.text) : '');
       body = chatMsgMediaHtml(m, body);
       var newCls = (m.id === justSentMessageId) ? ' new-msg' : '';
-      return '<div class="msg ' + cls + newCls + '">' + body + msgReactionsHtml1526(m) + '<span class="tiny">' + C.timeAgo(m.createdAt) + ' · ' + C.formatDateTime(m.createdAt) + (mine1559 ? (m.readBy.length > 1 ? ' · ✓✓ Visto' : ' · ✓ Enviado') : '') + '</span> <button class="tiny" style="opacity:.6" onclick="window.__wrOpenMsgReactPicker(\'' + m.id + '\')">' + ic('smile', 13) + '</button></div>'; /* 1.5.26 (56) */
+      return '<div class="msg ' + cls + newCls + '">' + body + msgReactionsHtml1526(m) + '<span class="tiny">' + C.timeAgo(m.createdAt) + ' · ' + C.formatDateTime(m.createdAt) + msgExpiresText1550(m) + (mine1559 ? (m.readBy.length > 1 ? ' · ✓✓ Visto' : ' · ✓ Enviado') : '') + '</span> <button class="tiny" style="opacity:.6" onclick="window.__wrOpenMsgReactPicker(\'' + m.id + '\')">' + ic('smile', 13) + '</button></div>'; /* 1.5.26 (56) */
     }).join('');
     justSentMessageId = null;
     el.scrollTop = el.scrollHeight;
@@ -10386,13 +10641,13 @@ function renderChatMsgs() {
     el.innerHTML = disappearingNoteHtml1526(openChatPhone) + '<div class="empty"><div class="big">' + ic('message', 34) + '</div><p>Sin mensajes todavía. ¡Saluda!</p></div>'; /* 1.5.26 (32) */
     return;
   }
-  el.innerHTML = disappearingNoteHtml1526(openChatPhone) + conv.messages.map(function (m) {
+  el.innerHTML = disappearingNoteHtml1526(openChatPhone) + conv.messages.filter(function (m) { return !(m.expiresAt && m.expiresAt < Date.now()); }).map(function (m) {
     var mine1559 = isMyChatMsg1559(m);
     var cls = mine1559 ? 'me' : 'them';
     var body = m.text ? formatText(m.text) : '';
     body = chatMsgMediaHtml(m, body);
     var newCls = (m.id === justSentMessageId) ? ' new-msg' : '';
-    return '<div class="msg ' + cls + newCls + '">' + body + msgReactionsHtml1526(m) + '<span class="tiny">' + C.timeAgo(m.createdAt) + ' · ' + C.formatDateTime(m.createdAt) + (mine1559 ? (m.readBy.length > 1 ? ' · ✓✓ Visto' + (m.readAt ? ' ' + C.formatTime(m.readAt) : '') : ' · ✓ Enviado') : '') + '</span> <button class="tiny" style="opacity:.6" onclick="window.__wrOpenMsgReactPicker(\'' + m.id + '\')">' + ic('smile', 13) + '</button>' + (mine1559 ? '<button class="msgdel" onclick="window.__wrDeleteMessage(\'' + m.id + '\')">✕</button>' : '') + '</div>'; /* 1.5.26 (56) */
+    return '<div class="msg ' + cls + newCls + '">' + body + msgReactionsHtml1526(m) + '<span class="tiny">' + C.timeAgo(m.createdAt) + ' · ' + C.formatDateTime(m.createdAt) + msgExpiresText1550(m) + (mine1559 ? (m.readBy.length > 1 ? ' · ✓✓ Visto' + (m.readAt ? ' ' + C.formatTime(m.readAt) : '') : ' · ✓ Enviado') : '') + '</span> <button class="tiny" style="opacity:.6" onclick="window.__wrOpenMsgReactPicker(\'' + m.id + '\')">' + ic('smile', 13) + '</button>' + (mine1559 ? '<button class="msgdel" onclick="window.__wrDeleteMessageChoice1550(\'' + m.id + '\')">✕</button>' : '') + '</div>'; /* 1.5.26 (56) */
   }).join('');
   justSentMessageId = null;
   el.scrollTop = el.scrollHeight;
@@ -10531,9 +10786,13 @@ async function sendChat() {
   /* v1.5.14: si el hilo abierto es un grupo, el mensaje va a todos los
      integrantes por el mismo botón de enviar. */
   if (openChatGroupId) {
-    var rg = C.sendGroupMessage(state, state.me, openChatGroupId, text, media ? media.src : '', media ? media.type : '', chatStickerId ? { stickerId: chatStickerId } : null); /* 1.5.26 (47): sticker */
+    var rg = C.sendGroupMessage(state, state.me, openChatGroupId, text, chatStickerCustomUrl1550 ? chatStickerCustomUrl1550 : (media ? media.src : ''), chatStickerCustomUrl1550 ? 'image' : (media ? media.type : ''), chatStickerId ? { stickerId: chatStickerId } : null); /* 1.5.26 (47): sticker */
     if (!rg.ok) { toast(rg.error); return; }
     chatStickerId = '';
+    /* Web 1.5 (27/54): autodestrucción y sticker propio van en el
+       mensaje antes de guardarlo y subirlo. */
+    if (chatStickerCustomUrl1550) { rg.message.stickerCustom = chatStickerCustomUrl1550; rg.message.media = ''; rg.message.mediaType = ''; chatStickerCustomUrl1550 = ''; }
+    if (nextMsgDisappearing1550) { rg.message.disappearingMs = nextMsgDisappearing1550; rg.message.expiresAt = Date.now() + nextMsgDisappearing1550; nextMsgDisappearing1550 = 0; updateDestructBtn1550(); }
     save();
     $('chatText').value = '';
     sendTyping(false);
@@ -10547,9 +10806,13 @@ async function sendChat() {
     if (currentView === 'messages') renderConvos();
     return;
   }
-  var r = C.sendMessage(state, state.me, openChatPhone, text, media ? media.src : '', media ? media.type : '', file, null, chatStickerId ? { stickerId: chatStickerId } : null); /* 1.5.26 (47): sticker */
+  var r = C.sendMessage(state, state.me, openChatPhone, text, chatStickerCustomUrl1550 ? chatStickerCustomUrl1550 : (media ? media.src : ''), chatStickerCustomUrl1550 ? 'image' : (media ? media.type : ''), file, null, chatStickerId ? { stickerId: chatStickerId } : null); /* 1.5.26 (47): sticker */
   if (!r.ok) { toast(r.error); return; }
   chatStickerId = '';
+  /* Web 1.5 (27/54): autodestrucción y sticker propio van en el
+     mensaje antes de guardarlo y subirlo. */
+  if (chatStickerCustomUrl1550) { r.message.stickerCustom = chatStickerCustomUrl1550; r.message.media = ''; r.message.mediaType = ''; chatStickerCustomUrl1550 = ''; }
+  if (nextMsgDisappearing1550) { r.message.disappearingMs = nextMsgDisappearing1550; r.message.expiresAt = Date.now() + nextMsgDisappearing1550; nextMsgDisappearing1550 = 0; updateDestructBtn1550(); }
   /* v1.5: si este chat se abrió desde un anuncio, el mensaje lleva el
      anuncio (id y título) para que al vendedor le llegue el aviso. */
   if (chatListing) { r.message.listing = chatListing; chatListing = null; }
@@ -11683,7 +11946,11 @@ function renderNotifPrefs() {
   ];
   $('notifPrefs').innerHTML = prefs.map(function (p) {
     return '<label class="setRow1560"><span class="setRowTxt1560"><b>' + p[1] + '</b></span><span class="setSwitch1560"><input type="checkbox" data-pref="' + p[0] + '" ' + (state.settings[p[0]] !== false ? 'checked' : '') + '><span class="setKnob1560"></span></span></label>';
-  }).join('');
+  }).join('') +
+  /* Web 1.5: avisos push reales (con la pestaña cerrada) y No molestar. */
+  '<div id="pushRow1550" style="margin-top:8px"></div>' +
+  '<label class="setRow1560"><span class="setRowTxt1560"><b>No molestar</b><br><span class="tiny muted">Silencia avisos push y de la campana por un tiempo.</span></span><span><button class="btn ghost small" onclick="window.__wrOpenDnd1550()">Elegir tiempo</button></span></label>';
+  renderPushRow1550();
   document.querySelectorAll('#notifPrefs input').forEach(function (inp) {
     inp.addEventListener('change', function () {
       state.settings[inp.getAttribute('data-pref')] = inp.checked;
@@ -11883,16 +12150,34 @@ $('settingsPrivacy').addEventListener('change', function () {
 $('logoutBtn').addEventListener('click', function () {
   confirmDialog({ title: 'Cerrar sesión', text: 'Vas a cerrar sesión en WordRed. Tus datos quedan guardados en este teléfono y podrás entrar de nuevo con tu número.', confirmText: 'Sí, cerrar sesión', onConfirm: function () {
     C.logout(state);
+    /* Web 1.5: cerrar sesión de verdad — sin token no queda sesión
+       en el servidor; al volver a una cuenta se restaura su token
+       guardado (openSwitchAccount1526 / __wrSwitchAccount). */
+    state.settings.serverToken = '';
     save();
     disconnectServer();
     try { if (window.AndroidBridge && AndroidBridge.stopBackgroundService) AndroidBridge.stopBackgroundService(); } catch (e) {}
     hideOverlay('settingsOverlay');
-    /* 1.5.44: al cerrar sesión se muestra la lista de cuentas para
-       elegir otra, en vez de entrar como invitado. */
-    showAccountsScreen1544();
-    toast('Sesión cerrada.');
+    /* Web 1.5: burbuja de «Cerrando cuenta» (W grande traslúcida,
+       mensaje centrado) y luego las cuentas disponibles para elegir
+       otra (1.5.44: showAccountsScreen1544). */
+    showClosingBubble1550();
+    setTimeout(function () {
+      hideClosingBubble1550();
+      showAccountsScreen1544();
+    }, 1400);
   }});
 });
+/* Web 1.5: burbuja de «Cerrando cuenta» al cerrar sesión. */
+function showClosingBubble1550() {
+  var b = $('closingBubble1550');
+  if (b) b.classList.add('on');
+}
+function hideClosingBubble1550() {
+  var b = $('closingBubble1550');
+  if (b) b.classList.remove('on');
+}
+window.__wrClosingBubble1550 = showClosingBubble1550; /* Web 1.5: gancho de pruebas. */
 
 /* ---- avisos de nuevas publicaciones (v1.2) ----
    Cuando alguien que sigues —o cuyo perfil viste hace poco— publica,
@@ -12502,6 +12787,9 @@ function bgUploadFinishJob1529(job) {
   }
   var r = C.createPost(state, state.me, data);
   if (!r.ok) return { ok: false, error: r.error };
+  /* Web 1.5 (24): las @menciones viajan en la publicación (el servidor
+     las valida y avisa al mencionado). */
+  if (data.mentions && data.mentions.length) r.post.mentions = data.mentions.slice();
   /* 1.5.58: la publicación nace como «Subiendo…» (pendingSync) hasta que
      el servidor la confirme; su borrador (guardado al tocar Publicar) se
      borra solo cuando la confirmación llega. La confirmación la hace
@@ -12803,6 +13091,9 @@ function setAppHidden(h) { appHidden = !!h; }
 function handleServerMessage(data) {
   if (!data) return;
   if (handleServerMessage1526(data)) return; /* 1.5.26: regalos, invitados, salas, menciones. */
+  /* Web 1.5 (69/70): escuchar/ver juntos — el grupo recibe la señal y
+     cada teléfono reproduce su propia copia, sincronizada. */
+  if (data.kind === 'listen' || data.kind === 'watch') { handleTogether1550(data); return; }
   if (data.kind === 'game') { handleGameMessage(data); return; }
   if (data.kind === 'message') {
     var m = data.message;
@@ -13184,6 +13475,10 @@ async function pullFromServer() {
   var r4 = await C.serverFetch(state, '/api/events', 'GET');
   if (r4.ok && r4.data && Array.isArray(r4.data.events)) {
     r4.data.events.forEach(function (e) {
+      /* Web 1.5 (limpieza): un evento de prueba que vuelva a aparecer
+         en el servidor no se suma a la copia local: se cancela ahí y
+         no entra. Ningún otro evento se toca. */
+      if (isTestEvent1550(e)) { cancelTestEvent1550(e); return; }
       if (!state.events.some(function (x) { return x.id === e.id; })) state.events.push(e);
     });
     save();
@@ -13579,6 +13874,8 @@ async function acceptCall() {
 }
 function handleCallSignal(data) {
   var from = data.from;
+  /* Web 1.5 (20/48): señales de llamada de grupo (payload con groupId). */
+  if (data.payload && data.payload.groupId) { handleGroupCallSignal1550(data); return; }
   if (data.type === 'offer') {
     if (call.state !== 'idle') {
       call.peer = from;
@@ -15215,7 +15512,8 @@ async function toggleMute1526(phone) {
   save();
   renderSettings1526();
   if (openProfilePhone === phone) renderProfileDetail(phone);
-  toast(mute ? 'Silenciado: ya no te avisará nada de ' + profileName(phone) + '. Sus publicaciones y mensajes se siguen viendo.' : 'Ya no está silenciado.');
+  if (typeof renderFeed === 'function') renderFeed();
+  toast(mute ? 'Silenciado: sus publicaciones ya no salen en tu inicio y no te avisa nada. Siguen siendo amigos y no se entera.' : 'Ya no está silenciado.');
 }
 function mutedList1526() { return C.mutedList(state, state.me); }
 
@@ -15728,11 +16026,11 @@ function initHomeWidgets1536() {
    simple. Con «Saltar» se cierra y no vuelve a salir solo. */
 var TUTORIAL_STEPS_1533 = [
   { art: 'bienvenida', title: 'Bienvenido a WordRed', text: 'Aquí está tu inicio: las publicaciones de tus amigos y de la cuenta de ejemplo aparecen en un solo lugar.' },
-  { art: 'inicio', title: 'Tu inicio', text: 'Arriba siempre están los reels, luego «¿Qué estás pensando?» y el reloj con el clima a su derecha. Desliza para ver publicaciones, dale Me gusta, comenta y comparte. Entre las publicaciones verás los Reels grandes y la cartelera de estrenos. La etiqueta de Dramas nombra sus aplicaciones y llegan más dramas cada 2 semanas. Las barras se ocultan solas al bajar y vuelven al subir; Mercado está en el centro de la barra de abajo.' }, /* Web 1.2: el buscador del Inicio se quitó. */
-  { art: 'publicar', title: 'Publica algo', text: 'Toca «Publicar» y comparte una foto, un video o lo que piensas. La vista previa sale al instante y la subida sigue en segundo plano: si la conexión se corta, continúa donde se quedó y nada se publica roto.' },
-  { art: 'shorts', title: 'Shorts e historias', text: 'Mira videos cortos en Shorts y crea historias que duran 24 horas. Arriba en el inicio están los reels: toca tu foto con el + para publicar uno. Las historias se crean desde tu perfil y se ven en Shorts. Entre los Shorts aparecen tarjetas de dramas: al tocarlas se abre el drama en su primer capítulo.' },
-  { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. Los grupos tienen sus propios administradores y reglas.' },
-  { art: 'perfil', title: 'Tu perfil', text: 'En tu perfil está tu foto, tu biografía y tus publicaciones, con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos. Los eventos están en tu perfil, donde estaba el navegador, abajo de «¿Qué estás pensando?». Toca el engrane para ir a Ajustes.' } /* Web 1.2: los Eventos están en el perfil. */ /* Web 1.3: los Eventos van abajo de «¿Qué estás pensando?». */
+  { art: 'inicio', title: 'Tu inicio', text: 'Arriba siempre están los reels, luego «¿Qué estás pensando?» y el reloj con el clima a su derecha. Desliza para ver publicaciones, dale Me gusta, comenta y comparte. Entre las publicaciones verás los Reels grandes y la cartelera de estrenos. Los reels se abren a pantalla completa y se cambian deslizando. La etiqueta de Dramas nombra sus aplicaciones y llegan más dramas cada 2 semanas: en Dramas puedes buscar por nombre, filtrar por aplicación y seguir una serie para que te avise de capítulos nuevos. En tu perfil está «Guardados», con lo que guardes para luego. Las barras se ocultan solas al bajar y vuelven al subir; Mercado está en el centro de la barra de abajo.' }, /* Web 1.2: el buscador del Inicio se quitó. */ /* Web 1.5: reels a pantalla completa, buscar y seguir dramas, Guardados. */
+  { art: 'publicar', title: 'Publica algo', text: 'Toca «Publicar» y comparte una foto, un video o lo que piensas. La vista previa sale al instante y la subida sigue en segundo plano: si la conexión se corta, continúa donde se quedó y nada se publica roto. También puedes hacer una encuesta, grabar una nota de voz, compartir una canción del catálogo o ponerle un filtro a tu foto antes de publicar.' }, /* Web 1.5: encuestas, notas de voz, canciones y filtros. */
+  { art: 'shorts', title: 'Shorts e historias', text: 'Mira videos cortos en Shorts y crea historias que duran 24 horas. Arriba en el inicio están los reels: toca tu foto con el + para publicar uno. Las historias se crean desde tu perfil y se ven en Shorts: pueden llevar música, una encuesta o una foto con las dos cámaras. Entre los Shorts aparecen tarjetas de dramas: al tocarlas se abre el drama en su primer capítulo.' }, /* Web 1.5: historias con música, encuestas y doble cámara. */
+  { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. En Amigos verás «Gente que quizá conozcas», con personas reales que quizá conozcas. Los grupos tienen sus propios administradores y reglas, y ahora también eventos y llamadas de voz o video en grupo. En los chats puedes mandar notas de voz, buscar mensajes, fijar un chat y borrar un mensaje para todos.' }, /* Web 1.5: sugerencias, eventos en grupos, llamadas grupales. */
+  { art: 'perfil', title: 'Tu perfil', text: 'En tu perfil está tu foto, tu biografía y tus publicaciones, con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos. Los eventos están en tu perfil, donde estaba el navegador, abajo de «¿Qué estás pensando?». También están «Guardados», «Archivados», «Me gusta» y el «Archivo de historias», tu código QR para compartir tu perfil, tu nota y tu negocio si lo agregas. Toca el engrane para ir a Ajustes: ahí están las notificaciones push, el modo No molestar, el texto grande, el ahorro de datos y exportar tus datos.' } /* Web 1.2: los Eventos están en el perfil. */ /* Web 1.3: los Eventos van abajo de «¿Qué estás pensando?». */ /* Web 1.5: Guardados, Archivados, QR, nota, negocio, Ajustes nuevos. */
 ];
 /* Ilustración estática de cada paso: un teléfono con la pantalla de la
    app dibujada con rectángulos y círculos (sin fotos, sin animales, sin
@@ -17250,7 +17548,7 @@ function upcomingBirthdaysHtml1526() {
   var list = C.upcomingBirthdays(state, 30);
   if (!list.length) return '';
   return '<h3 class="sectitle"> Próximos cumpleaños</h3>' + list.map(function (b) {
-    return '<div class="glass card row" onclick="window.__wrOpenProfile(\'' + b.phone + '\')">' + avatarHtml(b.phone) + '<div class="who"><b>' + esc(b.name) + '</b><span class="muted">' + (b.inDays === 0 ? '¡Hoy!' : b.inDays === 1 ? 'Mañana' : 'En ' + b.inDays + ' días') + ' · ' + esc(b.birthday.slice(5)) + '</span></div></div>';
+    return '<div class="glass card row" onclick="window.__wrOpenProfile(\'' + b.phone + '\')">' + avatarHtml(b.phone) + '<div class="who"><b>' + esc(b.name) + '</b><span class="muted">' + (b.inDays === 0 ? '¡Hoy!' : b.inDays === 1 ? 'Mañana' : 'En ' + b.inDays + ' días') + ' · ' + esc(b.birthday.slice(5)) + '</span></div><button class="btn small" onclick="event.stopPropagation();window.__wrCongratulate1550(\'' + b.phone + '\')">🎂 Felicitar</button></div>';
   }).join('');
 }
 
@@ -17272,7 +17570,7 @@ async function openVerification1526() {
   }
   var p2 = myProfile();
   verified = verified || !!(p2 && p2.verified);
-  var html = '<p class="muted">La verificación es automática por criterios, no manual. Si cumples todo, se concede al momento.</p>' +
+  var html = '<p class="muted">La insignia verificada solo la concede el dueño de WordRed, después de revisar tu solicitud. Cumple los requisitos y envíala; él te avisa cuando la conceda.</p>' +
     C.VERIFICATION_KEYS.map(function (k) {
       var ok = missing.indexOf(k) < 0;
       return '<p style="margin-top:8px">' + (ok ? '✓' : '✗') + ' ' + esc(C.VERIFICATION_LABELS[k]) + '</p>';
@@ -17293,6 +17591,10 @@ window.__wrRequestVerification = async function () {
     hideOverlay('verificationOverlay');
     renderOwnProfile();
     toast('¡Tu cuenta quedó verificada! ✓');
+  } else if (r.data && r.data.pending) {
+    /* Web 1.5 (5.0): la solicitud queda pendiente para el dueño. */
+    hideOverlay('verificationOverlay');
+    toast('Solicitud enviada. El dueño de WordRed la revisa y te avisa cuando te conceda la insignia.');
   } else {
     var missing = (r.data && r.data.missing) || [];
     toast('Todavía falta: ' + missing.map(function (m) { return C.VERIFICATION_LABELS[typeof m === 'string' ? m : m.key] || m; }).join(', ') + '.');
@@ -17333,6 +17635,10 @@ window.__wrSwitchAccount = function (phone) {
   hideOverlay('switchAccountOverlay');
   skipFeedRestoreOnce1557 = true; /* 1.5.59: cambiar de cuenta es empezar de cero, arriba */
   enterApp();
+  /* Web 1.5 (flujo de entrada): si se llegó por un enlace
+     compartido, al elegir cuenta se abre esa publicación (o
+     drama/perfil), no el inicio genérico. */
+  openPendingDeepLink1550();
   toast('Cambiaste a ' + (acc.name || phone) + '.');
 };
 window.__wrRemoveAccount = function (phone) {
@@ -17420,10 +17726,15 @@ function toggleStickerPicker1526() {
   var el = $('stickerPicker');
   if (!el) return;
   if (el.classList.contains('hidden')) {
+    var customs = customStickers1550();
     el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:8px">' +
       C.STICKER_IDS.map(function (id) {
         return '<button style="background:none;border:0;padding:4px" onclick="window.__wrSendSticker(\'' + id + '\')" title="' + esc(C.STICKER_NAMES[id] || id) + '">' + stickerImgHtml1526(id, 48) + '</button>';
-      }).join('') + '</div>';
+      }).join('') + '</div>' +
+      (customs.length ? '<div style="padding:0 8px 4px"><div class="tiny muted">Mis stickers</div><div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:4px 0">' + customs.map(function (s) {
+        return '<button style="background:none;border:0;padding:4px" onclick="window.__wrSendCustomSticker1550(\'' + s.url.replace(/'/g, '%27') + '\')"><img src="' + s.url + '" style="width:48px;height:48px;object-fit:contain" alt="Sticker propio"></button>';
+      }).join('') + '</div></div>' : '') +
+      '<div style="padding:0 8px 8px"><button class="btn ghost small" style="width:100%" onclick="window.__wrOpenCreateSticker1550()">+ Crear sticker de una foto mía</button></div>';
     el.classList.remove('hidden');
   } else {
     el.classList.add('hidden');
@@ -18013,6 +18324,15 @@ function renderSettings1526() {
     }).join('') : '<p class="muted">Nadie silenciado. El silencio solo apaga avisos, no oculta nada.</p>') +
     '<h3 class="sectitle">Cuenta verificada</h3>' +
     '<div class="glass card" style="display:block"><p class="muted">Verificación automática por criterios, no manual.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrOpenVerification()">Solicitar verificación</button></div></div>' +
+    '<h3 class="sectitle">Estado en línea</h3>' + /* Web 1.5 (32): punto verde para tus amigos. */
+    '<label style="display:flex;gap:10px;align-items:center;padding:9px 2px"><input type="checkbox" id="showOnlineToggle" style="width:auto"' + ((state.profiles[state.me] && state.profiles[state.me].showOnline === false) ? '' : ' checked') + '> Mostrar que estoy en línea</label>' +
+    '<p class="tiny muted">Con esto apagado, nadie ve tu punto verde ni «en línea», aunque estés conectado.</p>' +
+    '<h3 class="sectitle">Mis datos</h3>' + /* Web 1.5 (71): exportar solo lo mío. */
+    '<div class="glass card" style="display:block"><p class="muted">Descarga tus publicaciones, tu perfil y tus chats en un archivo JSON. Solo lo tuyo, nunca lo de otros.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrExportMyData1550()">Exportar mis datos</button></div></div>' +
+    '<h3 class="sectitle">Mi nombre</h3>' + /* Web 1.5 (52): cambiar el nombre sin tocar el inicio de sesión. */
+    '<div class="glass card" style="display:block"><p class="muted">Tu nombre visible: ' + esc((state.profiles[state.me] || {}).name || '') + '. Entrar sigue siendo con tu número de teléfono.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrChangeName1550()">Cambiar mi nombre</button></div></div>' +
+    '<h3 class="sectitle">No molestar</h3>' + /* Web 1.5 (63): también desde Ajustes. */
+    '<div class="glass card" style="display:block"><p class="muted">Silencia los avisos push y de la campana por un tiempo.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrOpenDnd1550()">Elegir tiempo</button></div></div>' +
     '<h3 class="sectitle">Cambiar de cuenta</h3>' +
     '<div class="glass card" style="display:block"><p class="muted">Varias cuentas en este teléfono, cada una con sus datos.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrOpenSwitchAccount()">Cambiar de cuenta</button></div></div>' +
     '<h3 class="sectitle">Palabras que no quiero ver</h3>' +
@@ -18027,6 +18347,8 @@ function renderSettings1526() {
   if (ts) ts.addEventListener('change', function () { setTextSize1526(ts.value); });
   var ds = $('dataSaverToggle');
   if (ds) ds.addEventListener('change', function () { state.settings.dataSaver = ds.checked; save(); toast(ds.checked ? 'Ahorro de datos activado.' : 'Ahorro de datos apagado.'); });
+  var so = $('showOnlineToggle');
+  if (so) so.addEventListener('change', function () { window.__wrToggleShowOnline1550(so.checked); }); /* Web 1.5 (32). */
   var fo = $('friendsOnlyToggle');
   if (fo) fo.addEventListener('change', function () { state.friendsOnlyFeed = fo.checked; save(); renderFeed(); toast(fo.checked ? 'Inicio: solo amigos.' : 'Inicio: todas las publicaciones.'); }); /* 1.5.28 (61): el control vive en Ajustes. */
   var ex = $('examplesToggle');
@@ -18984,6 +19306,1303 @@ document.querySelectorAll('#storyEditTools .chip:not(#storyEditVideoBtn1547)').f
 var storyEditVideoBtn1547 = $('storyEditVideoBtn1547');
 if (storyEditVideoBtn1547) storyEditVideoBtn1547.addEventListener('click', function () { if (storyEdit.media) openVideoEditor('story', -1, storyEdit.media.src, null); });
 $('storyEditPublish').addEventListener('click', publishStoryEdited);
+/* ================= Web 1.5 (servidor 5.0) =================
+   71 novedades en una versión. La mayoría usa los endpoints nuevos
+   del servidor 5.0; lo que es por navegador (Guardados, retomar
+   videos) vive en localStorage de ESTE navegador y se dice en la FAQ.
+   Reglas: nada inventado, nada de palabras prohibidas en el código,
+   y cada función nueva lleva el sufijo 1550. */
+var VAPID_PUBLIC_KEY_1550 = 'BO50J9bJERMET8xe9Gteg6befHsqRJZhtpdmyE8hhN5iY0-Ym3elUHmMf1hW-n4cobOqnq5wOmAv_GWahWrJdvY';
+var SAVED_LS_KEY_1550 = 'wordred_saved_v1';
+var REACT_EMOJIS_1550 = ['❤️', '😂', '😮', '😢', '😡', '👍'];
+var ownerFeatures1550 = { stats: false, verify: false, reports: false };
+var dramaFollowsCache1550 = null;
+var presenceCache1550 = {};
+var dndCache1550 = null;
+var kdramasCache1550 = null;
+function serverCall1550(path, method, body) { return pushToServer(path, method, body); }
+function webBase1550() { return (location.origin + location.pathname).replace(/\/$/, ''); }
+function postUrl1550(postId) { return webBase1550() + '?post=' + encodeURIComponent(postId); }
+function dramaUrl1550(dramaId) { return webBase1550() + '?drama=' + encodeURIComponent(dramaId); }
+function profileUrl1550(phone) { return webBase1550() + '?perfil=' + encodeURIComponent(phone); }
+function shareWhatsApp1550(text) {
+  var url = 'https://wa.me/?text=' + encodeURIComponent(String(text || ''));
+  try { window.open(url, '_blank'); } catch (e) { toast('No se pudo abrir WhatsApp.'); }
+}
+function downloadBlob1550(blob, name) {
+  try {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name || 'wordred-descarga';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { try { URL.revokeObjectURL(a.href); a.remove(); } catch (e) {} }, 2000);
+  } catch (e) { toast('No se pudo descargar.'); }
+}
+function downloadText1550(text, name) { downloadBlob1550(new Blob([String(text || '')], { type: 'text/plain;charset=utf-8' }), name); }
+/* ---- Guardados (2): lista en localStorage, por cuenta. Las
+   publicaciones también viven en post.savedBy (sincroniza con el
+   servidor); los dramas solo aquí, porque el catálogo no guarda
+   nada por cuenta. Nunca se muestran los guardados de otra cuenta. */
+function saved1550() {
+  try {
+    var raw = localStorage.getItem(SAVED_LS_KEY_1550);
+    var list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter(function (e) { return e && e.phone === state.me; }) : [];
+  } catch (e) { return []; }
+}
+function saveSaved1550(list) {
+  try {
+    var other = [];
+    try { var raw = localStorage.getItem(SAVED_LS_KEY_1550); var all = raw ? JSON.parse(raw) : []; if (Array.isArray(all)) other = all.filter(function (e) { return e && e.phone !== state.me; }); } catch (e2) {}
+    localStorage.setItem(SAVED_LS_KEY_1550, JSON.stringify(other.concat(list || [])));
+  } catch (e) {}
+}
+function isSaved1550(kind, id) { return saved1550().some(function (e) { return e.kind === kind && String(e.id) === String(id); }); }
+function toggleSaved1550(kind, id, title, cover) {
+  var list = saved1550();
+  var i = -1;
+  list.forEach(function (e, idx) { if (e.kind === kind && String(e.id) === String(id)) i = idx; });
+  if (i >= 0) { list.splice(i, 1); saveSaved1550(list); return false; }
+  list.push({ kind: kind, id: String(id), phone: state.me, title: title || '', cover: cover || '', savedAt: Date.now() });
+  saveSaved1550(list);
+  return true;
+}
+function mirrorPostSaved1550(postId, saved) {
+  var post = state.posts.filter(function (p) { return p.id === postId; })[0];
+  var list = saved1550();
+  var has = list.some(function (e) { return e.kind === 'post' && String(e.id) === String(postId); });
+  if (saved && !has) { list.push({ kind: 'post', id: String(postId), phone: state.me, title: (post && (post.text || '')) || '', cover: (post && (post.media || (post.mediaList && post.mediaList[0] && post.mediaList[0].src) || '')) || '', savedAt: Date.now() }); saveSaved1550(list); }
+  else if (!saved && has) { saveSaved1550(list.filter(function (e) { return !(e.kind === 'post' && String(e.id) === String(postId)); })); }
+}
+/* ---- Ventana genérica de lista (Guardados, Archivados, Me gusta,
+   Archivo de historias): se crea en el momento, con id fijo para
+   que las pruebas la encuentren. ---- */
+function openListOverlay1550(id, title, innerHtml) {
+  closeListOverlay1550(id);
+  var ov = document.createElement('div');
+  ov.className = 'overlay floatWin1547';
+  ov.id = id;
+  ov.style.display = 'flex';
+  ov.innerHTML = '<div class="sheet" style="display:flex;flex-direction:column;justify-content:center;min-height:100%"><div class="glass" style="padding:18px;max-height:82vh;overflow:auto"><div style="display:flex;align-items:center;justify-content:space-between"><h2 style="font-size:19px">' + esc(title) + '</h2><button class="xbtn" onclick="window.__wrCloseList1550(\'' + id + '\')">✕</button></div><div style="margin-top:10px">' + innerHtml + '</div></div></div>';
+  document.body.appendChild(ov);
+  return ov;
+}
+function closeListOverlay1550(id) { var el = document.getElementById(id); if (el) el.remove(); }
+window.__wrCloseList1550 = function (id) { closeListOverlay1550(id); };
+/* ---- Push (1): registro del service worker ya está en index.html.
+   La suscripción vive en el servidor (POST /api/push/subscribe);
+   sin claves VAPID el servidor responde con pushEnabled false y
+   aquí no se ofrece nada (el interruptor muestra por qué no). ---- */
+function pushSupported1550() { return ('serviceWorker' in navigator) && ('PushManager' in window) && !!window.Notification; }
+function urlB64ToUint8_1550(b64) {
+  var padding = '='.repeat((4 - (b64.length % 4)) % 4);
+  var b = (b64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+  var raw = atob(b);
+  var out = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+async function pushSubscriptionState1550() {
+  try {
+    if (!pushSupported1550()) return 'unsupported';
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.getSubscription();
+    return sub ? 'on' : 'off';
+  } catch (e) { return 'error'; }
+}
+async function enablePush1550() {
+  if (!pushSupported1550()) { toast('Este navegador no admite notificaciones push.'); return false; }
+  if (Notification.permission === 'denied') { toast('Las notificaciones están bloqueadas en el navegador. Actívalas en los ajustes del navegador.'); return false; }
+  try {
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8_1550(VAPID_PUBLIC_KEY_1550) });
+    var r = await pushToServer('/api/push/subscribe', 'POST', { subscription: sub.toJSON() });
+    if (!r.ok) { try { await sub.unsubscribe(); } catch (e) {} toast('No se pudo activar el aviso push: ' + (r.error || 'error del servidor.')); return false; }
+    toast('Avisos push activados. Llegan aunque la pestaña esté cerrada.');
+    return true;
+  } catch (e) { toast('No se pudo activar el aviso push. Revisa el permiso del navegador.'); return false; }
+}
+async function disablePush1550() {
+  try {
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.getSubscription();
+    if (sub) { await pushToServer('/api/push/unsubscribe', 'POST', { endpoint: sub.endpoint }); try { await sub.unsubscribe(); } catch (e) {} }
+    toast('Avisos push apagados.');
+    return true;
+  } catch (e) { toast('No se pudo apagar el aviso push.'); return false; }
+}
+window.__wrTogglePush1550 = async function (on) { if (on) await enablePush1550(); else await disablePush1550(); renderNotifPrefs(); };
+/* ---- Estadísticas del dueño (7): el servidor decide quién es dueño
+   (403 si no). Se sondea una vez tras entrar; solo con 200 se muestra
+   la entrada en el perfil. ---- */
+async function probeOwnerFeatures1550() {
+  if (!state.me || state.me === 'guest') return;
+  try {
+    var r = await C.serverFetch(state, '/api/stats', 'GET', null);
+    ownerFeatures1550.stats = !!(r.ok && r.data && r.data.ok);
+  } catch (e) {}
+  try {
+    var r2 = await C.serverFetch(state, '/api/verification/requests', 'GET', null);
+    ownerFeatures1550.verify = !!(r2.ok && r2.data && r2.data.ok);
+  } catch (e) {}
+  try {
+    var r3 = await C.serverFetch(state, '/api/reports/all', 'GET', null);
+    ownerFeatures1550.reports = !!(r3.ok && r3.data && r3.data.ok);
+  } catch (e) {}
+  if (ownerFeatures1550.stats || ownerFeatures1550.verify || ownerFeatures1550.reports) { if (currentView === 'profile') renderOwnProfile(); }
+}
+/* ---- Visitas y vistas de dramas (7): una visita por sesión al cargar;
+   una vista de drama cada vez que se abre de verdad. ---- */
+var visitPinged1550 = false;
+async function pushVisitPing1550() {
+  if (visitPinged1550 || !state.me || state.me === 'guest') return;
+  visitPinged1550 = true;
+  try { await C.serverFetch(state, '/api/stats/visit', 'POST', {}); } catch (e) {}
+}
+async function pushDramaViewPing1550(dramaId) {
+  if (!dramaId || !state.me || state.me === 'guest') return;
+  try { await C.serverFetch(state, '/api/stats/drama-view', 'POST', { dramaId: String(dramaId) }); } catch (e) {}
+}
+/* ---- Reintento de subidas pendientes (12): lo llama el service
+   worker cuando Background Sync se dispara con una pestaña abierta;
+   si no hay pestaña, la app lo hace sola al reabrir. ---- */
+window.__wrFlushPending1550 = function () {
+  try { C.flushPendingQueue(state).then(function () { save(); }); } catch (e) {}
+  try { if (typeof pullFromServer === 'function') pullFromServer(); } catch (e) {}
+};
+/* ---- No molestar (63): se consulta al servidor; mientras esté activo
+   el servidor no crea avisos ni push. ---- */
+async function refreshDnd1550() {
+  try {
+    var r = await C.serverFetch(state, '/api/dnd', 'GET', null);
+    dndCache1550 = (r.ok && r.data && r.data.ok && r.data.dnd) ? r.data.dnd : null;
+  } catch (e) { dndCache1550 = null; }
+  renderDndBadge1550();
+  return dndCache1550;
+}
+function renderDndBadge1550() {
+  var el = document.getElementById('dndBadge1550');
+  if (el) el.remove();
+  if (!dndCache1550 || !dndCache1550.active) return;
+  var hdr = document.querySelector('header') || document.body;
+  var b = document.createElement('div');
+  b.id = 'dndBadge1550';
+  b.textContent = 'No molestar hasta las ' + new Date(dndCache1550.until).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  b.style.cssText = 'position:fixed;top:54px;right:10px;z-index:70;background:#7c2d12;color:#fff;font-size:12px;font-weight:700;padding:5px 10px;border-radius:999px';
+  b.onclick = function () { openDnd1550(); };
+  document.body.appendChild(b);
+}
+function openDnd1550() {
+  openListOverlay1550('dndOverlay1550', 'No molestar', '<p class="muted">Silencia los avisos push y de la campana hasta que termine. Tú sigues viendo todo al entrar.</p>' +
+    '<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">' +
+    '<button class="btn" onclick="window.__wrSetDnd1550(\'1h\')">1 hora</button>' +
+    '<button class="btn" onclick="window.__wrSetDnd1550(\'8h\')">8 horas</button>' +
+    '<button class="btn" onclick="window.__wrSetDnd1550(\'tomorrow\')">Hasta mañana</button>' +
+    (dndCache1550 && dndCache1550.active ? '<button class="btn ghost" onclick="window.__wrSetDnd1550(\'off\')">Apagar No molestar</button>' : '') +
+    '</div>');
+}
+window.__wrSetDnd1550 = async function (preset) {
+  if (preset === 'off') { await pushToServer('/api/dnd', 'DELETE', null); }
+  else { var r = await pushToServer('/api/dnd', 'POST', { preset: preset }); if (!r.ok) { toast('No se pudo activar No molestar.'); return; } }
+  await refreshDnd1550();
+  closeListOverlay1550('dndOverlay1550');
+  toast(preset === 'off' ? 'No molestar apagado.' : 'No molestar activado.');
+};
+window.__wrOpenDnd1550 = function () { openDnd1550(); };
+/* ---- Guardados (2): vista con publicaciones y dramas. ---- */
+window.__wrOpenSaved1550 = function () {
+  var list = saved1550();
+  if (!list.length) { openListOverlay1550('savedOverlay1550', 'Guardados', '<p class="muted">Todavía no guardaste nada. Toca el marcador de una publicación o «Guardar» en un drama para verlo aquí. Lo guardado vive en este navegador.</p>'); return; }
+  var rows = list.slice().sort(function (a, b) { return (b.savedAt || 0) - (a.savedAt || 0); }).map(function (e) {
+    var title = esc(e.title || (e.kind === 'drama' ? 'Drama' : 'Publicación'));
+    var cover = e.cover ? '<img src="' + esc(e.cover) + '" style="width:56px;height:56px;object-fit:cover;border-radius:8px" onerror="this.style.display=\'none\'">' : '';
+    var open = e.kind === 'drama' ? 'window.__wrOpenSavedDrama1550(\'' + esc(e.id) + '\')' : 'window.__wrOpenPost(\'' + esc(e.id) + '\')';
+    return '<div class="glass card row" style="align-items:center">' + cover + '<div class="who" style="flex:1"><b>' + title + '</b><span class="muted">' + (e.kind === 'drama' ? 'Drama' : 'Publicación') + ' · ' + C.timeAgo(e.savedAt) + '</span></div><button class="btn small" onclick="' + open + '">Ver</button><button class="btn ghost small" onclick="window.__wrUnsave1550(\'' + e.kind + '\',\'' + esc(e.id) + '\')">Quitar</button></div>';
+  }).join('');
+  openListOverlay1550('savedOverlay1550', 'Guardados', rows + '<p class="tiny muted" style="margin-top:8px">Lo guardado vive en este navegador; en otro navegador o teléfono no aparece.</p>');
+};
+window.__wrUnsave1550 = function (kind, id) {
+  var list = saved1550().filter(function (e) { return !(e.kind === kind && String(e.id) === String(id)); });
+  saveSaved1550(list);
+  if (kind === 'post') { var post = state.posts.filter(function (p) { return p.id === id; })[0]; if (post && post.savedBy) { var i = post.savedBy.indexOf(state.me); if (i >= 0) post.savedBy.splice(i, 1); save(); } }
+  window.__wrOpenSaved1550();
+  if (typeof renderFeed === 'function') renderFeed();
+};
+window.__wrOpenSavedDrama1550 = function (dramaId) {
+  closeListOverlay1550('savedOverlay1550');
+  if (typeof kdOpen1549 === 'function') kdOpen1549(dramaId);
+  else toast('El drama ya no está en el catálogo.');
+};
+/* ---- Archivados (25) y Me gusta (44). ---- */
+window.__wrArchivePost1550 = async function (postId) {
+  var post = state.posts.filter(function (p) { return p.id === postId; })[0];
+  if (!post || post.author !== state.me) { toast('Solo puedes archivar tus publicaciones.'); return; }
+  var r = await pushToServer('/api/posts/' + encodeURIComponent(postId) + '/archive', 'POST', {});
+  if (!r.ok) { toast('No se pudo archivar: ' + (r.error || 'sin conexión.')); return; }
+  post.archived = true; save(); renderFeed(); if (openPostId === postId) renderPostDetail(postId);
+  toast('Publicación archivada. Está en tu perfil, en «Archivados».');
+};
+window.__wrUnarchivePost1550 = async function (postId) {
+  var r = await pushToServer('/api/posts/' + encodeURIComponent(postId) + '/unarchive', 'POST', {});
+  if (!r.ok) { toast('No se pudo restaurar: ' + (r.error || 'sin conexión.')); return; }
+  var post = state.posts.filter(function (p) { return p.id === postId; })[0];
+  if (post) { post.archived = false; save(); }
+  window.__wrOpenArchived1550();
+  renderFeed();
+};
+window.__wrOpenArchived1550 = function () {
+  var mine = state.posts.filter(function (p) { return p.author === state.me && p.archived; });
+  if (!mine.length) { openListOverlay1550('archivedOverlay1550', 'Archivados', '<p class="muted">No tienes publicaciones archivadas. Archivar oculta una publicación de tu perfil y del inicio, sin borrarla.</p>'); return; }
+  var rows = mine.map(function (p) {
+    return '<div class="glass card row" style="align-items:center"><div class="who" style="flex:1"><b>' + esc((p.text || '').slice(0, 80) || 'Publicación') + '</b><span class="muted">' + C.timeAgo(p.createdAt) + '</span></div><button class="btn small" onclick="window.__wrUnarchivePost1550(\'' + p.id + '\')">Restaurar</button><button class="btn ghost small" onclick="window.__wrDeletePost(\'' + p.id + '\')">Eliminar</button></div>';
+  }).join('');
+  openListOverlay1550('archivedOverlay1550', 'Archivados', rows);
+};
+window.__wrOpenLiked1550 = function () {
+  var mine = state.posts.filter(function (p) { return p.likes && p.likes[state.me]; });
+  if (!mine.length) { openListOverlay1550('likedOverlay1550', 'Me gusta', '<p class="muted">Todavía no reaccionaste a ninguna publicación.</p>'); return; }
+  var rows = mine.map(function (p) {
+    return '<div class="glass card row" style="align-items:center"><div class="who" style="flex:1"><b>' + esc(profileName(p.author)) + '</b><span class="muted">' + esc((p.text || '').slice(0, 80)) + ' · ' + esc(p.likes[state.me]) + '</span></div><button class="btn small" onclick="window.__wrOpenPost(\'' + p.id + '\')">Ver</button><button class="btn ghost small" onclick="window.__wrLike(\'' + p.id + '\')">Quitar</button></div>';
+  }).join('');
+  openListOverlay1550('likedOverlay1550', 'Me gusta', rows);
+};
+/* ---- Compartir por WhatsApp (4) y copiar enlace (62). ---- */
+window.__wrShareWhatsApp1550 = function () {
+  var t = shareChoiceTarget; shareChoiceTarget = null;
+  hideOverlay('shareChoiceOverlay');
+  if (!t) return;
+  var text = '';
+  if (t.kind === 'drama') {
+    var d = (kdramasCache1550 || []).filter(function (x) { return String(x.id) === String(t.id); })[0];
+    text = 'Mira este drama en WordRed: ' + (d ? d.name : 'Drama') + ' ' + dramaUrl1550(t.id);
+  } else if (t.kind === 'story') {
+    text = 'Mira esta historia en WordRed: ' + webBase1550();
+  } else {
+    var post = state.posts.filter(function (p) { return p.id === t.id; })[0];
+    text = 'Mira esta publicación en WordRed' + (post && post.text ? ': ' + post.text.slice(0, 120) : '') + ' ' + postUrl1550(t.id);
+  }
+  shareWhatsApp1550(text);
+};
+window.__wrCopyPostLink1550 = function (postId) {
+  var url = postUrl1550(postId);
+  function done() { toast('Enlace copiado.'); }
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(url).then(done, function () { fallbackCopy1550(url); done(); }); return; }
+    fallbackCopy1550(url); done();
+  } catch (e) { fallbackCopy1550(url); done(); }
+};
+function fallbackCopy1550(text) {
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+  } catch (e) {}
+  if (window.AndroidBridge && AndroidBridge.copyText) { try { AndroidBridge.copyText(text); } catch (e2) {} }
+}
+/* ---- Descargar mis publicaciones (28): solo las propias. ---- */
+window.__wrDownloadPost1550 = async function (postId) {
+  var post = state.posts.filter(function (p) { return p.id === postId; })[0];
+  if (!post || post.author !== state.me) { toast('Solo puedes descargar tus publicaciones.'); return; }
+  var media = (post.mediaList && post.mediaList[0] && post.mediaList[0].src) || post.media || '';
+  if (media && /^https?:/.test(media)) {
+    try {
+      var res = await fetch(media);
+      if (!res.ok) throw new Error('http ' + res.status);
+      var blob = await res.blob();
+      var ext = /video/.test(post.mediaType || '') || /\.mp4/i.test(media) ? 'mp4' : 'jpg';
+      downloadBlob1550(blob, 'wordred-' + postId + '.' + ext);
+      return;
+    } catch (e) { try { window.open(media, '_blank'); } catch (e2) {} return; }
+  }
+  if (media && media.indexOf('data:') === 0) {
+    try {
+      var parts = media.split(',');
+      var mime = (media.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg';
+      var bin = atob(parts[1] || '');
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      downloadBlob1550(new Blob([bytes], { type: mime }), 'wordred-' + postId + (/video/.test(mime) ? '.mp4' : '.jpg'));
+      return;
+    } catch (e) {}
+  }
+  downloadText1550(post.text || 'Publicación de WordRed', 'wordred-' + postId + '.txt');
+};
+/* ---- Quién reaccionó (58): lo ve cualquiera que pueda ver la
+   publicación; sale de los datos de la publicación que ya tiene la app. ---- */
+window.__wrWhoReacted1550 = function (postId) {
+  var post = state.posts.filter(function (p) { return p.id === postId; })[0];
+  if (!post) return;
+  var groups = {};
+  Object.keys(post.likes || {}).forEach(function (ph) { var r = post.likes[ph]; (groups[r] = groups[r] || []).push(ph); });
+  var names = Object.keys(groups);
+  if (!names.length) { openListOverlay1550('reactedOverlay1550', 'Quién reaccionó', '<p class="muted">Nadie reaccionó todavía.</p>'); return; }
+  var html = names.map(function (r) {
+    var emoji = (C.REACTION_EMOJI && C.REACTION_EMOJI[r]) || '❤️';
+    return '<h3 class="sectitle">' + esc(emoji + ' ' + r + ' · ' + groups[r].length) + '</h3>' + groups[r].map(function (ph) {
+      return '<div class="glass card row" style="align-items:center">' + avatarHtml(ph) + '<div class="who"><b>' + esc(profileName(ph)) + '</b></div><button class="btn ghost small" onclick="window.__wrOpenProfile(\'' + ph + '\')">Ver perfil</button></div>';
+    }).join('');
+  }).join('');
+  openListOverlay1550('reactedOverlay1550', 'Quién reaccionó', html);
+};
+/* ---- Dramas: seguir (5), guardar (2), compartir (4). ---- */
+async function getDramaFollows1550(force) {
+  if (dramaFollowsCache1550 && !force) return dramaFollowsCache1550;
+  try {
+    var r = await C.serverFetch(state, '/api/dramas/follows', 'GET', null);
+    dramaFollowsCache1550 = (r.ok && r.data && r.data.ok && Array.isArray(r.data.follows)) ? r.data.follows : [];
+  } catch (e) { dramaFollowsCache1550 = []; }
+  return dramaFollowsCache1550;
+}
+function isDramaFollowed1550(id) { return (dramaFollowsCache1550 || []).some(function (f) { return String(f.id) === String(id); }); }
+window.__wrToggleDramaFollow1550 = async function (dramaId) {
+  if (!needVerified('seguir dramas')) return;
+  var followed = isDramaFollowed1550(dramaId);
+  var r = await pushToServer('/api/dramas/' + encodeURIComponent(dramaId) + (followed ? '/unfollow' : '/follow'), 'POST', {});
+  if (!r.ok) { toast('No se pudo ' + (followed ? 'dejar de seguir' : 'seguir') + ' el drama.'); return; }
+  await getDramaFollows1550(true);
+  toast(followed ? 'Ya no sigues este drama.' : 'Siguiendo. Te aviso cuando haya capítulos nuevos.');
+  if (typeof renderKdramaHome1549 === 'function') renderKdramaHome1549();
+};
+window.__wrToggleDramaSave1550 = function (dramaId) {
+  var d = (kdramasCache1550 || []).filter(function (x) { return String(x.id) === String(dramaId); })[0];
+  var saved = toggleSaved1550('drama', dramaId, d ? d.name : 'Drama', d ? d.poster : '');
+  toast(saved ? 'Drama guardado en «Guardados».' : 'Drama quitado de «Guardados».');
+  if (typeof renderKdramaHome1549 === 'function') renderKdramaHome1549();
+};
+window.__wrShareDrama1550 = function (dramaId) { openShareChoice('drama', dramaId); };
+/* ---- Comentarios (19/40/60): reacciones con emoji, fijar, editar. ---- */
+function findCommentLocal1550(post, commentId) {
+  var found = null;
+  (post.comments || []).forEach(function (c) {
+    if (c.id === commentId) found = c;
+    (c.replies || []).forEach(function (r) { if (r.id === commentId) found = r; });
+  });
+  return found;
+}
+window.__wrReactComment1550 = async function (postId, commentId, emoji) {
+  if (!needVerified('reaccionar')) return;
+  var post = state.posts.filter(function (p) { return p.id === postId; })[0];
+  var c = post ? findCommentLocal1550(post, commentId) : null;
+  if (!c) return;
+  if (!c.reactions) c.reactions = {};
+  var mine = c.reactions[state.me];
+  c.reactions[state.me] = (mine === emoji) ? '' : emoji;
+  if (!c.reactions[state.me]) delete c.reactions[state.me];
+  save();
+  var r = await pushToServer('/api/posts/' + encodeURIComponent(postId) + '/comment/' + encodeURIComponent(commentId) + '/react', 'POST', { emoji: c.reactions[state.me] || '' });
+  if (!r.ok) toast('La reacción no llegó al servidor; se guarda en este teléfono.');
+  if (openPostId === postId) renderPostDetail(postId);
+  renderFeed();
+};
+window.__wrPinComment1550 = async function (postId, commentId) {
+  var post = state.posts.filter(function (p) { return p.id === postId; })[0];
+  if (!post || post.author !== state.me) { toast('Solo quien publicó puede fijar un comentario.'); return; }
+  var r = await pushToServer('/api/posts/' + encodeURIComponent(postId) + '/comment/' + encodeURIComponent(commentId) + '/pin', 'POST', {});
+  if (!r.ok) { toast('No se pudo fijar el comentario.'); return; }
+  post.pinnedComment = (post.pinnedComment === commentId) ? null : commentId;
+  save();
+  if (openPostId === postId) renderPostDetail(postId);
+  renderFeed();
+};
+window.__wrEditComment1550 = function (postId, commentId) {
+  var post = state.posts.filter(function (p) { return p.id === postId; })[0];
+  var c = post ? findCommentLocal1550(post, commentId) : null;
+  if (!c || c.author !== state.me) { toast('Solo puedes editar tus comentarios.'); return; }
+  openListOverlay1550('editCommentOverlay1550', 'Editar comentario',
+    '<textarea id="editCommentText1550" style="width:100%;min-height:90px">' + esc(c.text || '') + '</textarea>' +
+    '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn" onclick="window.__wrSaveCommentEdit1550(\'' + postId + '\',\'' + commentId + '\')">Guardar</button>' +
+    '<button class="btn ghost" onclick="window.__wrCloseList1550(\'editCommentOverlay1550\')">Cancelar</button></div>');
+  var ta = document.getElementById('editCommentText1550');
+  if (ta) ta.focus();
+};
+window.__wrSaveCommentEdit1550 = async function (postId, commentId) {
+  var ta = document.getElementById('editCommentText1550');
+  var text = ta ? ta.value.trim() : '';
+  if (!text) { toast('El comentario no puede quedar vacío.'); return; }
+  var r = await pushToServer('/api/posts/' + encodeURIComponent(postId) + '/comment/' + encodeURIComponent(commentId), 'PUT', { text: text });
+  if (!r.ok) { toast('No se pudo editar: ' + (r.error || 'sin conexión.')); return; }
+  var post = state.posts.filter(function (p) { return p.id === postId; })[0];
+  var c = post ? findCommentLocal1550(post, commentId) : null;
+  if (c) { c.text = text; c.edited = true; c.editedAt = Date.now(); save(); }
+  closeListOverlay1550('editCommentOverlay1550');
+  if (openPostId === postId) renderPostDetail(postId);
+  renderFeed();
+  toast('Comentario editado.');
+};
+/* ---- Nota de voz en publicaciones (35): graba, sube por la ruta real
+   de medios y publica como audio. Sin micrófono, mensaje claro. ---- */
+var voicePostRec1550 = null;
+window.__wrRecordVoicePost1550 = async function () {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('Este navegador no permite grabar audio.'); return; }
+  if (voicePostRec1550) { try { voicePostRec1550.stop(); } catch (e) {} return; }
+  var stream = null;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) { toast('No se pudo usar el micrófono. Revisa el permiso del navegador.'); return; }
+  var rec = null;
+  try { rec = new MediaRecorder(stream); } catch (e) { stream.getTracks().forEach(function (t) { t.stop(); }); toast('Este navegador no puede grabar audio.'); return; }
+  var chunks = [];
+  var startedAt = Date.now();
+  rec.ondataavailable = function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); };
+  rec.onstop = function () {
+    stream.getTracks().forEach(function (t) { t.stop(); });
+    voicePostRec1550 = null;
+    var btn = document.getElementById('voicePostBtn1550');
+    if (btn) btn.textContent = '🎤 Nota de voz';
+    var blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
+    var dur = Math.round((Date.now() - startedAt) / 1000);
+    if (!blob.size) { toast('La grabación quedó vacía.'); return; }
+    toast('Subiendo nota de voz…');
+    var reader = new FileReader();
+    reader.onload = async function () {
+      var parts = String(reader.result || '').split(',');
+      var mime = (String(reader.result || '').match(/^data:([^;]+);/) || [])[1] || 'audio/webm';
+      var url = await C.uploadMediaBase64(state, parts[1] || '', mime, 'nota-voz-' + Date.now() + '.webm', null, {});
+      if (!url) { toast('No se pudo subir la nota de voz.'); return; }
+      var r = C.createPost(state, state.me, { text: '', mediaList: [{ src: url, type: 'audio' }], mediaType: 'audio' });
+      if (!r.ok) { toast(r.error || 'No se pudo publicar la nota de voz.'); return; }
+      publishCreatedPost1529(r.post, 'Nota de voz publicada (' + dur + ' s).');
+      renderFeed();
+    };
+    reader.readAsDataURL(blob);
+  };
+  voicePostRec1550 = rec;
+  rec.start();
+  var btn2 = document.getElementById('voicePostBtn1550');
+  if (btn2) btn2.textContent = '■ Parar y publicar';
+  toast('Grabando tu nota de voz… toca «Parar y publicar» para terminar.');
+};
+/* ---- Retomar videos (47): por navegador (localStorage). Guarda la
+   posición al ver un video largo; al abrirlo otra vez ofrece retomar. ---- */
+var RESUME_LS_KEY_1550 = 'wordred_resume_v1';
+function resumeMap1550() { try { var m = JSON.parse(localStorage.getItem(RESUME_LS_KEY_1550) || '{}'); return (m && typeof m === 'object') ? m : {}; } catch (e) { return {}; } }
+function saveResumeMap1550(m) { try { localStorage.setItem(RESUME_LS_KEY_1550, JSON.stringify(m)); } catch (e) {} }
+function fmtTime1550(s) { s = Math.max(0, Math.floor(s || 0)); var m = Math.floor(s / 60); var ss = s % 60; return m + ':' + (ss < 10 ? '0' : '') + ss; }
+document.addEventListener('timeupdate', function (ev) {
+  var v = ev.target;
+  if (!v || v.tagName !== 'VIDEO' || !v.currentSrc) return;
+  if (!v.duration || v.duration < 60 || v.currentTime < 10 || v.currentTime > v.duration - 10) return;
+  var m = resumeMap1550();
+  m[v.currentSrc] = { at: v.currentTime, dur: v.duration, savedAt: Date.now() };
+  saveResumeMap1550(m);
+}, true);
+document.addEventListener('loadedmetadata', function (ev) {
+  var v = ev.target;
+  if (!v || v.tagName !== 'VIDEO' || !v.currentSrc) return;
+  var m = resumeMap1550();
+  var pos = m[v.currentSrc];
+  if (!pos || !pos.at || pos.at < 15) return;
+  if (pos.dur && pos.at > pos.dur - 15) return;
+  var wrap = v.parentElement;
+  if (!wrap || wrap.querySelector('.resumeBtn1550')) return;
+  var b = document.createElement('button');
+  b.className = 'btn small resumeBtn1550';
+  b.textContent = 'Retomar desde ' + fmtTime1550(pos.at);
+  b.style.cssText = 'position:absolute;left:10px;bottom:12px;z-index:5';
+  b.onclick = function (e) { e.stopPropagation(); try { v.currentTime = pos.at; v.play(); } catch (err) {} b.remove(); };
+  if (getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
+  wrap.appendChild(b);
+}, true);
+/* ---- Audio en segundo plano (11): Media Session — controles en la
+   pantalla de bloqueo y título real. El navegador puede suspender la
+   pestaña; mientras siga viva, el audio suena. ---- */
+function mediaSessionSet1550(title, artist) {
+  try {
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.metadata = new MediaMetadata({ title: String(title || 'WordRed').slice(0, 120), artist: artist || 'WordRed', album: 'WordRed' });
+    navigator.mediaSession.setActionHandler('play', function () { document.querySelectorAll('audio,video').forEach(function (el) { if (el.paused && el.dataset && el.dataset.msPlay1550) { try { el.play(); } catch (e) {} } }); });
+    navigator.mediaSession.setActionHandler('pause', function () { document.querySelectorAll('audio,video').forEach(function (el) { if (!el.paused) { try { el.pause(); } catch (e) {} } }); });
+    navigator.mediaSession.setActionHandler('previoustrack', function () { if (typeof shortsPrev === 'function') { try { shortsPrev(); } catch (e) {} } });
+    navigator.mediaSession.setActionHandler('nexttrack', function () { if (typeof shortsNext === 'function') { try { shortsNext(); } catch (e) {} } });
+  } catch (e) {}
+}
+document.addEventListener('play', function (ev) {
+  var el = ev.target;
+  if (!el || (el.tagName !== 'AUDIO' && el.tagName !== 'VIDEO')) return;
+  el.dataset.msPlay1550 = '1';
+  var title = 'WordRed';
+  var card = el.closest ? el.closest('[data-post]') : null;
+  if (card) {
+    var post = state.posts.filter(function (p) { return p.id === card.getAttribute('data-post'); })[0];
+    if (post) title = (post.song ? post.song.title + ' · ' : '') + (post.text ? post.text.slice(0, 80) : 'Video de WordRed');
+  }
+  mediaSessionSet1550(title, 'WordRed');
+}, true);
+/* ---- Perfil (43/46/53/67): QR, nota, negocio, archivo de historias. ---- */
+window.__wrOpenMyQr1550 = function () {
+  showOverlay('settingsOverlay');
+  try { renderMyQr(); } catch (e) {}
+  setTimeout(function () {
+    var el = document.getElementById('myQrCode');
+    if (el) el.scrollIntoView({ block: 'center' });
+  }, 150);
+};
+window.__wrDownloadMyQr1550 = function () {
+  var canvas = document.querySelector('#myQrCode canvas');
+  if (!canvas) { toast('Primero abre tu código QR.'); return; }
+  try { downloadBlob1550(dataUrlToBlob1550(canvas.toDataURL('image/png')), 'wordred-qr.png'); }
+  catch (e) { toast('No se pudo descargar el código.'); }
+};
+function dataUrlToBlob1550(dataUrl) {
+  var parts = String(dataUrl || '').split(',');
+  var mime = (parts[0].match(/data:([^;]+)/) || [])[1] || 'image/png';
+  var bin = atob(parts[1] || '');
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+window.__wrEditNote1550 = function () {
+  var me = state.profiles[state.me] || {};
+  openListOverlay1550('editNoteOverlay1550', 'Mi nota',
+    '<p class="muted">Una nota corta bajo tu nombre, visible para quien visite tu perfil. Máximo 60 caracteres.</p>' +
+    '<input id="editNoteInput1550" type="text" maxlength="60" value="' + esc(me.note || '') + '" placeholder="Ej. De vacaciones hasta el lunes" style="width:100%;margin-top:10px">' +
+    '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn" onclick="window.__wrSaveNote1550()">Guardar</button>' +
+    (me.note ? '<button class="btn ghost" onclick="window.__wrSaveNote1550(true)">Quitar nota</button>' : '') +
+    '<button class="btn ghost" onclick="window.__wrCloseList1550(\'editNoteOverlay1550\')">Cancelar</button></div>');
+};
+window.__wrSaveNote1550 = async function (remove) {
+  var note = remove ? '' : ((document.getElementById('editNoteInput1550') || {}).value || '').trim().slice(0, 60);
+  var r = await pushToServer('/api/profile', 'POST', { note: note });
+  if (!r.ok) { toast('No se pudo guardar la nota.'); return; }
+  if (state.profiles[state.me]) state.profiles[state.me].note = note;
+  save();
+  closeListOverlay1550('editNoteOverlay1550');
+  renderOwnProfile();
+  toast(remove ? 'Nota quitada.' : 'Nota guardada.');
+};
+window.__wrEditBusiness1550 = function () {
+  var me = state.profiles[state.me] || {};
+  openListOverlay1550('editBusinessOverlay1550', 'Mi negocio',
+    '<p class="muted">Se muestra en tu perfil: nombre, qué vendes y un botón para escribirte por WhatsApp. El Marketplace sigue igual.</p>' +
+    '<label class="tiny">Nombre del negocio</label><input id="bizName1550" type="text" maxlength="100" value="' + esc(me.businessName || '') + '" style="width:100%;margin-top:4px">' +
+    '<label class="tiny" style="display:block;margin-top:10px">Qué vendes</label><input id="bizDesc1550" type="text" maxlength="300" value="' + esc(me.businessDesc || '') + '" style="width:100%;margin-top:4px">' +
+    '<label class="tiny" style="display:block;margin-top:10px">WhatsApp (solo números, 8 a 15 dígitos)</label><input id="bizWa1550" type="tel" value="' + esc(me.businessWhatsapp || '') + '" style="width:100%;margin-top:4px">' +
+    '<div style="display:flex;gap:8px;margin-top:12px"><button class="btn" onclick="window.__wrSaveBusiness1550()">Guardar</button>' +
+    '<button class="btn ghost" onclick="window.__wrCloseList1550(\'editBusinessOverlay1550\')">Cancelar</button></div>');
+};
+window.__wrSaveBusiness1550 = async function () {
+  var name = ((document.getElementById('bizName1550') || {}).value || '').trim().slice(0, 100);
+  var desc = ((document.getElementById('bizDesc1550') || {}).value || '').trim().slice(0, 300);
+  var wa = ((document.getElementById('bizWa1550') || {}).value || '').replace(/[^0-9]/g, '').slice(0, 15);
+  var r = await pushToServer('/api/profile', 'POST', { businessName: name, businessDesc: desc, businessWhatsapp: wa });
+  if (!r.ok) { toast('No se pudo guardar el negocio: ' + (r.error || 'revisa el WhatsApp (8 a 15 dígitos).')); return; }
+  if (state.profiles[state.me]) { state.profiles[state.me].businessName = name; state.profiles[state.me].businessDesc = desc; state.profiles[state.me].businessWhatsapp = wa; }
+  save();
+  closeListOverlay1550('editBusinessOverlay1550');
+  renderOwnProfile();
+  toast('Negocio guardado en tu perfil.');
+};
+window.__wrOpenStoryArchive1550 = async function () {
+  var r = await C.serverFetch(state, '/api/stories/archive', 'GET', null);
+  var list = (r.ok && r.data && r.data.ok && Array.isArray(r.data.archive)) ? r.data.archive : [];
+  if (!list.length) { openListOverlay1550('storyArchiveOverlay1550', 'Archivo de historias', '<p class="muted">Tus historias vencidas se guardan aquí 24 horas después de publicarse. Solo tú las ves.</p>'); return; }
+  var rows = list.map(function (s) {
+    var media = s.media ? '<img src="' + esc(s.media) + '" style="width:56px;height:84px;object-fit:cover;border-radius:8px" onerror="this.style.display=\'none\'">' : '';
+    return '<div class="glass card row" style="align-items:center">' + media + '<div class="who" style="flex:1"><b>' + esc(s.text || 'Historia') + '</b><span class="muted">' + C.timeAgo(s.createdAt || s.archivedAt) + '</span></div><button class="btn small" onclick="window.__wrReshareArchived1550(\'' + s.id + '\')">Volver a compartir</button><button class="btn ghost small" onclick="window.__wrDeleteArchived1550(\'' + s.id + '\')">Eliminar</button></div>';
+  }).join('');
+  openListOverlay1550('storyArchiveOverlay1550', 'Archivo de historias', rows + '<p class="tiny muted" style="margin-top:8px">Solo tú ves este archivo.</p>');
+};
+window.__wrReshareArchived1550 = async function (storyId) {
+  var r = await pushToServer('/api/stories/archive/' + encodeURIComponent(storyId) + '/reshare', 'POST', {});
+  if (!r.ok) { toast('No se pudo volver a compartir.'); return; }
+  window.__wrOpenStoryArchive1550();
+  toast('Historia publicada otra vez por 24 horas.');
+};
+window.__wrDeleteArchived1550 = async function (storyId) {
+  var r = await pushToServer('/api/stories/archive/' + encodeURIComponent(storyId), 'DELETE', null);
+  if (!r.ok) { toast('No se pudo eliminar.'); return; }
+  window.__wrOpenStoryArchive1550();
+};
+/* ---- Dueño: estadísticas (7), verificación (17), reportes (29). ---- */
+window.__wrOpenOwnerStats1550 = async function () {
+  var r = await C.serverFetch(state, '/api/stats', 'GET', null);
+  if (!r.ok || !r.data || !r.data.ok) { toast('Solo el dueño puede ver las estadísticas.'); return; }
+  var d = r.data;
+  var top = (d.topDramas || []).map(function (x) {
+    var s = (kdramasCache1550 || []).filter(function (k) { return String(k.id) === String(x.id); })[0];
+    return '<div class="glass card row"><div class="who" style="flex:1"><b>' + esc(s ? s.name : x.id) + '</b><span class="muted">' + x.views + ' vistas</span></div></div>';
+  }).join('') || '<p class="muted">Todavía no hay vistas de dramas.</p>';
+  openListOverlay1550('ownerStatsOverlay1550', 'Estadísticas (solo dueño)',
+    '<p><b>' + (d.visitsTotal || 0) + '</b> visitas a la web en total.</p>' +
+    '<p class="muted">Visitas por día (últimos 7 días): ' + ((d.visitsByDay || []).slice(-7).map(function (x) { return esc(x.day) + ': ' + x.n; }).join(' · ') || 'sin datos') + '.</p>' +
+    '<h3 class="sectitle">Dramas más vistos</h3>' + top);
+};
+window.__wrOpenVerifyRequests1550 = async function () {
+  var r = await C.serverFetch(state, '/api/verification/requests', 'GET', null);
+  if (!r.ok || !r.data || !r.data.ok) { toast('Solo el dueño puede ver las solicitudes.'); return; }
+  var list = r.data.requests || [];
+  if (!list.length) { openListOverlay1550('verifyOverlay1550', 'Solicitudes de verificación', '<p class="muted">No hay solicitudes pendientes.</p>'); return; }
+  var rows = list.map(function (q) {
+    return '<div class="glass card row" style="align-items:center">' + avatarHtml(q.phone) + '<div class="who" style="flex:1"><b>' + esc(q.name || q.phone) + '</b><span class="muted">' + esc((q.missing || []).join(', ') || 'cumple los criterios') + '</span></div><button class="btn small" onclick="window.__wrGrantVerify1550(\'' + q.phone + '\')">Otorgar</button></div>';
+  }).join('');
+  openListOverlay1550('verifyOverlay1550', 'Solicitudes de verificación', rows + '<p class="tiny muted" style="margin-top:8px">Solo el dueño otorga la insignia. Nunca se compra ni se auto-otorga.</p>');
+};
+window.__wrGrantVerify1550 = async function (phone) {
+  var r = await pushToServer('/api/verify/' + encodeURIComponent(phone), 'POST', {});
+  if (!r.ok) { toast('No se pudo otorgar la verificación.'); return; }
+  window.__wrOpenVerifyRequests1550();
+  toast('Insignia verificada otorgada.');
+};
+window.__wrRevokeVerify1550 = async function (phone) {
+  var r = await pushToServer('/api/unverify/' + encodeURIComponent(phone), 'POST', {});
+  if (!r.ok) { toast('No se pudo quitar la verificación.'); return; }
+  toast('Insignia verificada retirada.');
+  if (currentView === 'profile') renderOwnProfile();
+};
+window.__wrOpenReports1550 = async function () {
+  var r = await C.serverFetch(state, '/api/reports/all', 'GET', null);
+  if (!r.ok || !r.data || !r.data.ok) { toast('Solo el dueño puede ver los reportes.'); return; }
+  var list = r.data.reports || [];
+  if (!list.length) { openListOverlay1550('reportsOverlay1550', 'Reportes (solo dueño)', '<p class="muted">No hay reportes por revisar.</p>'); return; }
+  var rows = list.map(function (rep) {
+    return '<div class="glass card" style="display:block"><b>' + esc(rep.reporterName || rep.reporter) + '</b> reportó a <b>' + esc(rep.reportedName || rep.reported) + '</b><br><span class="muted">' + esc(rep.reason || '') + (rep.postId ? ' · publicación ' + esc(rep.postId) : '') + ' · ' + C.timeAgo(rep.createdAt) + '</span>' + (rep.text ? '<p style="margin-top:6px">' + esc(rep.text) + '</p>' : '') + '</div>';
+  }).join('');
+  openListOverlay1550('reportsOverlay1550', 'Reportes (solo dueño)', rows + '<p class="tiny muted" style="margin-top:8px">Nada se sanciona automáticamente: el dueño revisa cada reporte.</p>');
+};
+/* ---- Chat (30/46/47/61): autodestrucción, buscar, fijar, borrar para
+   todos, estado en línea, stickers propios. ---- */
+var chatSearchQuery1550 = '';
+var pinnedChats1550 = {};
+try { pinnedChats1550 = JSON.parse(localStorage.getItem('wordred_pinned_chats_v1') || '{}') || {}; } catch (e) { pinnedChats1550 = {}; }
+function savePinnedChats1550() { try { localStorage.setItem('wordred_pinned_chats_v1', JSON.stringify(pinnedChats1550)); } catch (e) {} }
+window.__wrPinChat1550 = function (key) {
+  if (pinnedChats1550[key]) delete pinnedChats1550[key]; else pinnedChats1550[key] = Date.now();
+  savePinnedChats1550();
+  if (typeof renderMessages === 'function') renderMessages();
+  toast(pinnedChats1550[key] ? 'Chat fijado arriba.' : 'Chat quitado de arriba.');
+};
+window.__wrDeleteMessageForAll1550 = async function (msgId) {
+  var r = await pushToServer('/api/messages/' + encodeURIComponent(msgId), 'DELETE', null);
+  if (!r.ok) { toast('No se pudo borrar el mensaje.'); return; }
+  if (typeof renderChatMsgs === 'function') renderChatMsgs();
+  toast('Mensaje eliminado para todos.');
+};
+/* Estado en línea (32): el ws persistente ya dice que estoy en línea;
+   aquí se consulta quiénes lo están y se muestra el punto verde. */
+async function refreshPresence1550(phones) {
+  if (!phones || !phones.length) return;
+  try {
+    var r = await C.serverFetch(state, '/api/presence', 'POST', { phones: phones });
+    if (r.ok && r.data && r.data.ok && r.data.online) presenceCache1550 = r.data.online;
+  } catch (e) {}
+}
+function onlineDot1550(phone) {
+  if (!phone || phone === state.me) return '';
+  if (presenceCache1550[phone]) return ' <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#22c55e;border:2px solid var(--bg)" title="En línea"></span>';
+  return '';
+}
+window.__wrToggleShowOnline1550 = async function (on) {
+  var r = await pushToServer('/api/profile', 'POST', { showOnline: !!on });
+  if (!r.ok) { toast('No se pudo guardar.'); return; }
+  if (state.profiles[state.me]) state.profiles[state.me].showOnline = !!on;
+  save();
+  toast(on ? 'Tu estado en línea es visible.' : 'Tu estado en línea está oculto.');
+};
+/* ---- Grupos (38/65): eventos y privados. ---- */
+window.__wrOpenGroupEventForm1550 = function (groupId) {
+  openListOverlay1550('groupEventOverlay1550', 'Evento del grupo',
+    '<label class="tiny">Nombre</label><input id="grpEvtName1550" type="text" maxlength="120" style="width:100%;margin-top:4px" placeholder="Ej. Noche de películas">' +
+    '<div style="display:flex;gap:8px;margin-top:10px"><div style="flex:1"><label class="tiny">Fecha</label><input id="grpEvtDate1550" type="date" style="width:100%;margin-top:4px"></div>' +
+    '<div style="flex:1"><label class="tiny">Hora</label><input id="grpEvtTime1550" type="time" value="18:00" style="width:100%;margin-top:4px"></div></div>' +
+    '<div style="display:flex;gap:8px;margin-top:12px"><button class="btn" onclick="window.__wrCreateGroupEvent1550(\'' + groupId + '\')">Crear evento</button>' +
+    '<button class="btn ghost" onclick="window.__wrCloseList1550(\'groupEventOverlay1550\')">Cancelar</button></div>');
+};
+window.__wrCreateGroupEvent1550 = async function (groupId) {
+  var name = ((document.getElementById('grpEvtName1550') || {}).value || '').trim();
+  var date = ((document.getElementById('grpEvtDate1550') || {}).value || '');
+  var time = ((document.getElementById('grpEvtTime1550') || {}).value || '');
+  if (!name || !date) { toast('Ponle nombre y fecha al evento.'); return; }
+  var r = await pushToServer('/api/events', 'POST', { name: name, date: date, time: time, groupId: groupId });
+  if (!r.ok) { toast('No se pudo crear el evento: ' + (r.error || 'sin conexión.')); return; }
+  closeListOverlay1550('groupEventOverlay1550');
+  if (typeof renderGroupDetail === 'function') renderGroupDetail(groupId);
+  toast('Evento creado en el grupo. Quien confirme asistencia recibe un aviso 1 hora antes.');
+};
+/* ---- Historias programadas (64): lista de las pendientes. ---- */
+window.__wrOpenScheduledStories1550 = async function () {
+  var r = await C.serverFetch(state, '/api/stories/scheduled', 'GET', null);
+  var list = (r.ok && r.data && r.data.ok && Array.isArray(r.data.stories)) ? r.data.stories : [];
+  if (!list.length) { openListOverlay1550('scheduledOverlay1550', 'Historias programadas', '<p class="muted">No tienes historias programadas. Al crear una historia puedes elegir fecha y hora: se publica sola, aunque la pestaña esté cerrada.</p>'); return; }
+  var rows = list.map(function (s) {
+    return '<div class="glass card row" style="align-items:center"><div class="who" style="flex:1"><b>' + esc(s.text || 'Historia') + '</b><span class="muted">Se publica: ' + C.formatDateTime(s.publishAt) + '</span></div></div>';
+  }).join('');
+  openListOverlay1550('scheduledOverlay1550', 'Historias programadas', rows);
+};
+/* ---- Doble cámara (59): frente + atrás a la vez, donde el navegador
+   lo permite; si no, una sola cámara y se dice claro. ---- */
+window.__wrDualCameraStory1550 = async function () {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('Este navegador no permite usar la cámara.'); return; }
+  openListOverlay1550('dualCamOverlay1550', 'Foto con doble cámara',
+    '<p class="muted">Frente y atrás a la vez. Si el navegador solo deja abrir una cámara, se usa la trasera.</p>' +
+    '<div style="display:flex;gap:8px;margin-top:10px"><video id="dualCamBack1550" autoplay playsinline muted style="flex:1;width:50%;border-radius:10px;background:#000"></video>' +
+    '<video id="dualCamFront1550" autoplay playsinline muted style="flex:1;width:50%;border-radius:10px;background:#000"></video></div>' +
+    '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn" onclick="window.__wrCaptureDual1550()">Tomar foto</button>' +
+    '<button class="btn ghost" onclick="window.__wrCloseDual1550()">Cancelar</button></div>');
+  var back = null, front = null;
+  try { back = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); } catch (e) {}
+  try { front = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false }); } catch (e) {}
+  window._dualStreams1550 = [back, front].filter(Boolean);
+  var bv = document.getElementById('dualCamBack1550');
+  var fv = document.getElementById('dualCamFront1550');
+  if (back && bv) bv.srcObject = back;
+  if (front && fv) fv.srcObject = front;
+  if (!back && !front) { toast('No se pudo abrir ninguna cámara.'); window.__wrCloseDual1550(); return; }
+  if (!front) toast('Este navegador solo deja una cámara a la vez: se usa la trasera.');
+  if (!back) toast('Este navegador solo deja una cámara a la vez: se usa la frontal.');
+};
+window.__wrCaptureDual1550 = function () {
+  var bv = document.getElementById('dualCamBack1550');
+  var fv = document.getElementById('dualCamFront1550');
+  if (!bv || (!bv.videoWidth && !fv.videoWidth)) { toast('La cámara todavía no está lista.'); return; }
+  var canvas = document.createElement('canvas');
+  var w = (bv.videoWidth || 640), h = (bv.videoHeight || 480);
+  canvas.width = w; canvas.height = h;
+  var ctx = canvas.getContext('2d');
+  try {
+    if (bv.videoWidth) ctx.drawImage(bv, 0, 0, w, h);
+    if (fv && fv.videoWidth) {
+      var pw = Math.round(w * 0.32), ph = Math.round(pw * (fv.videoHeight / fv.videoWidth));
+      ctx.drawImage(fv, w - pw - 12, h - ph - 12, pw, ph);
+    }
+  } catch (e) { toast('No se pudo tomar la foto.'); return; }
+  var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  window.__wrCloseDual1550();
+  try {
+    storyMedia = { src: dataUrl, type: 'image' };
+    if (typeof openStoryEditor === 'function') openStoryEditor();
+    else if (typeof renderStoryEditPanel === 'function') { storyEdit.media = storyMedia; renderStoryEditPanel(); }
+    toast('Foto lista para tu historia.');
+  } catch (e) { toast('Foto tomada, pero no se pudo abrir el editor de historias.'); }
+};
+window.__wrCloseDual1550 = function () {
+  (window._dualStreams1550 || []).forEach(function (s) { try { s.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} });
+  window._dualStreams1550 = [];
+  closeListOverlay1550('dualCamOverlay1550');
+};
+/* ---- Escuchar juntos (69) y ver juntos (70): cada aparato suena/ve
+   su propia copia; el ws sincroniza play/pausa lo mejor que puede. ---- */
+function sendTogether1550(kind, groupId, payload) {
+  try {
+    if (!ws || ws.readyState !== 1) { toast('Sin conexión al servidor para sincronizar.'); return false; }
+    ws.send(JSON.stringify(Object.assign({ kind: kind, groupId: groupId, from: state.me }, payload)));
+    return true;
+  } catch (e) { return false; }
+}
+window.__wrListenTogether1550 = function (groupId, songId) {
+  var song = C.songFromCatalog ? C.songFromCatalog(songId) : (C.SONG_CATALOG || []).filter(function (s) { return s.id === songId; })[0];
+  if (!song) { toast('Esa canción no está en el catálogo.'); return; }
+  if (sendTogether1550('listen', groupId, { songId: songId, action: 'play', at: Date.now() })) toast('Escuchando juntos: ' + (song.title || songId) + '. Cada teléfono suena su propia copia.');
+};
+window.__wrWatchTogether1550 = function (groupId, dramaId) {
+  if (sendTogether1550('watch', groupId, { dramaId: String(dramaId), action: 'play', at: Date.now() })) {
+    toast('Viendo juntos. Cada teléfono ve su propio video; la pausa se sincroniza lo mejor que puede.');
+    if (typeof kdOpen1549 === 'function') kdOpen1549(dramaId);
+  }
+};
+function handleTogether1550(data) {
+  if (data.kind === 'listen' && data.from !== state.me) {
+    toast(profileName(data.from) + ' puso una canción para escuchar juntos.');
+    if (typeof window.__wrToggleSong === 'function' && data.songId) { try { window.__wrToggleSong(data.songId); } catch (e) {} }
+  } else if (data.kind === 'watch' && data.from !== state.me) {
+    toast(profileName(data.from) + ' empezó a ver un drama con el grupo.');
+    if (data.dramaId && typeof kdOpen1549 === 'function') { try { kdOpen1549(data.dramaId); } catch (e) {} }
+  }
+}
+/* ---- Exportar mis datos (71) y cambiar nombre (52). ---- */
+window.__wrExportMyData1550 = async function () {
+  var r = await C.serverFetch(state, '/api/export', 'GET', null);
+  if (!r.ok || !r.data || !r.data.ok) { toast('No se pudieron exportar tus datos.'); return; }
+  downloadBlob1550(new Blob([JSON.stringify(r.data.data, null, 2)], { type: 'application/json' }), 'mis-datos-wordred.json');
+  toast('Tus datos se descargaron como JSON. Solo los tuyos.');
+};
+window.__wrChangeName1550 = function () {
+  var me = state.profiles[state.me] || {};
+  openListOverlay1550('changeNameOverlay1550', 'Cambiar mi nombre',
+    '<p class="muted">Tu inicio de sesión sigue siendo tu número de teléfono: cambiar el nombre no afecta cómo entras. El nombre debe ser único.</p>' +
+    '<input id="changeNameInput1550" type="text" maxlength="60" value="' + esc(me.name || '') + '" style="width:100%;margin-top:10px">' +
+    '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn" onclick="window.__wrSaveName1550()">Guardar</button>' +
+    '<button class="btn ghost" onclick="window.__wrCloseList1550(\'changeNameOverlay1550\')">Cancelar</button></div>');
+};
+window.__wrSaveName1550 = async function () {
+  var name = ((document.getElementById('changeNameInput1550') || {}).value || '').trim();
+  if (!name) { toast('Escribe un nombre.'); return; }
+  var r = await pushToServer('/api/profile', 'POST', { name: name });
+  if (!r.ok) { toast(r.error || 'Ese nombre ya está en uso o no se pudo guardar.'); return; }
+  if (state.profiles[state.me]) state.profiles[state.me].name = name;
+  save();
+  closeListOverlay1550('changeNameOverlay1550');
+  if (currentView === 'profile') renderOwnProfile();
+  renderFeed();
+  toast('Nombre cambiado. Las menciones viejas siguen funcionando: apuntan a tu teléfono, así que ahora muestran tu nombre nuevo.');
+};
+/* ---- Modo lectura (37): vista limpia para publicaciones largas. ---- */
+window.__wrToggleReading1550 = function (postId) {
+  var card = document.querySelector('[data-post="' + postId + '"]');
+  if (!card) return;
+  card.classList.toggle('reading1550');
+  var on = card.classList.contains('reading1550');
+  toast(on ? 'Modo lectura: texto más grande y sin distracciones.' : 'Modo lectura apagado.');
+};
+/* ---- Cumpleaños (23): felicitar abre el mensaje. ---- */
+window.__wrCongratulate1550 = function (phone) {
+  if (typeof openChat === 'function') openChat(phone);
+  else if (typeof window.__wrOpenChat === 'function') window.__wrOpenChat(phone);
+  setTimeout(function () {
+    var inp = document.getElementById('chatInput') || document.querySelector('.chatInput input');
+    if (inp) { inp.value = '¡Feliz cumpleaños! 🎂'; inp.focus(); }
+  }, 400);
+};
+/* Fila del interruptor push dentro de Ajustes → Notificaciones. */
+async function renderPushRow1550() {
+  var row = document.getElementById('pushRow1550');
+  if (!row) return;
+  if (!pushSupported1550()) {
+    row.innerHTML = '<p class="tiny muted">Este navegador no admite notificaciones push. Los avisos siguen llegando a la campana cuando entras.</p>';
+    return;
+  }
+  var st = await pushSubscriptionState1550();
+  var on = st === 'on';
+  row.innerHTML = '<label class="setRow1560"><span class="setRowTxt1560"><b>Notificaciones push</b><br><span class="tiny muted">Avisos de comentarios y Me gusta en tus publicaciones, aunque la pestaña esté cerrada. El navegador pide permiso una vez.</span></span><span class="setSwitch1560"><input type="checkbox" id="pushToggle1550" ' + (on ? 'checked' : '') + '><span class="setKnob1560"></span></span></label>';
+  var t = document.getElementById('pushToggle1550');
+  if (t) t.addEventListener('change', function () { window.__wrTogglePush1550(t.checked); });
+}
+/* ---- Extras del perfil propio (2/25/43/44/46/53/64/67). ---- */
+function businessCardHtml1550(phone, own) {
+  var p = state.profiles[phone] || {};
+  if (!p.businessName && !p.businessDesc) return '';
+  var wa = p.businessWhatsapp ? '<a class="btn small" style="text-decoration:none" href="https://wa.me/' + esc(p.businessWhatsapp) + '" target="_blank">WhatsApp</a>' : '';
+  return '<div class="glass card" style="display:block;margin-top:10px"><b>🏪 ' + esc(p.businessName || 'Mi negocio') + '</b>' +
+    (p.businessDesc ? '<p class="muted" style="margin-top:4px">' + esc(p.businessDesc) + '</p>' : '') +
+    '<div style="display:flex;gap:8px;margin-top:8px">' + wa + (own ? '<button class="btn ghost small" onclick="window.__wrEditBusiness1550()">Editar negocio</button>' : '') + '</div></div>';
+}
+function ownExtras1550() {
+  var p = state.profiles[state.me] || {};
+  var savedCount = saved1550().length;
+  var archivedCount = state.posts.filter(function (x) { return x.author === state.me && x.archived; }).length;
+  var likedCount = state.posts.filter(function (x) { return x.likes && x.likes[state.me]; }).length;
+  var ownerBtns = '';
+  if (ownerFeatures1550.stats) ownerBtns += '<button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenOwnerStats1550()">Estadísticas</button>';
+  if (ownerFeatures1550.verify) ownerBtns += '<button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenVerifyRequests1550()">Verificaciones</button>';
+  if (ownerFeatures1550.reports) ownerBtns += '<button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenReports1550()">Reportes</button>';
+  return '<div class="profileShortcuts1539" style="margin-top:8px"><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenSaved1550()">Guardados' + (savedCount ? ' (' + savedCount + ')' : '') + '</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenArchived1550()">Archivados' + (archivedCount ? ' (' + archivedCount + ')' : '') + '</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenLiked1550()">Me gusta' + (likedCount ? ' (' + likedCount + ')' : '') + '</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenMyQr1550()">Mi QR</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenStoryArchive1550()">Archivo de historias</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenScheduledStories1550()">Programadas</button>' + ownerBtns + '</div>' +
+    (p.note ? '<p class="muted" style="margin-top:10px"> ' + esc(p.note) + ' <button class="tiny" onclick="window.__wrEditNote1550()">Editar nota</button></p>' : '<p class="muted" style="margin-top:10px"><button class="tiny" onclick="window.__wrEditNote1550()">+ Agregar una nota a mi perfil</button></p>') +
+    businessCardHtml1550(state.me, true) +
+    (!p.businessName ? '<p class="muted" style="margin-top:8px"><button class="tiny" onclick="window.__wrEditBusiness1550()">+ Poner mi negocio en mi perfil</button></p>' : '');
+}
+/* ---- Menciones @ en publicaciones (24) y filtros de foto (34). ---- */
+var composerMentionPhones1550 = {}; /* nombre -> teléfono */
+function composerMentionsList1550() {
+  var text = ($('postText') && $('postText').value) || '';
+  var out = [];
+  Object.keys(composerMentionPhones1550).forEach(function (name) {
+    if (text.indexOf('@' + name) >= 0) { var ph = composerMentionPhones1550[name]; if (out.indexOf(ph) < 0) out.push(ph); }
+  });
+  return out.slice(0, 10);
+}
+function linkifyMentions1550(html, post) {
+  if (!post || !post.mentions || !post.mentions.length) return html;
+  var out = html;
+  post.mentions.forEach(function (ph) {
+    var name = profileName(ph);
+    if (!name) return;
+    var needle = '@' + esc(name);
+    var link = '<a href="#" onclick="window.__wrOpenProfile(\'' + ph + '\');return false" style="color:#8fd0ff;font-weight:600">@' + esc(name) + '</a>';
+    out = out.split(needle).join(link);
+  });
+  return out;
+}
+(function setupComposerMentions1550() {
+  var ta = document.getElementById('postText');
+  if (!ta) return;
+  ta.addEventListener('input', function () {
+    var box = document.getElementById('postMentionSuggest1550');
+    if (!box) return;
+    var pos = ta.selectionStart || 0;
+    var before = ta.value.slice(0, pos);
+    var m = before.match(/@([A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 .'-]{1,30})$/);
+    if (!m) { box.innerHTML = ''; return; }
+    var q = m[1].trim().toLowerCase();
+    if (!q) { box.innerHTML = ''; return; }
+    var friends = (state.friends[state.me] || []).filter(function (ph) {
+      return profileName(ph).toLowerCase().indexOf(q) >= 0;
+    }).slice(0, 5);
+    if (!friends.length) { box.innerHTML = ''; return; }
+    box.innerHTML = friends.map(function (ph) {
+      var name = profileName(ph);
+      return '<button class="chip" style="margin:2px" onclick="window.__wrInsertMention1550(\'' + ph.replace(/'/g, '') + '\',\'' + esc(name).replace(/'/g, '') + '\')">@' + esc(name) + '</button>';
+    }).join('');
+  });
+})();
+window.__wrInsertMention1550 = function (phone, name) {
+  var ta = document.getElementById('postText');
+  if (!ta) return;
+  var pos = ta.selectionStart || 0;
+  var before = ta.value.slice(0, pos);
+  var m = before.match(/@([A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9 .'-]{1,30})$/);
+  if (m) {
+    ta.value = before.slice(0, before.length - m[0].length) + '@' + name + ' ' + ta.value.slice(pos);
+    composerMentionPhones1550[name] = phone;
+    ta.focus();
+    ta.setSelectionRange(before.length - m[0].length + name.length + 2, before.length - m[0].length + name.length + 2);
+  }
+  var box = document.getElementById('postMentionSuggest1550');
+  if (box) box.innerHTML = '';
+};
+/* Filtros de foto (34): se aplican de verdad con canvas ANTES de
+   publicar, así la foto publicada ya lleva el filtro. Solo fotos. */
+var COMPOSER_FILTERS_1550 = [
+  { id: 'none', label: 'Sin filtro', css: '' },
+  { id: 'sepia', label: 'Sepia', css: 'sepia(1)' },
+  { id: 'byn', label: 'Blanco y negro', css: 'grayscale(1)' },
+  { id: 'brillo', label: 'Brillo', css: 'brightness(1.25)' },
+  { id: 'contraste', label: 'Contraste', css: 'contrast(1.3)' },
+  { id: 'calido', label: 'Cálido', css: 'sepia(.4) saturate(1.6)' },
+  { id: 'frio', label: 'Frío', css: 'hue-rotate(-20deg) saturate(1.3)' }
+];
+var composerFilterOriginal1550 = '';
+var composerFilterCurrent1550 = 'none';
+function composerFilterRowHtml1550() {
+  if (!composerMediaList.some(function (m) { return m && m.type === 'image'; })) return '';
+  return '<div style="margin-top:8px"><div class="tiny muted">Filtro de la foto (se aplica de verdad antes de publicar):</div><div class="chiprow" style="margin-top:6px">' +
+    COMPOSER_FILTERS_1550.map(function (f) {
+      return '<button class="chip' + (composerFilterCurrent1550 === f.id ? ' on' : '') + '" onclick="window.__wrApplyComposerFilter1550(\'' + f.id + '\')">' + f.label + '</button>';
+    }).join('') + '</div></div>';
+}
+window.__wrApplyComposerFilter1550 = function (filterId) {
+  var idx = -1;
+  composerMediaList.forEach(function (m, i) { if (idx < 0 && m && m.type === 'image') idx = i; });
+  if (idx < 0) { toast('Primero agrega una foto.'); return; }
+  var f = COMPOSER_FILTERS_1550.filter(function (x) { return x.id === filterId; })[0] || COMPOSER_FILTERS_1550[0];
+  composerFilterCurrent1550 = f.id;
+  var entry = composerMediaList[idx];
+  if (!composerFilterOriginal1550) composerFilterOriginal1550 = entry.src;
+  if (f.id === 'none') {
+    entry.src = composerFilterOriginal1550;
+    if (composerMedia === entry || composerMediaList[0] === entry) composerMedia = entry;
+    renderComposerMediaList();
+    return;
+  }
+  var img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = function () {
+    try {
+      var c = document.createElement('canvas');
+      c.width = img.naturalWidth || img.width; c.height = img.naturalHeight || img.height;
+      var ctx = c.getContext('2d');
+      if ('filter' in ctx) ctx.filter = f.css;
+      ctx.drawImage(img, 0, 0);
+      entry.src = c.toDataURL('image/jpeg', 0.92);
+      /* El archivo original ya no se sube: se sube la foto con filtro. */
+      delete entry.file;
+      if (composerMediaList[0] === entry) composerMedia = entry;
+      renderComposerMediaList();
+      toast('Filtro aplicado: ' + f.label + '.');
+    } catch (e) { toast('No se pudo aplicar el filtro a esa foto.'); }
+  };
+  img.onerror = function () { toast('No se pudo aplicar el filtro a esa foto.'); };
+  img.src = composerFilterOriginal1550;
+};
+/* ---- Chat: autodestrucción por mensaje, borrar para todos,
+   búsqueda, presencia y stickers propios (27/29/46/54/61). ---- */
+var nextMsgDisappearing1550 = 0; /* ms para el próximo mensaje, 0 = no */
+var chatStickerCustomUrl1550 = '';
+function destructLabel1550(ms) {
+  if (ms === 60000) return '1 minuto';
+  if (ms === 3600000) return '1 hora';
+  if (ms === 86400000) return '1 día';
+  return '';
+}
+function updateDestructBtn1550() {
+  var b = document.getElementById('chatDestructBtn1550');
+  if (!b) return;
+  b.style.background = nextMsgDisappearing1550 ? 'var(--red)' : '';
+  b.style.color = nextMsgDisappearing1550 ? '#fff' : '';
+  b.title = nextMsgDisappearing1550 ? 'El próximo mensaje se borra en ' + destructLabel1550(nextMsgDisappearing1550) + ' · toca para cambiar' : 'Mensaje que se borra solo';
+}
+window.__wrCycleDestruct1550 = function () {
+  nextMsgDisappearing1550 = nextMsgDisappearing1550 === 0 ? 60000 : nextMsgDisappearing1550 === 60000 ? 3600000 : nextMsgDisappearing1550 === 3600000 ? 86400000 : 0;
+  updateDestructBtn1550();
+  toast(nextMsgDisappearing1550 ? 'El próximo mensaje se borra solo en ' + destructLabel1550(nextMsgDisappearing1550) + '.' : 'Mensaje normal, sin autodestrucción.');
+};
+function msgExpiresText1550(m) {
+  if (!m || !m.expiresAt) return '';
+  var left = m.expiresAt - Date.now();
+  if (left <= 0) return '';
+  if (left < 60000) return ' · se borra en ' + Math.ceil(left / 1000) + ' s';
+  if (left < 3600000) return ' · se borra en ' + Math.ceil(left / 60000) + ' min';
+  return ' · se borra en ' + Math.ceil(left / 3600000) + ' h';
+}
+/* Borrar: para mí (local, como antes) o para todos (lápida en el
+   servidor, «Mensaje eliminado»). */
+window.__wrDeleteMessageChoice1550 = function (messageId) {
+  openListOverlay1550('deleteMsgOverlay1550', 'Borrar mensaje', '' +
+    '<div class="glass card" style="padding:12px"><button class="btn" style="width:100%;margin-bottom:8px" onclick="window.__wrCloseList1550(\'deleteMsgOverlay1550\');window.__wrDeleteMessage(\'' + messageId + '\')">Borrar solo para mí</button>' +
+    '<button class="btn" style="width:100%" onclick="window.__wrCloseList1550(\'deleteMsgOverlay1550\');window.__wrDeleteMessageForAll1550(\'' + messageId + '\')">Borrar para todos</button>' +
+    '<p class="tiny muted" style="margin:8px 0 0">«Borrar para todos» deja «Mensaje eliminado» en su lugar, para los dos lados.</p></div>');
+};
+/* ---- Stickers propios (54): de una foto tuya, recorte circular,
+   guardado en tu paquete y enviado por la ruta real de medios. ---- */
+var CUSTOM_STICKERS_LS_1550 = 'wordred_custom_stickers_v1';
+function customStickers1550() {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_STICKERS_LS_1550) || '[]'); } catch (e) { return []; }
+}
+function saveCustomStickers1550(list) {
+  try { localStorage.setItem(CUSTOM_STICKERS_LS_1550, JSON.stringify(list.slice(0, 24))); } catch (e) {}
+}
+window.__wrOpenCreateSticker1550 = function () {
+  openListOverlay1550('createStickerOverlay1550', 'Crear sticker', '' +
+    '<p class="muted">Elige una foto tuya. Se recorta en círculo y se guarda en tu paquete de stickers.</p>' +
+    '<input type="file" id="customStickerFile1550" accept="image/*" style="width:100%">' +
+    '<div id="customStickerPreview1550" style="margin-top:10px;text-align:center"></div>' +
+    '<button class="btn" id="customStickerSave1550" style="width:100%;margin-top:10px" disabled>Guardar sticker</button>');
+  var fileInput = document.getElementById('customStickerFile1550');
+  var saveBtn = document.getElementById('customStickerSave1550');
+  var preview = document.getElementById('customStickerPreview1550');
+  var dataUrl = '';
+  fileInput.addEventListener('change', function () {
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement('canvas');
+        c.width = 256; c.height = 256;
+        var ctx = c.getContext('2d');
+        ctx.beginPath(); ctx.arc(128, 128, 128, 0, Math.PI * 2); ctx.clip();
+        var side = Math.min(img.width, img.height);
+        ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 256, 256);
+        dataUrl = c.toDataURL('image/png');
+        preview.innerHTML = '<img src="' + dataUrl + '" style="width:128px;height:128px;border-radius:50%" alt="Vista previa del sticker">';
+        saveBtn.disabled = false;
+      };
+      img.src = rd.result;
+    };
+    rd.readAsDataURL(f);
+  });
+  saveBtn.addEventListener('click', function () {
+    if (!dataUrl) return;
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Subiendo…';
+    var b64 = dataUrl.split(',')[1] || '';
+    C.uploadMediaBase64(state, b64, 'image/png', 'sticker-' + Date.now() + '.png', null, {}).then(function (url) {
+      var finalUrl = url || dataUrl;
+      var list = customStickers1550();
+      list.push({ id: 'custom-' + Date.now(), url: finalUrl });
+      saveCustomStickers1550(list);
+      closeListOverlay1550('createStickerOverlay1550');
+      toast('Sticker guardado en tu paquete.');
+      if (typeof toggleStickerPicker1526 === 'function') { var el = document.getElementById('stickerPicker'); if (el && !el.classList.contains('hidden')) toggleStickerPicker1526(); toggleStickerPicker1526(); }
+    }).catch(function () { toast('No se pudo guardar el sticker.'); saveBtn.disabled = false; saveBtn.textContent = 'Guardar sticker'; });
+  });
+};
+window.__wrSendCustomSticker1550 = function (url) {
+  if (!openChatPhone && !openChatGroupId) { toast('Abre un chat primero.'); return; }
+  chatStickerCustomUrl1550 = url;
+  var el = document.getElementById('stickerPicker');
+  if (el) el.classList.add('hidden');
+  sendChat();
+};
+/* ---- Búsqueda en chats (46): por nombre o por texto del mensaje. ---- */
+window.__wrChatSearch1550 = function (v) { chatSearchQuery1550 = (v || '').trim().toLowerCase(); renderConvos(); };
+function convoMatchesSearch1550(c) {
+  if (!chatSearchQuery1550) return true;
+  var q = chatSearchQuery1550;
+  if (c.kind === 'group') {
+    return (c.group.name || '').toLowerCase().indexOf(q) >= 0 || (c.last && (c.last.text || '').toLowerCase().indexOf(q) >= 0);
+  }
+  return profileName(c.other).toLowerCase().indexOf(q) >= 0 || (c.last && (c.last.text || '').toLowerCase().indexOf(q) >= 0);
+}
+/* ---- Selectores de grupo para ver/escuchar juntos (69/70). ---- */
+function openTogetherPicker1550(kind, id, title) {
+  var groups = (state.groups || []).filter(function (g) { return g && g.id; });
+  if (!groups.length) { openListOverlay1550('togetherOverlay1550', title, '<p class="muted">Necesitas un grupo para ' + (kind === 'watch' ? 'ver' : 'escuchar') + ' juntos. Crea uno en «Grupos».</p>'); return; }
+  var rows = groups.map(function (g) {
+    var act = kind === 'watch' ? 'window.__wrWatchTogether1550(\'' + g.id + '\',\'' + esc(id) + '\')' : 'window.__wrListenTogether1550(\'' + g.id + '\',\'' + esc(id) + '\')';
+    return '<div class="glass card row" style="align-items:center"><div class="who" style="flex:1"><b>' + esc(g.name || 'Grupo') + '</b></div><button class="btn small" onclick="' + act + ';window.__wrCloseList1550(\'togetherOverlay1550\')">' + (kind === 'watch' ? 'Ver aquí' : 'Escuchar aquí') + '</button></div>';
+  }).join('');
+  openListOverlay1550('togetherOverlay1550', title, rows);
+}
+function openWatchTogetherPicker1550(dramaId) { openTogetherPicker1550('watch', dramaId, 'Ver juntos: elige el grupo'); }
+function openListenTogetherPicker1550(songId) { openTogetherPicker1550('listen', songId, 'Escuchar juntos: elige el grupo'); }
+/* ---- Llamadas grupales en malla (20/48): una conexión WebRTC por
+   participante, señalización por el mismo /api/call-signal (el
+   payload lleva groupId y viaja opaco). Límite honesto: hasta 6
+   participantes; más allá, la malla no escala en un teléfono. ---- */
+var groupCall1550 = null;
+function sendGroupCallSignal1550(to, type, payload) {
+  return C.serverFetch(state, '/api/call-signal', 'POST', { from: state.me, to: to, type: type, payload: payload }, 30000);
+}
+function makeGroupPc1550(peer) {
+  var pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+  pc.onicecandidate = function (e) {
+    if (e.candidate) sendGroupCallSignal1550(peer, 'ice', { candidate: e.candidate, groupId: groupCall1550 ? groupCall1550.groupId : '' });
+  };
+  pc.ontrack = function (e) {
+    if (!groupCall1550) return;
+    groupCall1550.remoteStreams[peer] = e.streams[0];
+    renderGroupCall1550();
+  };
+  return pc;
+}
+function renderGroupCall1550() {
+  if (!groupCall1550) return;
+  var g = C.findGroupChat(state, groupCall1550.groupId);
+  var peers = Object.keys(groupCall1550.pcs);
+  var tiles = '';
+  if (groupCall1550.withVideo && groupCall1550.localStream) {
+    tiles += '<div class="callTile1550"><video id="callLocalVideo1550" autoplay muted playsinline style="width:100%;height:100%;object-fit:cover"></video><span class="tiny" style="position:absolute;bottom:4px;left:6px;color:#fff">Tú</span></div>';
+  } else {
+    tiles += '<div class="callTile1550" style="display:flex;align-items:center;justify-content:center"><b>Tú (solo voz)</b></div>';
+  }
+  peers.forEach(function (ph) {
+    var hasStream = !!groupCall1550.remoteStreams[ph];
+    tiles += '<div class="callTile1550">' +
+      (groupCall1550.withVideo && hasStream ? '<video data-remote1550="' + ph + '" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>' : '<div style="display:flex;align-items:center;justify-content:center;height:100%"><b>' + esc(profileName(ph)) + '</b></div>') +
+      '<span class="tiny" style="position:absolute;bottom:4px;left:6px;color:#fff">' + esc(profileName(ph)) + '</span></div>';
+  });
+  $('callBody').innerHTML = '<div style="padding:8px 0"><h2 style="margin:4px 0">' + esc(g ? g.name : 'Llamada de grupo') + '</h2>' +
+    '<p class="muted" id="callTimer1550">' + C.formatDuration(Date.now() - groupCall1550.startedAt) + ' · ' + peers.length + ' en la llamada</p>' +
+    '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">' + tiles + '</div>' +
+    '<p class="tiny muted" style="margin-top:8px">Llamada en grupo (malla): cada teléfono se conecta directo con los demás. Funciona mejor con pocos participantes.</p>' +
+    '<div style="display:flex;gap:10px;justify-content:center;margin-top:14px"><button class="callActionBtn danger" onclick="window.__wrEndGroupCall1550()">Colgar</button></div></div>';
+  var lv = document.getElementById('callLocalVideo1550');
+  if (lv && groupCall1550.localStream) { try { lv.srcObject = groupCall1550.localStream; lv.play().catch(function () {}); } catch (e) {} }
+  document.querySelectorAll('[data-remote1550]').forEach(function (v) {
+    var s = groupCall1550.remoteStreams[v.getAttribute('data-remote1550')];
+    if (s) { try { v.srcObject = s; v.play().catch(function () {}); } catch (e) {} }
+  });
+}
+window.__wrStartGroupCall1550 = async function (groupId, withVideo) {
+  if (call.state !== 'idle') { toast('Ya hay una llamada en curso.'); return; }
+  if (groupCall1550) { toast('Ya estás en una llamada de grupo.'); return; }
+  var g = C.findGroupChat(state, groupId);
+  if (!g) { toast('Ese grupo no existe.'); return; }
+  var peers = (g.participants || []).filter(function (p) { return p !== state.me; });
+  if (!peers.length) { toast('No hay nadie más en el grupo para llamar.'); return; }
+  if (peers.length > 6) { toast('El grupo es muy grande para una llamada en malla (máx. 6 participantes).'); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('Este navegador no permite llamadas.'); return; }
+  if (!serverConnected) {
+    var connected = await waitForServerConnected(5000);
+    if (!connected) { toast('Sin conexión: la llamada de grupo necesita que estén en línea.'); return; }
+  }
+  var stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: !!withVideo }); }
+  catch (e) { toast('Sin permiso de micrófono no se puede llamar.'); return; }
+  groupCall1550 = { groupId: groupId, withVideo: !!withVideo, localStream: stream, pcs: {}, remoteStreams: {}, startedAt: Date.now() };
+  showOverlay('callOverlay');
+  renderGroupCall1550();
+  peers.forEach(function (ph) {
+    var pc = makeGroupPc1550(ph);
+    groupCall1550.pcs[ph] = pc;
+    stream.getTracks().forEach(function (t) { try { pc.addTrack(t, stream); } catch (e) {} });
+    pc.createOffer().then(function (offer) {
+      return pc.setLocalDescription(offer).then(function () {
+        sendGroupCallSignal1550(ph, 'offer', { offer: offer, withVideo: !!withVideo, groupId: groupId });
+      });
+    }).catch(function () { toast('No se pudo llamar a ' + profileName(ph) + '.'); });
+  });
+  toast('Llamando al grupo…');
+};
+async function joinGroupCall1550(groupId, callerPhone, offer, withVideo) {
+  if (groupCall1550) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('Este navegador no permite llamadas.'); return; }
+  var stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: !!withVideo }); }
+  catch (e) { toast('Sin permiso de micrófono no puedes unirte.'); return; }
+  groupCall1550 = { groupId: groupId, withVideo: !!withVideo, localStream: stream, pcs: {}, remoteStreams: {}, startedAt: Date.now() };
+  var pc = makeGroupPc1550(callerPhone);
+  groupCall1550.pcs[callerPhone] = pc;
+  stream.getTracks().forEach(function (t) { try { pc.addTrack(t, stream); } catch (e) {} });
+  try {
+    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    var answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    sendGroupCallSignal1550(callerPhone, 'answer', { answer: answer, groupId: groupId });
+  } catch (e) { toast('No se pudo unir a la llamada.'); endGroupCall1550(true); return; }
+  showOverlay('callOverlay');
+  renderGroupCall1550();
+}
+/* Señales de llamada de grupo (las recibe handleCallSignal). */
+function handleGroupCallSignal1550(data) {
+  var p = data.payload || {};
+  if (!p.groupId) return false;
+  var from = data.from;
+  if (data.type === 'offer') {
+    if (groupCall1550 && groupCall1550.groupId === p.groupId) {
+      /* Ya estoy en esa llamada: conecto con quien acaba de entrar. */
+      if (!groupCall1550.pcs[from]) {
+        var pc = makeGroupPc1550(from);
+        groupCall1550.pcs[from] = pc;
+        groupCall1550.localStream.getTracks().forEach(function (t) { try { pc.addTrack(t, groupCall1550.localStream); } catch (e) {} });
+        pc.setRemoteDescription(new RTCSessionDescription(p.offer)).then(function () {
+          return pc.createAnswer();
+        }).then(function (answer) {
+          return pc.setLocalDescription(answer).then(function () {
+            sendGroupCallSignal1550(from, 'answer', { answer: answer, groupId: p.groupId });
+          });
+        }).catch(function () {});
+      }
+      return true;
+    }
+    if (groupCall1550 || call.state !== 'idle') { sendGroupCallSignal1550(from, 'busy', { groupId: p.groupId }); return true; }
+    var g = C.findGroupChat(state, p.groupId);
+    confirmDialog({
+      title: 'Llamada de grupo',
+      text: profileName(from) + ' te invita a una llamada' + (p.withVideo ? ' por video' : ' de voz') + ' en el grupo «' + (g ? g.name : 'Grupo') + '».',
+      confirmText: 'Unirse',
+      onConfirm: function () { joinGroupCall1550(p.groupId, from, p.offer, !!p.withVideo); },
+      onCancel: function () { sendGroupCallSignal1550(from, 'reject', { groupId: p.groupId }); }
+    });
+    return true;
+  }
+  if (!groupCall1550 || groupCall1550.groupId !== p.groupId) return true;
+  if (data.type === 'answer') {
+    var pcA = groupCall1550.pcs[from];
+    if (pcA && p.answer) pcA.setRemoteDescription(new RTCSessionDescription(p.answer)).catch(function () {});
+    renderGroupCall1550();
+    return true;
+  }
+  if (data.type === 'ice') {
+    var pcI = groupCall1550.pcs[from];
+    if (pcI && p.candidate) pcI.addIceCandidate(new RTCIceCandidate(p.candidate)).catch(function () {});
+    return true;
+  }
+  if (data.type === 'hangup' || data.type === 'reject' || data.type === 'busy') {
+    var pcH = groupCall1550.pcs[from];
+    if (pcH) { try { pcH.close(); } catch (e) {} delete groupCall1550.pcs[from]; delete groupCall1550.remoteStreams[from]; }
+    if (data.type === 'reject') toast(profileName(from) + ' rechazó la llamada de grupo.');
+    if (data.type === 'busy') toast(profileName(from) + ' está en otra llamada.');
+    if (!Object.keys(groupCall1550.pcs).length) endGroupCall1550(true);
+    else renderGroupCall1550();
+    return true;
+  }
+  return true;
+}
+function endGroupCall1550(silent) {
+  if (!groupCall1550) return;
+  var gc = groupCall1550;
+  groupCall1550 = null;
+  Object.keys(gc.pcs).forEach(function (ph) { try { gc.pcs[ph].close(); } catch (e) {} });
+  if (gc.localStream) gc.localStream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+  hideOverlay('callOverlay');
+  if (!silent) {
+    Object.keys(gc.pcs).forEach(function (ph) { sendGroupCallSignal1550(ph, 'hangup', { groupId: gc.groupId }); });
+  }
+}
+window.__wrEndGroupCall1550 = function () { endGroupCall1550(false); };
+/* ---- Hooks para el layout ancho (web15-wide.js). ---- */
+window.__wrWideFollow = function (phone) {
+  try {
+    var r = C.sendFriendRequest(state, state.me, phone);
+    if (!r.ok) { toast(r.error || 'No se pudo enviar la solicitud.'); return; }
+    save();
+    toast('Solicitud enviada a ' + profileName(phone) + '.');
+  } catch (e) { toast('No se pudo enviar la solicitud.'); }
+};
+window.__wrWideOpenProfile = function (phone) { if (typeof window.__wrOpenProfile === 'function') window.__wrOpenProfile(phone); };
+window.__wrWideOpenSaved = function () { window.__wrOpenSaved1550(); };
+window.__wrWideOpenDrama = function (id) { if (typeof kdOpen1549 === 'function') kdOpen1549(id); };
 /* 1.5.44: el arranque decide primero con la sesión guardada, sin
    parpadear la pantalla de cuentas (v2.1: el invitado sigue disponible
    con su botón en la pantalla de cuentas/registro). */
