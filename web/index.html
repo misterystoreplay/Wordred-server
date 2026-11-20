@@ -59,7 +59,7 @@ img,video{max-width:100%;display:block}
 .center{text-align:center}
 .mt{margin-top:12px}.mb{margin-bottom:12px}.mt2{margin-top:20px}
 /* ---- header ---- */
-header{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(18,6,8,.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-bottom:1px solid var(--line)}
+header{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(18,6,8,.45);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-bottom:1px solid var(--line);transition:transform .25s ease}/* Web 1.1: barra de arriba translúcida (se ve el contenido a través) y se oculta sola al bajar. */
 /* 1.5.46: la barra fina de la subida va ABAJO, justo encima de la
    barra inferior (antes iba arriba y tapaba la fila de arriba de la
    pantalla abierta, con su cruz y su título, y bloqueaba los toques
@@ -77,9 +77,6 @@ header .spacer{flex:1}
    porcentaje). v1.5.23: va en el Inicio, en la fila de botones, justo
    después de Marketplace, con el mismo aspecto que los demás botones
    de esa fila (misma altura, fondo y borde). */
-.batteryInd{display:flex;align-items:center;gap:3px;font-size:12px;font-weight:600;color:var(--mut);white-space:nowrap;margin-left:2px}
-.batteryInd.low{color:var(--red2)}
-.chiprow .batteryInd{padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid var(--line);font-size:13px;font-weight:700;margin-left:0}
 .iconbtn{position:relative;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.09);display:inline-flex;align-items:center;justify-content:center;font-size:18px}
 /* v2.2: al presionar el botón de compartir la app y los logos, prenden
    en rojo: un resplandor rojo claro que se apaga al soltar (o a los
@@ -220,8 +217,6 @@ main{max-width:640px;margin:0 auto;padding:12px 12px calc(104px + var(--sys-nav-
 button.fgStar1549{cursor:pointer}
 .fgStar1549.on{color:#ffc107}
 .fgStarsText1549{font-size:12px;color:rgba(255,255,255,.65);margin-left:6px}
-.launcherIconGold1549{display:inline-block;border:2px solid #d9a400;border-radius:16px;padding:2px;line-height:0}
-.launcherTileFeatured1549 .launcherName{color:#d9a400;font-weight:700}
 .fgPreview1549{position:relative;border-radius:14px;overflow:hidden;background:#04120a;display:flex;align-items:center;justify-content:center;min-height:200px}
 .fgPreview1549 img{max-width:100%;max-height:46dvh;object-fit:contain;display:block}
 .fgPlay1549{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:0;border-radius:24px;background:var(--red);color:#fff;font-size:16px;font-weight:800;padding:12px 22px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.5)}
@@ -328,35 +323,8 @@ body.hwEditing1536 #view-feed .homeWidget.hwActive{opacity:1;outline:3px solid v
 #supportSection{padding:22px}
 /* 1.5.43: el fondo de Ajustes es translúcido (se distingue lo que hay detrás). */
 #settingsOverlay{background:rgba(5,1,2,.55)}
-/* 1.5.43: el cajón de aplicaciones es translúcido LEVE para que se vea el
-   fondo de pantalla del celular y aún se distinga (sin velo oscuro fuerte). */
-#appsDrawerOverlay{background:rgba(5,1,2,.30);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-/* 1.5.47: ajustes del cajón y centro de noticias: mismo estilo translúcido
-   que Ajustes (la pila de overlays los pone por encima del cajón). */
-#drawerSettingsOverlay1547,#newsHubOverlay1547{background:rgba(5,1,2,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-/* 1.5.47: sin animaciones en el cajón (apagadas por defecto; el interruptor
-   de Ajustes del cajón las prende). */
-#appsDrawerOverlay.noAnim1547.on .sheet{animation:none}
-#appsDrawerOverlay.noAnim1547 .launcherTile{transition:none}
-#appsDrawerOverlay.noAnim1547 .launcherTile:active{transform:none}
-#appsDrawerOverlay.noAnim1547 .launcherTile.opening{animation:none}
-/* 1.5.47: temas de iconos del cajón (todo local, sin descargas). */
-#appsDrawerOverlay.drawerPack-rojo1547 .launcherTile img{box-shadow:0 0 0 2px #e60026;border-radius:14px}
-#appsDrawerOverlay.drawerPack-byn1547 .launcherTile img{filter:grayscale(1)}
-#appsDrawerOverlay.drawerPack-byn1547 .launcherTile>span{background:#222!important}
-#appsDrawerOverlay.drawerPack-redondeado1547 .launcherTile img,#appsDrawerOverlay.drawerPack-redondeado1547 .launcherTile>span{border-radius:50%!important}
-#appsDrawerOverlay.drawerPack-minimalista1547 .launcherTile img,#appsDrawerOverlay.drawerPack-minimalista1547 .launcherTile>span{background:transparent!important;border:1px solid rgba(255,255,255,.3);border-radius:10px}
-/* 1.5.47: cajón por páginas (deslizar o tocar los puntos). */
-#appsDrawerOverlay .appsDrawerPages1547{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:0}
-/* 1.5.48: en modo varias páginas el cambio de página con el dedo
-   funciona de verdad: las fichas dejan pasar el gesto horizontal al
-   contenedor de páginas (su touch-action solo dejaba el vertical y el
-   deslizamiento de lado no respondía). */
-#appsDrawerOverlay .appsDrawerPages1547 .launcherTile{touch-action:pan-x pan-y}
-#appsDrawerOverlay .appsDrawerPage1547{flex:0 0 100%;scroll-snap-align:start}
-#appsDrawerOverlay .appsDrawerDots1547{display:flex;gap:6px;justify-content:center;margin-top:10px}
-#appsDrawerOverlay .appsDrawerDots1547 button{width:8px;height:8px;border-radius:50%;border:none;background:rgba(255,255,255,.3);padding:0;cursor:pointer}
-#appsDrawerOverlay .appsDrawerDots1547 button.on{background:var(--red)}
+/* 1.5.47: centro de noticias: mismo estilo translúcido que Ajustes. Web 1.1: los ajustes del cajón se quitaron con el cajón. */
+#newsHubOverlay1547{background:rgba(5,1,2,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 /* 1.5.47: TODAS las ventanas emergentes son flotantes y translúcidas
    (tarjeta centrada, esquinas redondeadas, fondo translúcido + blur;
    detrás se ve la app atenuada). Las pantallas de contenido (inicio,
@@ -364,13 +332,6 @@ body.hwEditing1536 #view-feed .homeWidget.hwActive{opacity:1;outline:3px solid v
 .overlay.floatWin1547{background:rgba(5,1,2,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .overlay.floatWin1547.on{display:flex;align-items:center;justify-content:center;padding:16px}
 .overlay.floatWin1547 .sheet{min-height:0;max-height:88vh;max-height:88dvh;width:100%;max-width:600px;margin:0;background:rgba(5,1,2,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.14);border-radius:22px;padding:16px;overflow-y:auto;box-shadow:0 18px 48px rgba(0,0,0,.55)}
-/* 1.5.47: el cajón también es ventana flotante: la tarjeta es la que lleva
-   el fondo de los ajustes del cajón y el desplazamiento vive dentro de
-   ella (el encabezado y los avisos quedan fijos en la tarjeta). */
-#appsDrawerOverlay.floatWin1547{background:rgba(5,1,2,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-#appsDrawerOverlay.floatWin1547 .sheet{display:flex;flex-direction:column;overflow:hidden;max-height:94vh;max-height:94dvh}
-#appsDrawerOverlay.floatWin1547 .appsDrawerScrollWrap{flex:1;min-height:0;overflow:hidden}
-#appsDrawerOverlay.floatWin1547 .appsDrawerScroll{max-height:none;height:100%}
 /* 1.5.47: moneda con W (promociones) e insignia de publicación promocionada. */
 .coinW1547{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe98a,#f5c518 55%,#b8860b);color:#e60026;font-weight:900;font-size:17px;line-height:1;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
 .promoBadge1547{display:inline-flex;align-items:center;gap:4px;background:#f5c518;color:#111;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:800;letter-spacing:.3px;margin-left:6px;vertical-align:1px}
@@ -381,7 +342,6 @@ body.hwEditing1536 #view-feed .homeWidget.hwActive{opacity:1;outline:3px solid v
    (el botón rojo del centro, sin animación). */
 nav#bottomNav .bn-side button{transition:transform .12s ease}
 nav#bottomNav .bn-side button:active,nav#bottomNav .bn-side button.bnPress1547{transform:scale(.9)}
-nav#bottomNav button.bn-launcher:active{transform:none}
 /* 1.5.47: noticias del inicio (mismo tamaño que las carteleras) y del centro. */
 .newsRow1547{margin:12px 8px}
 .newsHead1547{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;margin:0 4px 8px}
@@ -396,33 +356,6 @@ nav#bottomNav button.bn-launcher:active{transform:none}
 .newsItem1547 .newsTitle1547{padding:8px 10px 2px}
 .newsItem1547 .newsSrc1547{padding:0 10px 8px}
 #composerOverlay .chip.on,#uploadPanel1528 .chip.on{border-color:var(--red2)}
-#statusBarArrow{position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:9999;width:52px;height:18px;border:none;border-radius:0 0 12px 12px;background:rgba(255,255,255,.16);color:#fff;font-size:15px;line-height:1;opacity:.8;cursor:pointer;padding:0}
-#statusBarArrow:active{opacity:1}
-.launcherGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-/* v1.5.13: iconos grandes y SIN marco: la ficha no tiene tarjeta, borde
-   ni fondo; solo el icono de la app y su nombre. */
-.launcherTile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 4px 8px;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:pan-y;transition:transform .15s ease;position:relative}
-.appNotifBadge{position:absolute;top:2px;right:2px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:#e01430;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none}
-.launcherTile:active{transform:scale(.93)}
-.launcherTile.pressed{transform:scale(.9)}
-.launcherTile.dragging{opacity:.4}
-.launcherTile.dropTarget{outline:2px solid var(--red)}
-.launcherTile.opening{animation:appOpenPulse .35s ease}
-/* v1.5.14: el cajón SÍ se desplaza — la cuadrícula vive en su propio
-   contenedor con altura acotada y desplazamiento táctil, con una barra
-   roja visible a la derecha (siempre se ve mientras haya más apps). */
-.appsDrawerScrollWrap{position:relative}
-.appsDrawerScroll{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;max-height:calc(100vh - 230px);max-height:calc(100dvh - 230px - var(--sys-nav-bottom,0px));min-height:120px;scrollbar-width:none}
-.appsDrawerScroll::-webkit-scrollbar{width:0;height:0}
-.appsDrawerScroll .launcherGrid{padding-right:14px}
-.appsDrawerScrollbar{position:absolute;top:0;right:0;bottom:0;width:10px;display:none;pointer-events:none}
-.appsDrawerScrollbar.on{display:block}
-.appsSearch{margin-bottom:10px}
-.appsSearch input{width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:#fff;font-size:14px;outline:none}
-.appsSearch input::placeholder{color:var(--mut)}
-.appsDrawerThumb{position:absolute;left:2px;width:6px;min-height:24px;border-radius:3px;background:var(--red);pointer-events:auto;touch-action:none;cursor:pointer}
-@keyframes appOpenPulse{0%{transform:scale(1)}40%{transform:scale(1.12)}100%{transform:scale(1)}}
-.launcherName{font-size:11px;line-height:1.2;text-align:center;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .weatherCard{display:flex;align-items:center;gap:18px;padding:22px 24px;cursor:pointer}
 .weatherTimeCard{flex:0 0 auto;justify-content:center;min-width:170px;cursor:default}
 .weatherInfoCard{flex:1;min-width:0}
@@ -650,16 +583,23 @@ nav#bottomNav button.bn-launcher:active{transform:none}
 /* v1.6: barra inferior con botones MÁS GRANDES (iconos 22→28 px y zona
    táctil 4→8 px de alto): 9 botones que comparten el ancho (flex:1),
    sin salirse de la pantalla; las etiquetas se siguen leyendo igual. */
-nav#bottomNav{position:fixed;left:0;right:0;bottom:var(--sys-nav-bottom,0px);z-index:60;display:flex;align-items:stretch;background:rgba(18,6,8,.92);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid var(--line);padding:8px 4px calc(8px + env(safe-area-inset-bottom))}
+nav#bottomNav{position:fixed;left:0;right:0;bottom:var(--sys-nav-bottom,0px);z-index:60;display:flex;align-items:stretch;background:rgba(18,6,8,.45);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid var(--line);padding:4px 4px calc(4px + env(safe-area-inset-bottom));transition:transform .25s ease}/* Web 1.1: barra de abajo más pequeña y translúcida; se oculta sola al bajar. */
 /* v1.5.14: sin "Avisos" en la barra quedan 8 botones; los lados son dos
-   grupos flex:1 y el botón rojo de Aplicaciones queda centrado exacto. */
+   grupos flex:1 y el botón de Mercado queda centrado exacto. Web 1.1: el centro es Mercado (mismo tamaño que los otros) y ya no hay botón de Aplicaciones. */
 nav#bottomNav .bn-side{flex:1;display:flex;min-width:0}
 nav#bottomNav .bn-side button{flex:1;min-width:0}
-nav#bottomNav button{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;font-weight:700;color:var(--dim);padding:8px 0;position:relative;border-radius:12px}
+nav#bottomNav button{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;font-weight:700;color:var(--dim);padding:5px 0;position:relative;border-radius:12px}
 nav#bottomNav button.on{color:#fff}
 nav#bottomNav button .ic{display:flex;line-height:0}
-nav#bottomNav button .ic svg{width:28px;height:28px;display:block}
+nav#bottomNav button .ic svg{width:24px;height:24px;display:block}
 nav#bottomNav .badge{top:4px;right:calc(50% - 24px)}
+/* Web 1.1: las barras se ocultan solas al bajar (translateY con transición) y vuelven al subir o al estar arriba del todo. */
+body.bars-hidden-11 header{transform:translateY(-110%)}
+body.bars-hidden-11 nav#bottomNav{transform:translateY(115%)}
+/* Web 1.1: el botón de Inicio siempre en rojo #E60026 (el rojo de la marca). */
+nav#bottomNav button[data-nav="feed"],nav#bottomNav button[data-nav="feed"].on{color:#E60026}
+/* Web 1.1: la fila de noticias del feed abre el centro de noticias (el botón del cajón se quitó). */
+.newsHead1547{cursor:pointer}
 /* ---- lists ---- */
 .row{display:flex;gap:10px;align-items:center;padding:12px}
 .row .who{flex:1;min-width:0}
@@ -689,16 +629,6 @@ nav#bottomNav .badge{top:4px;right:calc(50% - 24px)}
 #tutorialOverlay{background:rgba(5,1,2,.55);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .tutorialWrap{max-width:480px;margin:0 auto;min-height:100%;display:flex;align-items:center;padding:16px}
 #tutorialCard{width:100%}
-/* v1.5.15: recuadro flotante traslúcido del menú de una aplicación del
-   cajón: el fondo del overlay es transparente (se sigue viendo el cajón
-   y la ficha presionada) y el recuadro va anclado junto a esa ficha. */
-#launcherMenuOverlay{background:transparent;overflow:visible;z-index:95}
-.launcherMenuBox{position:absolute;width:210px;background:rgba(26,12,15,.85);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:10px;box-shadow:0 12px 32px rgba(0,0,0,.55);animation:wrMenuPop .16s ease both}
-@keyframes wrMenuPop{from{opacity:0;transform:scale(.96) translateY(-4px)}to{opacity:1;transform:none}}
-.launcherMenuTitleRow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.launcherMenuBox h2{flex:1;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.launcherMenuBox #launcherMenuBtns{display:flex;flex-direction:column;gap:4px}
-.launcherMenuBox .btn{justify-content:flex-start;text-align:left}
 .overlay.on{display:block}
 /* v1.5.14: lo que se abre DESDE Shorts tiene que verse POR ENCIMA del
    visor (z-90): el detalle de la publicación, los comentarios del short
@@ -708,17 +638,9 @@ nav#bottomNav .badge{top:4px;right:calc(50% - 24px)}
    o Compartir en un short no parecía hacer nada. */
 #postOverlay,#shortsCommentsOverlay,#profileOverlay{z-index:95}
 #confirmOverlay,#shareChoiceOverlay{z-index:100}
-#updateOverlay{z-index:100}
 .sheet{max-width:640px;margin:0 auto;min-height:100%;padding:14px 14px 40px}
 .sheet .top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
 .sheet .top h2{flex:1;font-size:19px}
-/* 1.5.48: la barra superior del cajón no se encima a ningún ancho: el
-   título y el botón Actualizar se acortan con puntos suspensivos antes
-   que tapar los botones redondos. A 360 px los 5 elementos medían
-   ~388 px en 296 px de ancho y el último botón se salía del cajón. */
-#appsDrawerOverlay .sheet .top{gap:6px}
-#appsDrawerOverlay .sheet .top h2{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#appsDrawerOverlay .sheet .top .xbtn{flex:0 0 auto}
 .xbtn{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.1);font-size:17px;display:flex;align-items:center;justify-content:center}
 .mediaPrev{position:relative;border-radius:14px;overflow:hidden;margin:10px 0}
 .mediaPrev img,.mediaPrev video{width:100%;border-radius:14px}
@@ -1017,17 +939,6 @@ button:active,.chip:active{transform:scale(.95)}
 .smsItem .nm{font-weight:700;font-size:14px}
 .smsItem .sub{font-size:12px;color:#c9a8ae;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
 .missed{color:#ff5b73 !important}
-/* ---- v1.2 ola 5: llamada real del teléfono ---- */
-#phoneCallOverlay{background:rgba(5,0,2,.97);z-index:120}
-#phoneCallOverlay .callScreen{height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center}
-#phoneCallOverlay .callNum{font-size:30px;font-weight:800;word-break:break-all}
-#phoneCallOverlay .callState{font-size:15px;color:#c9a8ae}
-#phoneCallOverlay .callTimer{font-size:20px;font-weight:700}
-#phoneCallOverlay .callControls{display:flex;gap:22px;margin-top:10px}
-#phoneCallOverlay .callControls button{width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,.1);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;gap:3px}
-#phoneCallOverlay .callControls button.on{background:#2ecc71}
-#phoneCallOverlay .hangBtn{width:84px;height:84px;border-radius:50%;background:#e01430;color:#fff;display:flex;align-items:center;justify-content:center;margin-top:8px}
-#phoneCallOverlay .callType{font-size:13px;color:#8fd0ff;margin-top:2px}
 /* ---- v1.5: botones grandes de la pantalla de llamada dentro de la app ----
    Botones de acción de 84x76 px con etiqueta visible; el estado activado
    (altavoz/silencio) se ve en verde con el texto cambiado, para que no
@@ -1239,29 +1150,6 @@ button:active,.chip:active{transform:scale(.95)}
    flex:1 cada uno, y el botón rojo en el centro exacto entre dos
    mitades iguales. */
 nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc-rgb),.55),rgba(var(--acc-rgb2),.35));border-radius:14px;color:#fff}
-/* ---- botón del lanzador (v1.5.13): rojo de 4 recuadros en el centro de
-   la barra de abajo; el icono es más grande que los otros (38 px frente
-   a 28 px) para que se note, sin exagerar.
-   v1.5.14: SIN TEXTO (solo el icono), un poco más grande (44 px) y con
-   los 4 cuadros más bonitos (esquinas más redondeadas, rx=3 en el SVG).
-   El título "Aplicaciones" se queda dentro del cajón. */
-nav#bottomNav button.bn-launcher{flex:0 0 auto;background:linear-gradient(135deg,#ff2d4d,var(--red) 55%,#8f0016);border-radius:14px;color:#fff;padding:8px 12px}
-nav#bottomNav button.bn-launcher .ic svg{width:44px;height:44px}
-/* v1.5.18: cajón MUCHO MÁS FLUIDO al presionar el botón del centro.
-   Diagnóstico: en la 1.5.17 se quitaron el rebote del botón del centro
-   (~250 ms) y el rebote del cajón (~280 ms con sobrepaso) y quedó
-   animation:none, así que el cajón aparecía de golpe, sin transición
-   (brusco). Ahora la hoja sube suave y rápido con su propia transición
-   (wrDrawerFluid): solo opacidad y desplazamiento vertical
-   (transform/opacity, en el compositor, sin trabarse), 220 ms con
-   ease-out sin sobrepaso — más rápida que el deslizamiento general
-   de las hojas (.28 s). NO es el rebote de la 1.5.15 (sin sobrepaso
-   ni escala mayor que 1): fluido no es lento; el cajón se muestra
-   de inmediato y se puede usar desde el primer instante. La respuesta
-   del botón al presionar ya es suave e inmediata: la regla general
-   button:active{transform:scale(.95)} con transition .12s. */
-@keyframes wrDrawerFluid{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
-#appsDrawerOverlay.on .sheet{animation:wrDrawerFluid .22s cubic-bezier(.22,.61,.36,1) both}
 /* ---- selector de colores (v2.0): el modo blanco desaparece; en su lugar
    el color de la app se elige con toda la gama (tono, saturación
    y brillo). La base sigue oscura; el color elegido se aplica con las
@@ -1291,13 +1179,11 @@ nav#bottomNav button.bn-launcher .ic svg{width:44px;height:44px}
   main{max-width:720px}
   .sheet{max-width:720px}
   .uploadPanel1528{max-width:760px}
-  .launcherGrid{grid-template-columns:repeat(6,1fr)}
 }
 @media (min-width:1024px){
   main{max-width:880px}
   .sheet{max-width:880px}
   .uploadPanel1528{max-width:880px}
-  .launcherGrid{grid-template-columns:repeat(8,1fr)}
 }
 @media (min-width:1400px){
   main{max-width:1000px}
@@ -1435,8 +1321,6 @@ nav#bottomNav button.bn-launcher .ic svg{width:44px;height:44px}
         <div class="chiprow" style="margin-bottom:12px">
           <button class="chip" id="feedEventsBtn"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span> Eventos</button>
           <button class="chip" id="feedPagesBtn"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></span> Páginas</button>
-          <button class="chip" id="feedMarketBtn"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3H4v7l9.59 9.59a2 2 0 0 0 2.82 0l4.18-4.18a2 2 0 0 0 0-2.82z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/></svg></span> Marketplace</button>
-          <span id="batteryInd" class="batteryInd hidden" aria-label="Batería"></span>
         </div>
       </div>
       <button type="button" class="homeAddBtn" id="homeAddBtn1536">+ Agregar apartado</button>
@@ -1624,7 +1508,7 @@ nav#bottomNav button.bn-launcher .ic svg{width:44px;height:44px}
     <button data-nav="feed" class="on"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg></span>Inicio</button>
     <button data-nav="shorts" class="bn-main"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg></span>Shorts</button>
   </div>
-  <button id="navLauncherBtn" class="bn-launcher" aria-label="Aplicaciones"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="3"/><rect x="13" y="3" width="8" height="8" rx="3"/><rect x="3" y="13" width="8" height="8" rx="3"/><rect x="13" y="13" width="8" height="8" rx="3"/></svg></span></button>
+  <button data-nav="marketplace" aria-label="Mercado"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41 11 3H4v7l9.59 9.59a2 2 0 0 0 2.82 0l4.18-4.18a2 2 0 0 0 0-2.82z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/></svg></span>Mercado</button>
   <div class="bn-side">
     <button data-nav="groups"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M6.5 19.5c.6-3.2 2.7-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="4.8" cy="10" r="2.2"/><path d="M2.4 18.6c.4-2.1 1.6-3.5 3.3-4.1"/><circle cx="19.2" cy="10" r="2.2"/><path d="M18.3 14.5c1.7.6 2.9 2 3.3 4.1"/></svg></span>Grupos</button>
     <button data-nav="profile"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Perfil</button>
@@ -2119,25 +2003,6 @@ nav#bottomNav button.bn-launcher .ic svg{width:44px;height:44px}
   <div class="sheet setSheet1560">
     <div class="top"><button class="xbtn" data-close="settingsOverlay">✕</button><h2>Ajustes</h2><button type="button" class="wOptRound1542" id="settingsFaqBtn1542" aria-label="Preguntas" title="Preguntas"><span class="wOptQ1542">?</span></button></div>
     <!-- v1.5.17 punto 2: buscar actualización, hasta arriba de Ajustes -->
-    <h3 class="sectitle">Actualización</h3>
-    <div class="glass card" id="updateCard" style="display:block;background:rgba(26,12,15,.72)">
-      <div style="display:flex;gap:12px;align-items:center">
-        <span aria-hidden="true" style="width:38px;height:38px;border-radius:12px;background:var(--red);display:flex;align-items:center;justify-content:center;flex:0 0 38px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
-        <div style="flex:1;min-width:0"><b>Buscar actualización</b><div class="tiny muted" id="updateCurrentVersion">WordRed 1.5.64</div></div>
-        <button class="btn small wOpt1542" id="checkUpdateBtn">Buscar</button>
-      </div>
-      <p class="tiny muted" id="updateStatus" style="margin-top:8px">Toca Buscar para revisar si hay una versión nueva.</p>
-    </div>
-    <!-- 1.5.30: WordRed para Windows, descarga permanente en Ajustes -->
-    <h3 class="sectitle">WordRed para Windows</h3>
-    <div class="glass card" id="windowsCard" style="display:block;background:rgba(26,12,15,.72)">
-      <div style="display:flex;gap:12px;align-items:center">
-        <span aria-hidden="true" style="width:38px;height:38px;border-radius:12px;background:#0078d4;display:flex;align-items:center;justify-content:center;flex:0 0 38px"><svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/></svg></span>
-        <div style="flex:1;min-width:0"><b>WordRed para Windows</b><div class="tiny muted">También en tu computadora: misma cuenta, mismo WordRed.</div></div>
-        <button class="btn small wOpt1542" id="windowsDownloadBtn">Descargar</button>
-      </div>
-      <p class="tiny muted" style="margin-top:8px">Se descarga el archivo para instalar WordRed en Windows.</p>
-    </div>
     <h3 class="sectitle">Notificaciones</h3>
     <div id="notifPrefs"></div>
     <div class="setRow1560"><div class="setRowTxt1560"><b>Privacidad de publicaciones</b><span>Quién puede ver lo que publicas</span></div>
@@ -2182,12 +2047,6 @@ nav#bottomNav button.bn-launcher .ic svg{width:44px;height:44px}
       <button class="btn mt" id="scanQrBtn" style="width:100%">Escanear código QR</button>
       <p class="tiny muted" style="margin-top:8px">Apunta la cámara al código QR de otra cuenta de WordRed para abrir su perfil y agregarla.</p>
     </div>
-    <h3 class="sectitle">Lanzador de inicio</h3>
-    <div class="glass card" style="display:block">
-      <p class="muted mb" id="homeRoleStatus">WordRed puede ser la pantalla de inicio de tu teléfono: al pulsar Inicio se abrirá WordRed con tus aplicaciones.</p>
-      <button class="btn mt" id="homeRoleBtn" style="width:100%">Usar WordRed como lanzador</button>
-      <p class="tiny muted" style="margin-top:8px">Al pulsar Inicio del teléfono se abrirá WordRed. Si ya es tu lanzador, el botón abre los ajustes del sistema para cambiarlo.</p>
-    </div>
     <h3 class="sectitle">Cuenta</h3>
     <button class="btn danger" id="logoutBtn" style="width:100%">Cerrar sesión</button>
     <button class="btn danger mt" id="deleteAccountBtn" style="width:100%">Eliminar mi cuenta para siempre</button>
@@ -2198,15 +2057,14 @@ nav#bottomNav button.bn-launcher .ic svg{width:44px;height:44px}
     <div id="settings1526"></div>
     <input type="file" id="chatBackupInput" accept=".json,application/json" class="hidden">
     <h3 class="sectitle">Seguridad</h3>
-    <label class="setRow1560"><span class="setRowTxt1560"><b>Bloquear la app con huella o PIN del teléfono</b><span>Al activar el bloqueo, cada vez que abras WordRed te pedirá tu huella digital o el patrón, PIN o contraseña con el que bloqueas tu celular.</span></span><span class="setSwitch1560"><input type="checkbox" id="appLockToggle"><span class="setKnob1560"></span></span></label>
-    <h3 class="sectitle">Apoyar a WordRed</h3>
+    <h3 class="sectitle">¿Quieres apoyar a WordRed?</h3>
     <div id="supportSection" class="glass card" style="display:block">
-      <p style="font-size:16px;line-height:1.5">WordRed es gratis y la hace una sola persona. Si te gusta la app, puedes apoyar con una transferencia para seguir mejorándola.</p>
+      <p style="font-size:16px;line-height:1.5">WordRed es gratis y la hace una sola persona.</p>
       <p class="mt" style="font-size:16px;line-height:1.8">Banco: <b>BBVA</b><br>Titular: <b>CHRISTIAN CARRILLO CORTEZANO</b><br>Cuenta: <b id="supportAccount">4815163105956802</b></p>
       <button type="button" class="wOptRound1542 mt" id="supportCopyBtn" aria-label="Copiar número de cuenta" title="Copiar número de cuenta"><span class="ic"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span></button>
     </div>
     <h3 class="sectitle">Acerca de</h3>
-    <p class="muted">WordRed 1.5.64 — red social original.<br>Creada y diseñada por Mistery Store Play.</p>
+    <p class="muted">WordRed Web 1.1 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
   </div>
 </div>
 
@@ -2310,16 +2168,6 @@ nav#bottomNav button.bn-launcher .ic svg{width:44px;height:44px}
 </div>
 
 <!-- ============ ACTUALIZACIÓN (v1.5.17 punto 2): diálogo con el resultado ============ -->
-<div class="overlay floatWin1547" id="updateOverlay">
-  <div class="sheet" style="display:flex;flex-direction:column;justify-content:center;min-height:100%">
-    <div class="glass" style="padding:22px;background:rgba(26,12,15,.85);backdrop-filter:blur(14px)">
-      <div class="top" style="margin-bottom:8px"><button class="xbtn" data-close="updateOverlay">✕</button><h2>Actualización</h2></div>
-      <div id="updateBody"></div>
-      <button class="btn mt" id="updateInstallBtn" style="width:100%" onclick="window.__wrInstallUpdate()">Instalar actualización</button>
-      <button class="btn ghost mt" data-close="updateOverlay" style="width:100%">Ahora no</button>
-    </div>
-  </div>
-</div>
 
 <!-- ============ COMPARTIR (v1.5.14): dentro de WordRed o en otras apps ============ -->
 <div class="overlay floatWin1547" id="shareChoiceOverlay">
@@ -2467,23 +2315,6 @@ nav#bottomNav button.bn-launcher .ic svg{width:44px;height:44px}
 
 <!-- ============ PERMISOS DE PRIMER INICIO (v1.2) ============ -->
 <!-- ============ LLAMADA REAL DEL TELÉFONO (ola 5) ============ -->
-<div class="overlay" id="phoneCallOverlay">
-  <div class="callScreen">
-    <div class="avatar" style="width:84px;height:84px;font-size:34px" id="phoneCallAvatar">?</div>
-    <div>
-      <div class="callNum" id="phoneCallNumber"></div>
-      <div class="callState" id="phoneCallState">Llamando...</div>
-      <div class="callType" id="phoneCallType">Llamada telefónica · por la red de tu teléfono</div>
-      <div class="callTimer" id="phoneCallTimer">0:00</div>
-    </div>
-    <div class="callControls">
-      <button id="phoneCallMuteBtn"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg></span><span class="callbtn-label">Silencio</span></button>
-      <button id="phoneCallSpeakerBtn"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></span><span class="callbtn-label">Altavoz</span></button>
-    </div>
-    <button class="hangBtn" id="phoneCallAnswerBtn" aria-label="Contestar" style="background:#2ecc71;display:none"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.58 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span></button>
-    <button class="hangBtn" id="phoneCallHangBtn" aria-label="Colgar"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><path d="M23 1 1 23"/></svg></span></button>
-  </div>
-</div>
 
 <!-- ============ EDITOR DE HISTORIAS (ola 6) ============ -->
 <div class="overlay" id="storyEditorOverlay">
@@ -2506,11 +2337,6 @@ nav#bottomNav button.bn-launcher .ic svg{width:44px;height:44px}
   </div>
 </div>
 
-<div class="overlay floatWin1547" id="permissionsOverlay">
-  <div class="sheet" style="max-width:480px">
-    <div id="permStep"></div>
-  </div>
-</div>
 
 <!-- 1.5.33: tutorial de primera vez (fondo traslúcido, se cierra con Saltar) -->
 <div class="overlay" id="tutorialOverlay">
@@ -2624,16 +2450,6 @@ nav#bottomNav button.bn-launcher .ic svg{width:44px;height:44px}
 </div>
 
 <!-- ============ ELEGIR TIPO DE LLAMADA (v1.5) ============ -->
-<div class="overlay floatWin1547" id="callChoiceOverlay">
-  <div class="sheet" style="max-width:480px;text-align:center">
-    <div class="top"><button class="xbtn" data-close="callChoiceOverlay">✕</button><h2 id="callChoiceTitle">Llamar</h2></div>
-    <p class="muted" style="margin:6px 0 14px">Elige cómo quieres llamar. La llamada telefónica suena aunque la otra persona no tenga WordRed.</p>
-    <button class="btn" id="callChoicePhone" style="width:100%;padding:14px;margin-bottom:10px">Llamada telefónica</button>
-    <p class="tiny muted" style="margin:-4px 0 12px">Por la red de tu teléfono, como una llamada normal.</p>
-    <button class="btn ghost" id="callChoiceApp" style="width:100%;padding:14px">Llamada de WordRed</button>
-    <p class="tiny muted" style="margin:6px 0 0">Por internet, solo si la otra persona tiene WordRed y está en línea.</p>
-  </div>
-</div>
 
 <!-- ============ ELEGIR CÓMO MANDAR MENSAJE AL VENDEDOR (v1.6) ============ -->
 <div class="overlay floatWin1547" id="msgChoiceOverlay">
@@ -2675,38 +2491,6 @@ nav#bottomNav button.bn-launcher .ic svg{width:44px;height:44px}
 <!-- v1.5.15: menú de una aplicación del cajón: recuadro flotante
      traslúcido anclado junto a la ficha presionada (no una hoja
      centrada). Tocar fuera del recuadro lo cierra. -->
-<div class="overlay" id="launcherMenuOverlay">
-  <div class="launcherMenuBox" id="launcherMenuBox">
-    <div class="launcherMenuTitleRow"><h2 id="launcherMenuTitle">Aplicación</h2><button class="xbtn" data-close="launcherMenuOverlay">✕</button></div>
-    <div id="launcherMenuBtns"></div>
-  </div>
-</div>
-<!-- v1.5.13: cajón de aplicaciones (sin carpetas): X arriba para volver
-     al inicio, orden "Mi orden" o "Por nombre", iconos grandes sin marco. -->
-<div class="overlay floatWin1547" id="appsDrawerOverlay">
-  <div class="sheet">
-    <div class="top"><button class="xbtn" id="appsDrawerClose" data-close="appsDrawerOverlay">✕</button><h2>Aplicaciones</h2><button type="button" class="wOptRound1542" id="appsDrawerRefresh" aria-label="Actualizar" title="Actualizar"></button><button type="button" class="wOptRound1542" id="appsDrawerNewsBtn1547" aria-label="Noticias" title="Noticias"></button><button type="button" class="wOptRound1542" id="appsDrawerHideBtn1552" aria-label="Ocultar aplicaciones" title="Ocultar aplicaciones"></button><button type="button" class="wOptRound1542" id="appsDrawerSettingsBtn1547" aria-label="Ajustes del cajón" title="Ajustes del cajón"></button></div>
-    <div class="tabs" id="appsSortTabs" style="margin-bottom:12px">
-      <button id="appsSortCustom" class="on">Mi orden</button>
-      <button id="appsSortName">Por nombre</button>
-    </div>
-    <div class="appsSearch"><input id="appsDrawerSearch" type="search" placeholder="Buscar aplicaciones…" autocomplete="off" aria-label="Buscar aplicaciones"></div>
-    <div class="appsDrawerScrollWrap" id="appsDrawerScrollWrap">
-      <div class="appsDrawerScroll" id="appsDrawerScroll"><div class="launcherGrid" id="appsDrawerGrid"></div></div>
-      <div class="appsDrawerScrollbar" id="appsDrawerScrollbar"><div class="appsDrawerThumb" id="appsDrawerThumb"></div></div>
-    </div>
-    <p class="tiny muted" id="appsDrawerHint" style="margin-top:10px">Toca una aplicación para abrirla. Mantén presionada una para desinstalarla, ver su información o compartirla. Mantén presionada una app y arrastra para reordenar.</p>
-    <p class="tiny muted hidden" id="appsDrawerNotifHint" style="margin-top:8px"></p>
-  </div>
-</div>
-<!-- 1.5.47: ajustes del cajón de aplicaciones (mismo estilo que Ajustes). -->
-<div class="overlay floatWin1547" id="drawerSettingsOverlay1547">
-  <div class="sheet setSheet1560">
-    <div class="top"><button class="xbtn" data-close="drawerSettingsOverlay1547">✕</button><h2>Ajustes del cajón</h2></div>
-    <input type="file" id="drawerBgPhotoInput1547" accept="image/*" style="display:none">
-    <div id="drawerSettingsBody1547"></div>
-  </div>
-</div>
 <!-- 1.5.47: promociones (hoja de promoción + centro de promociones). -->
 <div class="overlay floatWin1547" id="promoteSheetOverlay1547">
   <div class="sheet">
@@ -2739,7 +2523,6 @@ nav#bottomNav button.bn-launcher .ic svg{width:44px;height:44px}
     <div class="fgShots1549" id="fgShots1549"></div>
   </div>
 </div>
-<button id="statusBarArrow" aria-label="Mostrar la barra de notificaciones" title="Mostrar la barra de notificaciones">&#8964;</button>
 <div id="toast"></div>
 <div id="chargerGlow1561" aria-hidden="true"></div>
 <script src="qrcode.js"></script>

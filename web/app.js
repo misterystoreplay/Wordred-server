@@ -8,7 +8,7 @@ var C = window.WordRedCore;
    última versión del servidor (GET /api/app/latest). Tiene que ser
    igual que versionCode/versionName del AndroidManifest.xml. */
 var APP_VERSION_CODE = 79;
-var APP_VERSION_NAME = 'Web 1.0'; /* Web 1.0: contenido de Android 1.5.64. */
+var APP_VERSION_NAME = 'Web 1.1'; /* Web 1.1: contenido de Android 1.5.64. */
 var LS_KEY = 'wordred_state_v1';
 var state = loadState();
 ensure1526State(); /* 1.5.26: rellenar los campos nuevos en estados guardados de la 1.5.25. */
@@ -56,7 +56,6 @@ var justSentMessageId = null;    // el mensaje recién enviado se desliza (v1.2)
 var editCoverType = 'image';     // 'image' | 'video' (v1.2)
 var voiceRec = { active: false, startTime: 0, timer: null, mediaRecorder: null, chunks: [], stream: null, native: false, sendOnStop: false };
 var call = { state: 'idle', peer: null, withVideo: false, pc: null, localStream: null, remoteStream: null, offer: null, muted: false, speaker: false, videoOn: true, timer: null, startedAt: 0 };
-var callChoicePhone = null; // contacto elegido en el selector de tipo de llamada (v1.5)
 /* Sonidos de llamada (v1.5): tono de marcado (ringback) y tono de
    llamada entrante, con el audio del sistema (puente nativo) o con
    WebAudio si no hay puente. */
@@ -67,8 +66,6 @@ var TYPING_CLEAR_MS = 4000; // el "Escribiendo…" se apaga a los 4 s sin escrib
 /* v1.6: si el servicio de llamadas no confirma ningún estado real en
    estos segundos, la llamada no se realizó (antes la pantalla se
    quedaba en "Llamando" para siempre). */
-var TELECOM_WATCHDOG_MS = 6000;
-var telecomWatchdog = null;
 /* v1.6: si el otro no contesta la llamada de WordRed en estos segundos,
    la llamada termina con "No contesta" (antes se quedaba en "Llamando"
    para siempre). */
@@ -127,23 +124,8 @@ var liveRecTimer = 0;            // intervalo del contador de grabación
 var liveRecStartedAt = 0;
 var livePinch = null;            // estado del gesto de pellizco para el zoom
 var liveRecMime = '';            // tipo de la grabación en curso
-var permStepIndex = 0;
-var permWaiting = false;
-var dialNumberStr = '';        // número para llamar por teléfono desde un chat o un perfil (v1.2, ola 5)
 var deviceContactsCache = null;
-var telecomCall = { state: 'idle', number: '', startedAt: 0, timer: null, muted: false, speaker: false, confirmed: false }; // llamada real del teléfono (v1.2, ola 5)
-function clearTelecomWatchdog() { if (telecomWatchdog) { clearTimeout(telecomWatchdog); telecomWatchdog = null; } }
 function clearCallRingTimer() { if (callRingTimer) { clearTimeout(callRingTimer); callRingTimer = null; } }
-/* v1.6: normaliza el número para marcar (solo dígitos, 1–15). Un número
-   con espacios o guiones llegaba tal cual al marcador y la llamada no
-   se realizaba. Devuelve null si no es un número válido. (El marcador
-   acepta números cortos, como los de emergencia; los contactos usan
-   isDialableNumber, que exige 8–15.) */
-function normalizeDialNumber(number) {
-  var d = String(number || '').replace(/\D/g, '');
-  if (d.length < 1 || d.length > 15) return null;
-  return d;
-}
 var storyEdit = { media: null, mediaType: '', text: '', edits: { filter: 'none', bg: 'none', texts: [], stickers: [], drawing: [] }, tool: 'text', textColor: '#ffffff', textSize: 28, drawColor: '#ffffff', drawWidth: 6, drawing: false, curStroke: null }; // editor de historias (v1.2, ola 6)
 var editGradient = 'none';     // degradado del encabezado en Editar perfil (v1.2, ola 7)
 var reportPhone = '';          // perfil que se está reportando (v1.2, ola 7)
@@ -1650,11 +1632,24 @@ window.__wrPauseShortsVideos = pauseShortsVideos;
 /* 1.5.54: pila de pantallas para el botón de regresar del teléfono. */
 var backViewStack1549 = [];
 var backGoingBack1549 = false;
+/* Web 1.1: último toque en Inicio (para el doble toque). */
+var lastFeedTap11 = 0;
 function go(view) {
+  /* Web 1.1: regla de Inicio y desplazamiento. Dos toques rápidos en
+     Inicio (menos de 500 ms) van siempre arriba; un solo toque desde
+     otra sección vuelve donde se quedó; estando ya en Inicio, un solo
+     toque no mueve nada. */
+  var fromView11 = currentView;
+  var now11 = Date.now();
+  var feedDoubleTap11 = (view === 'feed' && (now11 - lastFeedTap11) < 500);
+  if (view === 'feed') lastFeedTap11 = now11;
+  /* Web 1.1: un solo toque estando ya en Inicio no restaura nada (quedarse donde está). */
+  if (view === 'feed' && fromView11 === 'feed' && !feedDoubleTap11) feedRestoreDone = true;
   /* 1.5.36: al cambiar de vista se sale del modo de edición del menú. */
   if (typeof exitHomeWidgetEdit1536 === 'function') exitHomeWidgetEdit1536();
+  /* 1.5.26 (40): guardar dónde quedó el inicio al salir de él. Web 1.1: se guarda ANTES de abrir Shorts (antes, ir a Shorts no guardaba ni armaba la restauración y al volver no se volvía donde se quedó). */
+  if (currentView === 'feed' && view !== 'feed') { saveFeedPosition1526(); feedRestoreDone = false; }
   if (view === 'shorts') { openShorts(null); return; }
-  if (currentView === 'feed' && view !== 'feed') { saveFeedPosition1526(); feedRestoreDone = false; } /* 1.5.26 (40): guardar dónde quedó el inicio. 1.5.28: al salir, la restauración se arma de nuevo para que la próxima vuelta también vuelva al mismo sitio. */
   /* 1.5.54: el botón de regresar vuelve a la pantalla anterior: al
      cambiar de vista se guarda de dónde se viene (sin duplicar). */
   if (!backGoingBack1549 && view !== currentView && currentView) {
@@ -1680,7 +1675,21 @@ function go(view) {
   if (view === 'notifs') { renderNotifs(); C.markNotificationsRead(state, me()); save(); updateBadges(); }
   if (view === 'profile') { showAllSaved = false; renderOwnProfile(); }
   if (view === 'search') { $('searchInput').focus(); renderSearch(); }
-  window.scrollTo(0, 0);
+  /* Web 1.1: regla de Inicio y desplazamiento (ver el inicio de go()). */
+  if (view === 'feed') {
+    if (feedDoubleTap11) {
+      /* Doble toque en Inicio: siempre arriba; la restauración programada no debe devolver abajo. */
+      feedRestoreDone = true;
+      skipFeedRestoreOnce1557 = true;
+      window.scrollTo(0, 0);
+    } else if (fromView11 !== 'feed') {
+      /* Un solo toque desde otra sección: volver donde se quedó. La restauración (renderFeed -> restoreFeedPosition1526) hace el desplazamiento; no ir a 0 para no parpadear. */
+    } else {
+      /* Un solo toque estando ya en Inicio: quedarse donde está. */
+    }
+  } else {
+    window.scrollTo(0, 0);
+  }
 }
 /* ---------------- botón de regresar del teléfono (1.5.54) ----------------
    (1) Si hay una ventana o pantalla flotante abierta, cierra la de más
@@ -1703,8 +1712,6 @@ function topOpenOverlay1549() {
 function closeTopOverlay1549(id) {
   var el = $(id);
   if (!el) return false;
-  /* El cajón tiene su propio cierre (limpia la búsqueda). */
-  if (id === 'appsDrawerOverlay' && typeof closeAppsDrawer === 'function') { closeAppsDrawer(); return true; }
   /* El botón [data-close] de la ventana reproduce su cierre real
      (p. ej. el publicador pide confirmar antes de descartar). */
   var closer = el.querySelector('[data-close]');
@@ -1728,16 +1735,29 @@ function handleAndroidBack() {
 }
 window.handleAndroidBack = handleAndroidBack;
 document.querySelectorAll('#bottomNav button').forEach(function (b) {
-  /* El botón del lanzador no tiene data-nav: abre el cajón, no cambia de vista. */
+  /* Web 1.1: todos los botones de la barra tienen data-nav (Mercado en el centro abre la vista de mercado); ya no hay botón del lanzador. */
   if (!b.getAttribute('data-nav')) return;
   b.addEventListener('click', function () { go(b.getAttribute('data-nav')); });
 });
-/* 1.5.47: toque sutil al presionar los iconos laterales de la barra
-   inferior (el botón rojo del centro no lleva animación). */
-document.querySelectorAll('#bottomNav .bn-side button').forEach(function (nb) {
+/* 1.5.47: toque sutil al presionar los iconos de la barra inferior.
+   Web 1.1: el botón del centro ya no es el lanzador (es Mercado, un botón normal) y también lleva la animación. */
+document.querySelectorAll('#bottomNav button').forEach(function (nb) {
   nb.addEventListener('pointerdown', function () { nb.classList.add('bnPress1547'); });
   ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { nb.addEventListener(ev, function () { nb.classList.remove('bnPress1547'); }); });
 });
+/* Web 1.1: barras transparentes que se ocultan solas al bajar en el
+   feed y vuelven al subir (o al estar arriba del todo). Solo el
+   desplazamiento de la ventana; las vistas con desplazamiento interno
+   (Shorts) no las tocan. */
+var lastScrollY11 = 0;
+function updateBarsVisibility11() {
+  var y = window.scrollY || document.documentElement.scrollTop || 0;
+  var hide = y > 80 && y > lastScrollY11;
+  document.body.classList.toggle('bars-hidden-11', hide);
+  lastScrollY11 = y;
+}
+window.addEventListener('scroll', updateBarsVisibility11, { passive: true });
+updateBarsVisibility11();
 $('hdrSearch').addEventListener('click', function () { go('search'); });
 /* ---- compartir la app (v1.6): el archivo de WordRed (APK) para que
    otros la instalen, con un mensaje de invitación. El puente comparte
@@ -1992,8 +2012,6 @@ async function finishServerLogin(email, name, photo, hasProfile) {
     connectServer();
     pullFromServer();
     toast('¡Hola de nuevo, ' + r.profile.name + '!');
-    /* v1.5.17 punto 2: revisar en silencio si hay una actualización. */
-    setTimeout(function () { checkAppUpdate({ silent: true }); }, 5000);
     return;
   }
   authPhotoData = '';
@@ -2341,7 +2359,7 @@ function requestWeatherLocation() {
   /* 1.5.47: la ubicación SOLO se pide al tocar el icono de
      mi ubicación. Si el permiso ya estaba concedido, el puente no muestra
      ningún diálogo y se pide el clima de inmediato; si aún no estaba
-     concedido, al concederlo __onPermissionResult vuelve a llamar. */
+     concedido, al concederlo se pide el clima de inmediato. */
   try {
     if (window.AndroidBridge && AndroidBridge.requestLocationPermission) AndroidBridge.requestLocationPermission();
     else if (navigator.geolocation && navigator.geolocation.getCurrentPosition) { loadWeather(null, null, '', { fromDevice: true }); return; }
@@ -3029,11 +3047,6 @@ function enterApp() {
     $('composerAvatar2').outerHTML = avatarHtml(state.me, '', 'composerAvatar2');
     $('composerName').textContent = p.name;
   }
-  /* v1.5.25: quitar de la campana los avisos de actualización ya instalados,
-     antes de pintar la campana. */
-  pruneInstalledUpdateNotifs();
-  /* 1.5.30: avisar una vez que WordRed también está para Windows. */
-  maybeNotifyWindows1530();
   /* 1.5.29: si la app se cerró a la mitad de una subida, su aviso queda
      con el último progreso: se borra al entrar.
      1.5.58: la subida sí sobrevive: su borrador quedó guardado y se
@@ -3078,10 +3091,12 @@ function enterApp() {
      donde ibas: la marca de sesión viva (wordred_alive1559) distingue
      el lanzamiento limpio del regreso. La regla de la 1.5.57 que
      mandaba arriba tras más de 60 s fuera ya no existe. */
-  if (isCleanLaunch1559()) skipFeedRestoreOnce1557 = true;
+  /* Web 1.1: al cargar la página, siempre arriba del Inicio (en la web no se restaura la posición al cargar, ni siquiera si la pestaña se cerró con la marca viva). */
+  skipFeedRestoreOnce1557 = true;
   markAlive1559();
   bindAlive1559();
   go('feed');
+  try { window.scrollTo(0, 0); } catch (e) {} /* Web 1.1: al cargar, siempre arriba. */
   connectServer();
   /* v1.5.12: servicio en segundo plano para que las llamadas y los
      mensajes lleguen aunque la app esté cerrada. */
@@ -3091,7 +3106,6 @@ function enterApp() {
     }
   } catch (e) {}
   processPendingBgCall();
-  refreshLauncherApps();
   /* v1.7: al abrir la app, si una grabación de live se cortó (red, app
      cerrada, pila), aparece como recuperada para conservarla o seguir. */
   refreshLives().then(function () { checkInterruptedLiveRecordings(); });
@@ -3244,84 +3258,6 @@ window.__onSharedContent = function (payload) {
   if (payload.error === 'no_space') toast('No hay espacio en el teléfono para guardar ese archivo. Libera espacio e inténtalo de nuevo.');
   else if (payload.error) toast('No se pudo guardar ese archivo.');
 };
-/* ---- permisos al abrir por primera vez (v1.2) ----
-   Cada permiso se explica primero con una pantalla del diseño propio de
-   WordRed y luego se abre el diálogo del sistema. Si se niega uno, la app
-   lo explica y sigue funcionando con lo demás; lo vuelve a pedir cuando
-   haga falta. */
-var PERM_STEPS = [
-  { id: 'notifications', icon: 'bell', title: 'Notificaciones', text: 'Para avisarte cuando alguien que sigues publique algo, te escriba o reaccione a tus publicaciones. Las notificaciones también aparecen en la pantalla de bloqueo.', req: function () { if (window.AndroidBridge && AndroidBridge.requestNotificationPermission) AndroidBridge.requestNotificationPermission(); } },
-  { id: 'files', icon: 'image', title: 'Archivos y fotos', text: 'Para elegir fotos, videos y audios de tu galería y publicarlos. Sin este permiso no podrás subir fotos, videos ni audios desde tus archivos.', req: function () { if (window.AndroidBridge && AndroidBridge.requestFilesPermission) AndroidBridge.requestFilesPermission(); } },
-  { id: 'camera', icon: 'camera', title: 'Cámara', text: 'Para tomar fotos y videos nuevos y publicarlos directamente, sin salir de la app.', req: function () { if (window.AndroidBridge && AndroidBridge.requestCameraPermission) AndroidBridge.requestCameraPermission(); } },
-  { id: 'mic', icon: 'mic', title: 'Micrófono', text: 'Para grabar mensajes de voz y para hablar en las llamadas dentro de la app.', req: function () { if (window.AndroidBridge && AndroidBridge.requestMicPermission) AndroidBridge.requestMicPermission(); } },
-  { id: 'location', icon: 'pin', title: 'Ubicación', text: 'Para mostrarte el clima de donde estás en el inicio. Solo se usa para el clima de tu teléfono; nunca se comparte con nadie.', req: function () { if (window.AndroidBridge && AndroidBridge.requestLocationPermission) AndroidBridge.requestLocationPermission(); } }
-];
-function maybeShowPermissions() {
-  if (!state.settings) state.settings = {};
-  if (state.settings.permsAsked) return;
-  permStepIndex = 0;
-  renderPermStep();
-  showOverlay('permissionsOverlay');
-}
-function renderPermStep() {
-  var step = PERM_STEPS[permStepIndex];
-  if (!step) { renderPermDone(); return; }
-  $('permStep').innerHTML = '<div style="text-align:center;padding:8px 0">' +
-    '<div style="margin-bottom:12px">' + ic(step.icon, 44) + '</div>' +
-    '<h2>' + step.title + '</h2><p class="muted mt">' + step.text + '</p>' +
-    '<p class="tiny mt">Permiso ' + (permStepIndex + 1) + ' de ' + PERM_STEPS.length + '</p>' +
-    '<div id="permNote" class="tiny mt" style="color:#ff8ba0;min-height:16px"></div>' +
-    '<div style="display:flex;gap:8px;margin-top:16px"><button class="btn ghost" id="permSkip" style="flex:1">Ahora no</button><button class="btn" id="permAllow" style="flex:1">Permitir</button></div></div>';
-  $('permAllow').addEventListener('click', function () {
-    permWaiting = true;
-    try { step.req(); } catch (e) {}
-    /* Si el puente no responde en 3 s (permiso ya dado o sin puente),
-       se avanza igual: nunca se queda la pantalla colgada. */
-    setTimeout(function () { if (permWaiting) { permWaiting = false; permNext(); } }, 3000);
-  });
-  $('permSkip').addEventListener('click', function () { permNext(); });
-}
-function permNext() {
-  permStepIndex++;
-  renderPermStep();
-}
-function renderPermDone() {
-  $('permStep').innerHTML = '<div style="text-align:center;padding:8px 0">' +
-    '<div class="successBox" style="background:none;border:none;padding:0;animation:none"><svg width="72" height="72" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="26" stroke="#2ecc71" stroke-width="3"/><path d="M20 33l8 8 16-17" stroke="#2ecc71" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>' +
-    '<h2>¡Listo!</h2><p class="muted mt">WordRed ya está preparado. Si negaste algún permiso, la app sigue funcionando con lo demás y te lo volverá a pedir cuando haga falta.</p>' +
-    '<button class="btn mt" id="permDone" style="width:100%">Empezar</button></div>';
-  $('permDone').addEventListener('click', function () {
-    state.settings.permsAsked = true;
-    save();
-    hideOverlay('permissionsOverlay');
-    maybeShowDefaults();
-    maybeShowTutorial1533();
-  });
-}
-window.__onFirstRun = function () { maybeShowPermissions(); };
-window.__onPermissionResult = function (a, b) {
-  var kind = null, granted = false;
-  if (typeof b === 'boolean') { kind = a; granted = b; }
-  else granted = !!a;
-  /* v1.5.14 audio: si se tocó "Audio" esperando el permiso de archivos,
-     al concederlo se abre el selector de audios; si se negó, se avisa. */
-  if (pendingAudioPick) {
-    pendingAudioPick = false;
-    if (kind === 'files' && granted) { $('postAudioInput').click(); return; }
-    if (!granted) { toast('Sin el permiso de audio no se pueden elegir audios. Puedes activarlo en Ajustes.'); return; }
-  }
-  if (!permWaiting) {
-    /* v1.6 clima: al conceder la ubicación desde la tarjeta del inicio
-       se carga el clima de inmediato (fuera del flujo de primer uso). */
-    if (kind === 'location' && granted) { loadWeather(null, null, '', { fromDevice: true }); return; }
-    if (!granted) toast('Sin ese permiso, esa función no puede usarse. Puedes activarlo en Ajustes.');
-    return;
-  }
-  permWaiting = false;
-  var note = $('permNote');
-  if (!granted && note) note.textContent = 'Permiso no dado. La app sigue funcionando sin él; te lo volverá a pedir cuando haga falta.';
-  setTimeout(permNext, granted ? 0 : 1200);
-};
 /* ---- apps predeterminadas (v1.2, ola 5; QUITADO en v1.5.12) ----
    WordRed ya no es app de mensajes ni ofrece serlo: solo quedan los
    chats de WordRed por internet. maybeShowDefaults queda como no-op
@@ -3350,17 +3286,14 @@ var FAQ = [
   { q: '¿Cómo funcionan los grupos?', a: 'En «Grupos» puedes crear uno o unirte a uno. El creador nombra hasta 3 administradores, que aprueban miembros, quitan miembros o publicaciones y fijan publicaciones. Si el grupo pide aprobación, la revisan los administradores.' },
   { q: '¿Cómo vendo algo en el Marketplace?', a: 'Toca «Publicar anuncio»: título, precio en MXN, categoría y fotos. También puedes poner WhatsApp, marca, precio negociable y entrega. También hay grupos de ventas con su propio menú.' },
   { q: '¿Cómo envío mensajes, archivos y notas de voz?', a: 'Abre el perfil de un amigo y toca «Mensaje», o el icono de mensajes arriba, después de la lupa. Puedes mandar texto, fotos, videos, archivos y notas de voz. En «Mensajes» también puedes crear un grupo: toca «Nuevo grupo» y elige a tus amigos.' },
-  { q: '¿Cómo llamo dentro de la app?', a: 'Dentro de un chat toca el teléfono y elige: «Llamada telefónica» marca el número real y suena aunque la otra persona no tenga WordRed; «Llamada de WordRed» es por internet, con los dos en línea.' },
-  { q: '¿Por qué no me llegan las notificaciones?', a: 'Revisa en Ajustes → Notificaciones qué avisos tienes activos y que WordRed tenga el permiso de notificaciones en tu teléfono. Los avisos también aparecen en la pantalla de bloqueo.' },
+  { q: '¿Cómo llamo dentro de la app?', a: 'Dentro de un chat toca el teléfono: la llamada es por internet, con los dos en línea, con video o solo voz. En la Web no se puede llamar por teléfono: eso solo funciona con la app instalada en el teléfono.' },
+  { q: '¿Por qué no me llegan las notificaciones?', a: 'Revisa en Ajustes → Notificaciones qué avisos tienes activos: los avisos aparecen en la campana. En la Web no hay avisos fuera de la página: no llegan notificaciones al teléfono.' },
   { q: '¿Cómo bloqueo o reporto a alguien?', a: 'Abre su perfil y toca «Bloquear» o «Reportar». Al bloquear, esa persona no ve tu perfil ni tus publicaciones y no puede escribirte. En Ajustes → Bloqueados puedes desbloquear.' },
   { q: '¿Cómo apoyo al creador de WordRed?', a: 'En Ajustes → «Apoyar a WordRed» están los datos para una transferencia. Es voluntario y ayuda a seguir mejorando la app.' },
-  { q: '¿Cómo uso el cajón de aplicaciones?', a: 'Toca el botón rojo del centro: el cajón se abre de inmediato. Desliza para ver tus apps; la barra roja de la derecha también se arrastra. Escribe arriba para buscar por nombre. Mantén presionada una app para abrir, desinstalar, ver su información o compartirla, y arrástrala para reordenar. El numerito rojo de cada app es su número de notificaciones pendientes.' },
-  { q: '¿Dónde quedaron Avisos, Mensajes y Amigos?', a: 'La barra de abajo tiene Inicio, Shorts, Aplicaciones, Grupos y Perfil. Mercado se entra desde arriba, tocando «Marketplace». Los mensajes están arriba, después de la lupa; los avisos, en la campana; y Amigos, en tu Perfil, en la fila de accesos rápidos. Tu actividad también está en tu Perfil, tocando «Tu actividad».' },
+  { q: '¿Dónde quedaron Avisos, Mensajes y Amigos?', a: 'La barra de abajo tiene Inicio, Shorts, Mercado, Grupos y Perfil. Los mensajes están arriba, después de la lupa; los avisos, en la campana; y Amigos, en tu Perfil, en la fila de accesos rápidos. Tu actividad también está en tu Perfil, tocando «Tu actividad».' },
   { q: '¿Las publicaciones borradas se borran de verdad?', a: 'Sí. Al confirmar, desaparece al momento de Inicio, Perfil, Destacadas y grupos, y no vuelve al reabrir ni al sincronizar. Si no había conexión, se oculta de inmediato y el borrado se envía solo cuando vuelva. Vale para publicaciones, comentarios, historias, mensajes, conversaciones, grupos y anuncios.' },
   { q: '¿Qué pasa cuando publico un enlace?', a: 'El enlace no se muestra como texto: aparece un solo recuadro con el título y el dominio de la página (y su imagen, si la página la deja ver). Toca el recuadro para abrir la página.' },
   { q: '¿Cómo comparto una publicación en otras aplicaciones?', a: 'Toca «Compartir» y elige «Compartir en otras apps»: se abre el menú de tu teléfono para mandarla por WhatsApp, Messenger y demás. También puedes elegir «Compartir en WordRed» para publicarla en tu muro.' },
-  { q: '¿Cómo actualizo WordRed?', a: 'En Ajustes, arriba del todo, toca «Buscar». Si hay una versión nueva, aparece en la campana; al instalarla, su aviso desaparece de la campana.' },
-  { q: '¿Qué es el indicador de batería?', a: 'En el inicio, junto a Marketplace, ves el nivel real de tu batería. Si baja al 15% o se carga al 100%, te avisa en la campana.' },
   { q: '¿Cómo funciona el reproductor de video?', a: 'Todos los videos usan el reproductor propio de WordRed: play/pausa, barra con el tiempo, silencio, pantalla completa y velocidades. El botón CC muestra u oculta los subtítulos del video.' },
   { q: '¿Cómo veo el tutorial otra vez?', a: 'En Ajustes → «Tutorial» toca «Ver el tutorial otra vez». El tutorial aparece con ilustraciones de cada parte de la app y se puede saltar en cualquier momento.' },
   { q: '¿Cómo acomodo el menú principal?', a: 'Deja presionado un apartado del inicio para editarlo: muévelo con Subir y Bajar, cambia su tamaño y su color, y con Listo sales. Los reels siempre quedan arriba. Mientras editas, lo demás se ve translúcido. El botón «+ Agregar apartado» suma calendario, mensajería, fotos, calculadora, notas, batería y tu tiempo en pantalla. Todo se guarda en este teléfono.' },
@@ -3372,6 +3305,7 @@ var FAQ = [
   { q: '¿Por qué aparecen dramas entre los Shorts?', a: 'Entre los Shorts se cuelan tarjetas de dramas, con su portada y el nombre de su aplicación. Al tocar una, se abre el drama en su primer capítulo, con la guía de gestos. Los demás capítulos se ven desde la sección Dramas del inicio, que sigue igual.' },
   { q: '¿Cómo busco algo desde el inicio?', a: 'En el inicio, bajo la barra de arriba, está el buscador: escribe y van apareciendo sugerencias de personas, publicaciones, Reels, dramas, grupos y #etiquetas. Toca una sugerencia para ir ahí: el perfil, la publicación, el Reel, el drama en su primer capítulo o el grupo.' },
   { q: '¿Cada cuánto llegan dramas y aplicaciones nuevas?', a: 'Cada 2 semanas llegan más capítulos y más series de dramas, todos gratis y doblados en español latino. Y cada semana se suman aplicaciones nuevas: la etiqueta junto a «Dramas» las nombra todas (ahora ReelShort, DramaBox y ShortMax).' },
+  { q: '¿Qué hay de nuevo en la Web 1.1?', a: 'Las barras de arriba y de abajo ahora son transparentes y se ocultan solas al bajar, y vuelven al subir. Mercado está en el centro de la barra de abajo, Inicio está en rojo, y se quitaron el cajón de aplicaciones, las actualizaciones y las opciones que solo funcionan en el teléfono.' },
 
 ];
 function renderFaq() {
@@ -6653,15 +6587,13 @@ $('postMediaInput').addEventListener('change', function () {
 /* v1.5.14 audio: el botón "Audio" abre un selector de SOLO audios (antes
    abría el selector general, que en el teléfono solo mostraba fotos).
    El permiso de audio se pide primero si falta; al concederlo se abre el
-   selector solo (ver __onPermissionResult). */
-var pendingAudioPick = false;
+   selector solo. */
 function openAudioPicker() {
   var needPerm = false;
   try {
     if (window.AndroidBridge && AndroidBridge.hasAudioPermission) needPerm = AndroidBridge.hasAudioPermission() !== true;
   } catch (e) {}
   if (needPerm) {
-    pendingAudioPick = true;
     try { if (window.AndroidBridge && AndroidBridge.requestFilesPermission) AndroidBridge.requestFilesPermission(); } catch (e) {}
     return;
   }
@@ -9606,8 +9538,7 @@ function renderListingDetail(listingId) {
     (mine
       ? '<button class="btn" onclick="window.__wrEditListing(\'' + l.id + '\')">Editar anuncio</button><button class="btn" onclick="window.__wrToggleSold(\'' + l.id + '\')">' + (l.status === 'Vendido' ? 'Volver a poner en venta' : 'Marcar como vendido') + '</button><button class="btn danger" onclick="window.__wrDeleteListing(\'' + l.id + '\')">Borrar anuncio</button>'
       : '<button class="btn" onclick="window.__wrContactSeller(\'' + l.seller + '\',\'' + l.id + '\')">' + ic('message', 16) + ' Contactar al vendedor</button>' +
-        (cpDigits ? '<button class="btn" onclick="window.__wrCallSeller(\'' + cpDigits + '\')">' + ic('phone', 16) + ' Llamar</button>' +
-        '<button class="btn" onclick="window.__wrMessageSeller(\'' + cpDigits + '\')">' + ic('message', 16) + ' Mensaje</button>' : '') +
+        (cpDigits ? '<button class="btn" onclick="window.__wrMessageSeller(\'' + cpDigits + '\')">' + ic('message', 16) + ' Mensaje</button>' : '') + /* Web 1.1: sin botón «Llamar» (llamada telefónica). */
         (waDigits ? '<button class="btn" onclick="window.__wrOpenUrl(\'' + encodeURIComponent('https://wa.me/' + waDigits + '?text=' + encodeURIComponent('Hola, me interesa tu anuncio: ' + l.title)) + '\')">WhatsApp</button>' : '')) +
     '<button class="btn ghost" onclick="window.__wrOpenSellerProfile(\'' + l.seller + '\')">' + ic('bag', 16) + ' Ver perfil de ventas</button>' +
     '<button class="btn ghost" onclick="window.__wrSaveListing(\'' + l.id + '\')">' + ic('bookmark', 16) + ' ' + (saved ? 'Guardado' : 'Guardar') + '</button>' +
@@ -9693,10 +9624,6 @@ window.__wrContactSeller = function (seller, listingId) {
    vendedor, según lo que tenga quien compra: WhatsApp o SMS. */
 var msgChoicePhone = null;
 var msgChoiceTitle = '';
-window.__wrCallSeller = function (phone) {
-  if (!phone) return;
-  placePhoneCall(phone);
-};
 window.__wrMessageSeller = function (phone) {
   if (!phone) return;
   msgChoicePhone = phone;
@@ -10322,139 +10249,6 @@ function renderConvos() {
       '</div>';
   }).join('');
 }
-/* v1.6: la llamada real por la red del teléfono. La usa el marcador, el
-   selector ("Llamada telefónica") y el botón de llamar de un contacto.
-   CAUSA RAÍZ del bug "solo sale Llamando pero no llama": la app mostraba
-   la pantalla "Llamando por teléfono..." con solo que dialNumber()
-   devolviera "OK" y luego esperaba para siempre un estado real
-   (__onTelecomCall) que solo llega cuando WordRed ES el marcador
-   predeterminado (su InCallService). Si no lo era, la llamada la hacía
-   la app de teléfono del sistema y a WordRed no le llegaba ningún
-   estado: la pantalla se quedaba en "Llamando" con tonos falsos para
-   siempre. Ahora: (1) el número se normaliza; (2) si la llamada la hace
-   la app del sistema ("OK:SYSTEM") WordRed no muestra su "Llamando";
-   (3) si el servicio de llamadas no confirma ningún estado en 6 s, la
-   llamada se da por fallida con un mensaje claro; (4) sin permiso se
-   pide el permiso y se avisa. */
-function placePhoneCall(number) {
-  var num = normalizeDialNumber(number || dialNumberStr);
-  if (!num) { toast('Marca un número válido primero.'); return; }
-  if (!window.AndroidBridge || !AndroidBridge.dialNumber) { toast('Este teléfono no puede hacer llamadas desde WordRed.'); return; }
-  var res = '';
-  try { res = AndroidBridge.dialNumber(num); } catch (e) { res = 'ERROR:' + (e && e.message ? e.message : 'No se pudo llamar.'); }
-  res = String(res || '');
-  if (res.indexOf('ERROR:PERMISO') === 0) {
-    toast('WordRed no tiene permiso para llamar. Actívalo y vuelve a intentar.');
-    try { if (AndroidBridge.requestPhonePermissions) AndroidBridge.requestPhonePermissions(); } catch (e) {}
-    return;
-  }
-  if (res.indexOf('ERROR:') === 0) { toast(res.slice(6) || 'No se pudo realizar la llamada.'); return; }
-  if (res === 'OK:SYSTEM') {
-    /* La llamada la hace la app de teléfono del sistema: WordRed no
-       recibe el estado de esa llamada, así que no muestra su pantalla
-       "Llamando" (se quedaba atascada para siempre). */
-    toast('Llamando con la app de teléfono…');
-    return;
-  }
-  /* Llamada real por Telecom (WordRed es el marcador predeterminado).
-     La pantalla "Llamando" solo es válida si el servicio de llamadas
-     confirma el estado; si no llega nada, la llamada no se realizó. */
-  telecomCall.number = num; telecomCall.state = 'dialing'; telecomCall.confirmed = false;
-  telecomCall.startedAt = Date.now();
-  renderTelecomCall();
-  startRingback();
-  clearTelecomWatchdog();
-  telecomWatchdog = setTimeout(function () {
-    telecomWatchdog = null;
-    if (telecomCall.state === 'dialing' && !telecomCall.confirmed) {
-      stopAllCallSounds();
-      telecomCall.state = 'ended';
-      renderTelecomCall();
-      toast('No se pudo realizar la llamada. Revisa la señal y que WordRed sea tu app de teléfono.');
-    }
-  }, TELECOM_WATCHDOG_MS);
-}
-function renderTelecomCall() {
-  var t = telecomCall;
-  var ov = $('phoneCallOverlay');
-  if (t.state === 'idle' || t.state === 'ended' || t.state === 'other') {
-    ov.classList.remove('on');
-    /* 1.5.45: este cierre no pasa por hideOverlay, así que el z-index
-       en línea que showOverlay pudo poner se limpia aquí. */
-    ov.style.zIndex = '';
-    if (t.timer) { clearInterval(t.timer); t.timer = null; }
-    stopAllCallSounds();
-    t.speaker = false;
-    t.muted = false;
-    return;
-  }
-  $('phoneCallNumber').textContent = t.number || 'Número desconocido';
-  $('phoneCallAvatar').textContent = ((t.number || '?') + '').slice(0, 1).toUpperCase();
-  var stateText = t.state === 'ringing' ? 'Llamada telefónica entrante' : t.state === 'dialing' ? 'Llamando por teléfono...' : t.state === 'active' ? 'Llamada telefónica en curso' : t.state === 'holding' ? 'Llamada en espera' : 'Llamada telefónica';
-  $('phoneCallState').textContent = stateText;
-  $('phoneCallAnswerBtn').style.display = t.state === 'ringing' ? 'flex' : 'none';
-  $('phoneCallMuteBtn').classList.toggle('on', !!t.muted);
-  setCallBtnLabel('phoneCallMuteBtn', t.muted ? 'Silenciado' : 'Silencio');
-  /* v1.5: el altavoz se ve CLARAMENTE activado: fondo verde y texto
-     "Altavoz activado"; al apagarlo vuelve a su estado normal. */
-  $('phoneCallSpeakerBtn').classList.toggle('on', !!t.speaker);
-  setCallBtnLabel('phoneCallSpeakerBtn', t.speaker ? '✓ Altavoz activado' : 'Altavoz');
-  if (t.state === 'active' && !t.timer) {
-    t.timer = setInterval(function () {
-      var s = Math.floor((Date.now() - t.startedAt) / 1000);
-      $('phoneCallTimer').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
-    }, 1000);
-  }
-  if (!ov.classList.contains('on')) showOverlay('phoneCallOverlay');
-}
-window.__onTelecomCall = function (state, number) {
-  /* v1.6: cualquier estado real del teléfono confirma que la llamada
-     existe y apaga el vigilante (ya no se dará por fallida). */
-  telecomCall.confirmed = true;
-  clearTelecomWatchdog();
-  telecomCall.state = state || 'other';
-  if (number) telecomCall.number = number;
-  if (state === 'active' && !telecomCall.startedAt) telecomCall.startedAt = Date.now();
-  if (state === 'active') { stopRingback(); stopIncomingRing(); }
-  if (state === 'ringing') startIncomingRing();
-  if (state === 'ended') { telecomCall.startedAt = 0; stopAllCallSounds(); }
-  renderTelecomCall();
-};
-/* ---------------- elegir cómo llamar (v1.5) ----------------
-   La llamada telefónica real sale por la red del teléfono y suena
-   aunque la otra persona no tenga WordRed; la llamada de WordRed es
-   por internet y solo funciona si los dos tienen la app y están en
-   línea. Si el contacto no tiene un número real para marcar, solo se
-   ofrece la llamada dentro de la app. */
-function isDialableNumber(phone) {
-  var d = String(phone || '').replace(/\D/g, '');
-  return d.length >= 8 && d.length <= 15;
-}
-function chooseCallType(phone) {
-  if (!phone) return;
-  if (call.state !== 'idle') { toast('Ya hay una llamada en curso.'); return; }
-  if (telecomCall.state !== 'idle' && telecomCall.state !== 'ended' && telecomCall.state !== 'other') { toast('Ya hay una llamada en curso.'); return; }
-  if (!isDialableNumber(phone) || !window.AndroidBridge || !AndroidBridge.dialNumber) {
-    if (isDialableNumber(phone)) toast('Para llamar por teléfono necesitas la app instalada en el teléfono.');
-    startCall(phone, false);
-    return;
-  }
-  callChoicePhone = phone;
-  $('callChoiceTitle').textContent = 'Llamar a ' + profileName(phone);
-  showOverlay('callChoiceOverlay');
-}
-$('callChoicePhone').addEventListener('click', function () {
-  hideOverlay('callChoiceOverlay');
-  var p = callChoicePhone;
-  callChoicePhone = null;
-  if (p) placePhoneCall(p);
-});
-$('callChoiceApp').addEventListener('click', function () {
-  hideOverlay('callChoiceOverlay');
-  var p = callChoicePhone;
-  callChoicePhone = null;
-  if (p) startCall(p, false);
-});
 
 window.__wrDeleteConvo = function (other) {
   confirmDialog({ title: 'Borrar conversación', text: 'Vas a borrar toda la conversación con ' + profileName(other) + ', con todos sus mensajes. No se puede deshacer.', confirmText: 'Sí, borrar', onConfirm: function () {
@@ -11002,73 +10796,6 @@ $('chatMediaInput').addEventListener('change', function () {
 });
 
 /* ---------------- notificaciones ---------------- */
-/* v1.5.17 punto 3: la campana muestra TAMBIÉN las notificaciones de
-   OTRAS aplicaciones, en su propio apartado separado de las de WordRed
-   (primero WordRed, luego las de otras apps, cada una con su título).
-   Los datos son reales, del WordRedNotificationListener; sin el acceso
-   concedido no se inventa nada: la sección dice que falta el permiso y
-   cómo concederlo. Con muchas, solo se ven las primeras y abajo salen
-   3 puntos ("...") para desplegar el resto con animación (y volver a
-   comprimir tocando de nuevo). */
-var OTHER_NOTIFS_VISIBLE = 5;
-function otherAppNotifs() {
-  try {
-    if (!window.AndroidBridge || !AndroidBridge.getOtherAppNotifications) return null;
-    var raw = AndroidBridge.getOtherAppNotifications();
-    var arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    return Array.isArray(arr) ? arr : [];
-  } catch (e) { return []; }
-}
-function otherAppNotifItemHtml(n) {
-  var pkg = esc(n.pkg || '');
-  var app = esc(n.app || n.pkg || 'Otra aplicación');
-  var title = esc(n.title || '');
-  var text = esc(n.text || '');
-  var when = '';
-  try { when = n.time ? C.timeAgo(n.time) : ''; } catch (e) {}
-  return '<div class="glass card notif" onclick="window.__wrOpenOtherAppNotif(\'' + pkg + '\')">' +
-    '<span style="color:var(--mut)">' + ic('bell', 20) + '</span>' +
-    '<div class="who"><b>' + app + '</b>' + (title ? ' ' + title : '') +
-    (text ? '<div>' + text + '</div>' : '') +
-    (when ? '<div class="tiny">' + when + '</div>' : '') + '</div></div>';
-}
-window.__wrOpenOtherAppNotif = function (pkg) {
-  if (!pkg) return;
-  try {
-    if (window.AndroidBridge && AndroidBridge.openApp) {
-      var r = AndroidBridge.openApp(pkg);
-      if (r && String(r).indexOf('ERROR') === 0) toast('No se pudo abrir esa aplicación.');
-    }
-  } catch (e) {}
-};
-window.__wrToggleOtherNotifs = function (btn) {
-  var box = document.getElementById('otherNotifsMore');
-  if (!box) return;
-  var open = box.classList.toggle('open');
-  if (btn) btn.textContent = open ? 'Ver menos' : '···';
-};
-window.__wrOpenNotifAccess = function () {
-  try { if (window.AndroidBridge && AndroidBridge.openNotificationAccessSettings) AndroidBridge.openNotificationAccessSettings(); } catch (e) {}
-};
-function otherAppsNotifsHtml() {
-  var granted = false;
-  try { granted = !!(window.AndroidBridge && AndroidBridge.isNotificationAccessGranted && AndroidBridge.isNotificationAccessGranted()); } catch (e) {}
-  if (!granted) {
-    return '<div class="glass card" style="display:block"><p class="tiny muted">Para ver aquí las notificaciones de tus otras aplicaciones, concede el acceso a notificaciones.</p><button class="btn ghost small mt" onclick="window.__wrOpenNotifAccess()">Conceder acceso</button></div>';
-  }
-  var list = otherAppNotifs();
-  if (!list || !list.length) {
-    return '<div class="glass card" style="display:block"><p class="tiny muted">No hay notificaciones de otras aplicaciones ahora mismo.</p></div>';
-  }
-  var first = list.slice(0, OTHER_NOTIFS_VISIBLE);
-  var rest = list.slice(OTHER_NOTIFS_VISIBLE);
-  var html = first.map(otherAppNotifItemHtml).join('');
-  if (rest.length) {
-    html += '<div class="otherNotifsMore" id="otherNotifsMore">' + rest.map(otherAppNotifItemHtml).join('') + '</div>' +
-      '<button class="btn ghost small otherNotifsToggle" style="width:100%" onclick="window.__wrToggleOtherNotifs(this)">···</button>';
-  }
-  return html;
-}
 function renderNotifs() {
   /* 1.5.43: en la campana no aparece nada de la cuenta de ejemplo. */
   var all = state.notifications.filter(function (n) { return n.to === state.me && !C.isDemoNotif(state, n); });
@@ -11077,15 +10804,14 @@ function renderNotifs() {
   var sysList = all.filter(function (n) { return n.type === 'system'; });
   var list = all.filter(function (n) { return n.type !== 'system'; });
   var el = $('notifList');
-  var icons = { like: 'heart', comment: 'message', request: 'users', friend: 'users', message: 'message', share: 'share', group: 'users', post: 'file', pagepost: 'file', grouppost: 'file', tag: 'tag', update: 'download', system: 'battery', mention: 'tag', birthday: 'users', liveInvite: 'videocam', windows: 'windows' }; /* 1.5.26 (24/5/23); 1.5.30: Windows */
+  var icons = { like: 'heart', comment: 'message', request: 'users', friend: 'users', message: 'message', share: 'share', group: 'users', post: 'file', pagepost: 'file', grouppost: 'file', tag: 'tag', system: 'battery', mention: 'tag', birthday: 'users', liveInvite: 'videocam' }; /* 1.5.26 (24/5/23) */ /* Web 1.1: sin avisos de actualización ni de Windows. */
   var wrHtml = '';
   if (!list.length) {
     wrHtml = '<div class="empty"><div class="big">' + ic('bell', 34) + '</div><p>Sin notificaciones todavía.</p><p class="tiny">Cuando alguien reaccione, comente o te escriba, aparecerá aquí.</p></div>';
   } else {
     wrHtml = list.slice(0, 100).map(function (n) {
       var name = (n.type === 'update' || n.type === 'windows') ? 'WordRed' : profileName(n.from);
-      var click = n.type === 'update' ? 'window.__wrOpenUpdateDialog()'
-        : n.type === 'windows' ? 'window.__wrDownloadWindows1530()'
+      var click = (n.type === 'update' || n.type === 'windows') ? 'window.__wrOpenSettings()' /* Web 1.1: los avisos viejos de actualización/Windows abren Ajustes. */
         : n.type === 'message' ? 'window.__wrOpenChat(\'' + n.from + '\')'
         : n.type === 'mention' ? 'window.__wrOpenPost(\'' + n.refId + '\')' /* 1.5.26 (24): la mención abre el comentario */
         : n.type === 'birthday' ? 'window.__wrOpenProfile(\'' + n.from + '\')' /* 1.5.26 (5): el cumpleaños abre su perfil */
@@ -11094,14 +10820,11 @@ function renderNotifs() {
       return '<div class="glass card notif' + (n.read ? '' : ' unread') + '" onclick="' + click + '">' +
         '<span style="color:var(--mut)">' + ic(icons[n.type] || 'bell', 20) + '</span>' +
         '<div class="who"><b>' + esc(name) + '</b> ' + esc(n.text) + '<div class="tiny">' + C.timeAgo(n.createdAt) + ' · ' + C.formatDateTime(n.createdAt) + '</div>' +
-        /* 1.5.30: el aviso de Windows lleva sus dos acciones en la campana. */
-        (n.type === 'windows' ? '<div style="display:flex;gap:8px;margin-top:8px"><button class="btn small" onclick="event.stopPropagation();window.__wrDownloadWindows1530()">Descargar</button><button class="btn ghost small" onclick="event.stopPropagation();window.__wrShareWindows1530()">Compartir</button></div>' : '') +
-        '</div>' +
         (n.read ? '' : '<span class="notifdot"></span>') + '</div>';
     }).join('');
   }
   el.innerHTML = '<h3 class="sectitle">WordRed</h3>' + wrHtml +
-    '<h3 class="sectitle" style="margin-top:16px">Otras aplicaciones y sistema</h3>' +
+    (sysList.length ? '<h3 class="sectitle" style="margin-top:16px">Sistema</h3>' +
     sysList.map(function (n) {
       /* Avisos de sistema (batería): al tocarlos solo se marcan leídos,
          no llevan a ningún lado. */
@@ -11109,7 +10832,7 @@ function renderNotifs() {
         '<span style="color:var(--mut)">' + ic('battery', 20) + '</span>' +
         '<div class="who"><b>Sistema</b> ' + esc(n.text) + '<div class="tiny">' + C.timeAgo(n.createdAt) + ' · ' + C.formatDateTime(n.createdAt) + '</div></div>' +
         (n.read ? '' : '<span class="notifdot"></span>') + '</div>';
-    }).join('') + otherAppsNotifsHtml();
+    }).join('') : ''); /* Web 1.1: sin notificaciones de otras apps (necesitan el teléfono). */
 }
 $('notifReadAll').addEventListener('click', function () {
   C.markNotificationsRead(state, state.me);
@@ -11118,291 +10841,6 @@ $('notifReadAll').addEventListener('click', function () {
   updateBadges();
 });
 
-/* ---------------- actualización de la aplicación (v1.5.17 punto 2) ----
-   La última versión vive en el servidor (GET /api/app/latest) junto al
-   APK real (GET /app/WordRed.apk): nada inventado. La comprobación se
-   hace al arrancar en segundo plano (silenciosa si no hay nada nuevo)
-   y a petición en Ajustes; si hay versión nueva, aparece sola en la
-   campana de Avisos y como notificación del celular, una sola vez por
-   versión. Al presionar cualquiera de las dos se abre el diálogo de
-   actualización con el botón Instalar. */
-var appUpdateInfo = null; // {versionName, versionCode, url, notes}
-var appUpdateCheckRunning = false;
-var appUpdateCheckLast = 0;
-/* v1.5.19: la descarga de la actualización debe ir por https. El servidor
-   3.5 devolvía la URL con http (detrás del proxy de Render, req.protocol es
-   http) y Render redirige a https con 301; el descargador nativo
-   (HttpURLConnection) no sigue redirecciones con cambio de protocolo, así
-   que la descarga fallaba con "No se pudo descargar la actualización.".
-   Aquí se reescribe a https la URL del servidor de WordRed; cualquier otra
-   URL se deja como está. El servidor 3.6 ya devuelve https directamente. */
-function appUpdateDownloadUrl(info) {
-  var u = '';
-  if (info && info.url) u = info.url;
-  else { try { u = C.serverBase(state) + '/app/WordRed.apk'; } catch (e) { u = ''; } }
-  if (u && u.indexOf('http://wordred-server.onrender.com/') === 0) u = 'https://' + u.slice(7);
-  return u;
-}
-/* v1.5.25: cuando se instala una actualización, su aviso de "nueva
-   actualización" debe DESAPARECER DE LA CAMPANA: antes el aviso se
-   quedaba para siempre aunque la versión ya estuviera instalada. Se
-   quitan los avisos de tipo 'update' cuya versión (refId) ya está
-   instalada; los de una versión todavía más nueva se quedan, y el aviso
-   del celular no se toca (solo la campana). */
-function pruneInstalledUpdateNotifs() {
-  if (!state.me) return;
-  var changed = false;
-  if (state.notifications && state.notifications.length) {
-    var kept = state.notifications.filter(function (n) {
-      if (n.type !== 'update' || n.refId == null || n.refId === '') return true;
-      var v = Number(n.refId);
-      return !(isFinite(v) && v <= APP_VERSION_CODE);
-    });
-    if (kept.length !== state.notifications.length) { state.notifications = kept; changed = true; }
-  }
-  if (state.updateNotifiedVersion > 0 && state.updateNotifiedVersion <= APP_VERSION_CODE) {
-    state.updateNotifiedVersion = 0;
-    changed = true;
-  }
-  if (changed) { save(); updateBadges(); }
-}
-function notifyAppUpdateAvailable(info) {
-  if (!info || !info.versionCode || !state.me) return;
-  /* Campana: una sola vez por versión (si ya está el aviso, no se repite). */
-  var already = state.notifications.some(function (n) { return n.type === 'update' && n.refId === String(info.versionCode) && n.to === state.me; });
-  if (!already) {
-    var item = C.notify(state, { type: 'update', from: state.me, to: state.me, text: 'Hay una actualización disponible: WordRed ' + info.versionName + '. Toca para instalarla.', refId: String(info.versionCode) });
-    if (item) { save(); updateBadges(); }
-  }
-  /* Notificación del celular: una sola vez por versión. */
-  if (state.updateNotifiedVersion !== info.versionCode) {
-    state.updateNotifiedVersion = info.versionCode;
-    save();
-    try {
-      if (window.AndroidBridge && AndroidBridge.showNotification) {
-        AndroidBridge.showNotification('WordRed', 'Hay una actualización disponible: ' + info.versionName + '. Toca para instalarla.', JSON.stringify({ kind: 'update', versionCode: info.versionCode, url: info.url || appUpdateDownloadUrl(info) }));
-      }
-    } catch (e) {}
-  }
-}
-async function checkAppUpdate(opts) {
-  opts = opts || {};
-  /* Web 1.0: en la web no hay APK que actualizar: al abrir la página ya
-     tienes la última versión. */
-  return null;
-  /* 1.5.54: la app principal se actualiza normal, sin excepciones. */
-  if (appUpdateCheckRunning) return appUpdateInfo;
-  appUpdateCheckRunning = true;
-  appUpdateCheckLast = Date.now();
-  try {
-    /* Con reintentos: el servidor gratuito se duerme y tarda en despertar. */
-    var r = await C.serverFetchWithRetry(state, '/api/app/latest', 'GET', null, { attempts: 2, delays: [0, 5000], timeoutMs: 20000 });
-    if (!r.ok || !r.data || !r.data.ok || !r.data.versionCode) {
-      if (!opts.silent) openUpdateDialog({ error: true });
-      return null;
-    }
-    if (r.data.versionCode > APP_VERSION_CODE) {
-      appUpdateInfo = { versionName: r.data.versionName, versionCode: r.data.versionCode, url: r.data.url || '', notes: r.data.notes || '' };
-      notifyAppUpdateAvailable(appUpdateInfo);
-      if (!opts.silent) openUpdateDialog(appUpdateInfo);
-      return appUpdateInfo;
-    }
-    appUpdateInfo = null;
-    /* v1.5.25: ya no hay versión nueva: los avisos de actualización ya
-       instalados desaparecen de la campana. */
-    pruneInstalledUpdateNotifs();
-    if (!opts.silent) openUpdateDialog({ upToDate: true });
-    return null;
-  } catch (e) {
-    if (!opts.silent) openUpdateDialog({ error: true });
-    return null;
-  } finally {
-    appUpdateCheckRunning = false;
-  }
-}
-/* ---- 1.5.30: WordRed para Windows ----
-   La versión de Windows vive en GitHub (Release v1.0.3-windows;
-   1.5.31: antes era la v1.5.29-windows, que quedó atrás). Un
-   aviso en la campana invita a descargarla: aparece una vez al abrir
-   la 1.5.30 y SE QUEDA en la campana hasta que se presiona Descargar;
-   al presionarlo se quita y no vuelve a aparecer para esta versión de
-   Windows (la marca queda guardada). En Ajustes queda una entrada
-   permanente para volver a descargarla cuando se quiera. El aviso es
-   solo de la campana: no suena en el celular. */
-var WINDOWS_DOWNLOAD_URL_1530 = 'https://github.com/misterystoreplay/Wordred-server/releases/download/v1.0.3-windows/WordRed-1.0.3-Windows.exe';
-var WINDOWS_VERSION_1530 = '1.0.3-windows';
-function maybeNotifyWindows1530() {
-  /* Web 1.0: en la web no hay descarga de Windows que avisar. */
-  return;
-  if (state.settings && state.settings.windowsDlDismissed1530 === WINDOWS_VERSION_1530) return;
-  var already = state.notifications.some(function (n) { return n.type === 'windows' && n.refId === WINDOWS_VERSION_1530 && n.to === state.me; });
-  if (already) return;
-  var item = C.notify(state, { type: 'windows', from: state.me, to: state.me, text: 'WordRed también está para Windows. Descárgala en tu computadora con tu misma cuenta.', refId: WINDOWS_VERSION_1530 });
-  if (item) { save(); updateBadges(); }
-}
-window.__wrDownloadWindows1530 = function () {
-  /* Quitar el aviso de la campana y no volver a ponerlo para esta
-     versión de Windows; luego abrir la descarga. */
-  if (state.notifications && state.notifications.length) {
-    state.notifications = state.notifications.filter(function (n) { return !(n.type === 'windows' && n.refId === WINDOWS_VERSION_1530); });
-  }
-  if (!state.settings) state.settings = {};
-  state.settings.windowsDlDismissed1530 = WINDOWS_VERSION_1530;
-  save(); updateBadges();
-  if (currentView === 'notifs') renderNotifs();
-  window.__wrOpenUrl(encodeURIComponent(WINDOWS_DOWNLOAD_URL_1530));
-};
-window.__wrShareWindows1530 = function () {
-  var text = 'WordRed también está para Windows. Descárgala aquí: ' + WINDOWS_DOWNLOAD_URL_1530;
-  try {
-    if (window.AndroidBridge && AndroidBridge.shareText) { AndroidBridge.shareText(text); return; }
-  } catch (e) {}
-  try {
-    if (navigator.share) { navigator.share({ text: text }); return; }
-  } catch (e) {}
-  toast(text);
-};
-function renderUpdateCard() {
-  var v = $('updateCurrentVersion');
-  if (v) v.textContent = 'WordRed Web 1.0 · contenido de Android 1.5.64';
-  var s = $('updateStatus');
-  if (s) {
-    s.textContent = 'En la web no hay que actualizar: al abrir la página ya tienes la última versión.';
-  }
-}
-function openUpdateDialog(result) {
-  var body = $('updateBody');
-  var installBtn = $('updateInstallBtn');
-  if (!body || !installBtn) return;
-  if (result && result.error) {
-    body.innerHTML = '<p style="font-size:15px;line-height:1.5">No se pudo revisar la actualización. Revisa tu conexión e inténtalo de nuevo.</p>';
-    installBtn.classList.add('hidden');
-  } else if (result && result.upToDate) {
-    body.innerHTML = '<p style="font-size:15px;line-height:1.5">Tienes la última versión de WordRed (' + APP_VERSION_NAME + ').</p>';
-    installBtn.classList.add('hidden');
-  } else {
-    var info = (result && result.versionCode) ? result : appUpdateInfo;
-    if (!info) {
-      body.innerHTML = '<p style="font-size:15px;line-height:1.5">No hay información de actualización. Inténtalo de nuevo más tarde.</p>';
-      installBtn.classList.add('hidden');
-    } else {
-      body.innerHTML = '<p style="font-size:15px;line-height:1.5">Hay una actualización disponible: <b>WordRed ' + esc(info.versionName) + '</b>.</p>' +
-        (info.notes ? '<p class="tiny muted" style="margin-top:8px">' + esc(info.notes) + '</p>' : '') +
-        '<p class="tiny muted" style="margin-top:8px">Toca Instalar para descargarla e instalarla.</p>';
-      installBtn.classList.remove('hidden');
-    }
-  }
-  showOverlay('updateOverlay');
-}
-window.__wrOpenUpdateDialog = function () { openUpdateDialog(null); };
-window.__wrInstallUpdate = function () {
-  if (!appUpdateInfo || !appUpdateInfo.url) { toast('No hay actualización lista para instalar.'); return; }
-  hideOverlay('updateOverlay');
-  toast('Descargando actualización…');
-  try {
-    if (window.AndroidBridge && AndroidBridge.downloadAndInstallApk) { AndroidBridge.downloadAndInstallApk(appUpdateDownloadUrl(appUpdateInfo)); return; }
-  } catch (e) {}
-  try { window.open(appUpdateDownloadUrl(appUpdateInfo), '_blank'); } catch (e) {}
-};
-if ($('checkUpdateBtn')) $('checkUpdateBtn').addEventListener('click', function () {
-  var s = $('updateStatus');
-  if (s) s.textContent = 'Revisando…';
-  checkAppUpdate({ silent: false });
-});
-/* 1.5.43: el botón redondo «?» arriba a la derecha en Ajustes ABRE las
-   preguntas frecuentes en su propio panel (con cruz para cerrar y fondo
-   translúcido); las preguntas ya no están sueltas dentro de Ajustes. */
-if ($('settingsFaqBtn1542')) $('settingsFaqBtn1542').addEventListener('click', function () {
-  renderFaq();
-  showOverlay('faqOverlay1543');
-});
-/* 1.5.30: la descarga de Windows en Ajustes es permanente. */
-if ($('windowsDownloadBtn')) $('windowsDownloadBtn').addEventListener('click', function () {
-  window.__wrOpenUrl(encodeURIComponent(WINDOWS_DOWNLOAD_URL_1530));
-});
-
-/* ---------------- batería (v1.5.17 punto 4) ----------------
-   Nivel REAL del teléfono (BatteryManager): el símbolo con el
-   porcentaje va en el Inicio, en la fila de botones tras Marketplace,
-   y se actualiza en vivo; el rayo sale solo mientras carga. Avisos de
-   batería baja (<= 15% sin cargar) y llena (100% cargando): en la
-   campana (apartado de otras apps/sistema) y como notificación del
-   celular (la manda el lado nativo, BatteryWatcher). Nada inventado:
-   sin el nivel real no hay porcentaje ni avisos. */
-var batteryLevel = -1; /* -1 = aún no se sabe el nivel real */
-var batteryCharging = false;
-function batteryIconSvg(level, charging) {
-  /* Cuerpo con el relleno según el nivel (vacía, media, llena).
-     1.5.37: el rayo de carga va DENTRO del símbolo (antes era un icono
-     aparte junto al símbolo y el apartado crecía ~16 px al cargar, porque
-     se sumaba el icono de 13 px más el hueco). El rayo es un camino dentro
-     del cuerpo (x 9.6–15.4, y 1.8–10.2, dentro del recuadro 1–23 × 1–11),
-     así que el icono mide siempre 25×12, cargando o no. */
-  var fillW = level < 0 ? 0 : Math.max(0, Math.min(18, Math.round(level / 100 * 18)));
-  return '<svg width="25" height="12" viewBox="0 0 28 12" aria-hidden="true"><rect x="1" y="1" width="22" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-opacity=".55" stroke-width="1.2"/><rect x="3" y="3" width="' + fillW + '" height="6" rx="1" fill="currentColor"/><path d="M24.5 4.5v3a2 2 0 0 0 0-3z" fill="currentColor" fill-opacity=".55"/>' + (charging ? '<path d="M13.8 1.8 L9.6 6.6 L12.2 6.6 L10.9 10.2 L15.4 5.4 L12.8 5.4 Z" style="fill:var(--red2)"/>' : '') + '</svg>';
-}
-function renderBatteryInd() {
-  var el = $('batteryInd');
-  if (!el) return;
-  if (batteryLevel < 0) { el.innerHTML = ''; el.classList.add('hidden'); return; }
-  el.classList.remove('hidden');
-  el.classList.toggle('low', batteryLevel <= 15 && !batteryCharging);
-  el.innerHTML = batteryIconSvg(batteryLevel, batteryCharging) +
-    '<span>' + batteryLevel + '%</span>'; /* 1.5.37: sin icono de rayo aparte; el rayo ya va dentro del símbolo, así que el indicador mide lo mismo cargando o no */
-  el.setAttribute('aria-label', 'Batería: ' + batteryLevel + '%' + (batteryCharging ? ', cargando' : ''));
-}
-window.__onBatteryStatus = function (s) {
-  if (!s) return;
-  var lvl = parseInt(s.level, 10);
-  if (!isNaN(lvl)) batteryLevel = lvl;
-  batteryCharging = !!s.charging;
-  renderBatteryInd();
-  /* 1.5.36: si el apartado de batería está en el inicio, refrescarlo. */
-  if (typeof renderHomeWidgetBody1536 === 'function') renderHomeWidgetBody1536('bateria');
-};
-function batteryRefId(kind) {
-  var d = new Date();
-  return kind + '-' + d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
-}
-function batteryNotice(kind, level, charging) {
-  /* Guardas con el nivel real: un aviso de batería baja solo si el
-     nivel es bajo de verdad, y uno de llena solo al 100% cargando.
-     Una sola vez por día y por tipo en la campana. */
-  if (!state.me) return false;
-  level = parseInt(level, 10);
-  if (kind === 'low' && (isNaN(level) || level > 15 || charging)) return false;
-  if (kind === 'full' && (isNaN(level) || level < 100 || !charging)) return false;
-  var refId = batteryRefId(kind);
-  var exists = state.notifications.some(function (n) { return n.type === 'system' && n.refId === refId; });
-  if (exists) return false;
-  var text = kind === 'low'
-    ? 'Batería baja: queda ' + level + '% de batería. Conecta el cargador.'
-    : 'Batería llena: llegó al 100%.';
-  var item = C.notify(state, { type: 'system', from: 'sistema', to: state.me, text: text, refId: refId });
-  if (item) { save(); updateBadges(); if (currentView === 'notifs') renderNotifs(); return true; }
-  return false;
-}
-window.__onBatteryNotice = function (kind, level, charging) { batteryNotice(kind, level, charging); };
-function checkBatteryNoticesOnStart() {
-  /* Al abrir la app: leer el nivel real y recoger los avisos que se
-     dispararon con la app cerrada. Sin puente (navegador) no se
-     inventa nada: el indicador queda vacío y no hay avisos. */
-  try {
-    if (!window.AndroidBridge || !AndroidBridge.getBatteryStatus) return;
-    var st = JSON.parse(AndroidBridge.getBatteryStatus() || '{}');
-    window.__onBatteryStatus(st);
-    if (typeof st.level === 'number') {
-      if (st.level <= 15 && !st.charging) batteryNotice('low', st.level, false);
-      if (st.level >= 100 && st.charging) batteryNotice('full', st.level, true);
-    }
-    if (AndroidBridge.takePendingBatteryNotices) {
-      var pending = JSON.parse(AndroidBridge.takePendingBatteryNotices() || '[]');
-      (pending || []).forEach(function (p) {
-        batteryNotice(p.kind, p.level, p.kind === 'full');
-      });
-    }
-  } catch (e) {}
-}
 window.__wrReadNotif = function (id) {
   var n = state.notifications.find(function (x) { return x.id === id; });
   if (n && !n.read) { n.read = true; save(); renderNotifs(); updateBadges(); }
@@ -11512,154 +10950,6 @@ window.__wrHomeSearchClear1562 = function () {
 
 
 /* ---------------- ajustes ---------------- */
-/* ---- lanzador de inicio (v1.5.13) ----
-   Sin carpetas ni sección en el inicio: un botón rojo de 4 recuadros
-   en el centro de la barra de abajo abre el cajón de aplicaciones.
-   En el cajón se ven TODAS las apps del teléfono: tocar abre, mantener
-   presionada abre el menú al instante (Desinstalar, Información de la
-   aplicación, Compartir), arrastrar reordena (en "Mi orden"), y se
-   puede poner por nombre. El orden y el modo se guardan en
-   state.launcher (persisten al cerrar la app); los iconos se leen del
-   teléfono en cada arranque y no se guardan. Los iconos van grandes
-   y SIN marco: solo la imagen del icono, con el nombre debajo. */
-var installedApps = [];
-var installedAppsByPkg = {};
-var launcherDrag = null;
-function launcherDemoApps() {
-  return [
-    { pkg: 'com.demo.camara', name: 'Cámara', icon: '', demo: true },
-    { pkg: 'com.demo.galeria', name: 'Galería', icon: '', demo: true },
-    { pkg: 'com.demo.mensajes', name: 'Mensajes', icon: '', demo: true },
-    { pkg: 'com.demo.musica', name: 'Música', icon: '', demo: true },
-    { pkg: 'com.demo.mapas', name: 'Mapas', icon: '', demo: true },
-    { pkg: 'com.demo.calculadora', name: 'Calculadora', icon: '', demo: true }
-  ];
-}
-/* v1.5.21: true cuando la lista en memoria vino del puente (al arrancar
-   o en una actualización de fondo). Mientras sea false, el cajón todavía
-   no tiene lista y muestra "Cargando aplicaciones…". */
-var launcherAppsLoaded = false;
-function refreshLauncherApps() {
-  /* Web 1.0: en la web no hay apps del teléfono que lanzar. Sin este
-     cambio el cajón mostraría apps de demostración falsas (Cámara,
-     Galería…); en su lugar la lista queda vacía y el cajón solo muestra
-     la entrada fija de Fantore Resurrección, que sí es real. */
-  installedApps = [];
-  installedAppsByPkg = {};
-  var pkgs = [];
-  C.launcherSyncApps(state, pkgs);
-  C.launcherPruneApps(state, pkgs);
-  launcherAppsLoaded = true;
-  save(); renderAppsDrawer();
-  return true;
-}
-function launcherAppInfo(pkg) {
-  return installedAppsByPkg[pkg] || { pkg: pkg, name: pkg, icon: '' };
-}
-/* Iconos grandes y SIN marco (v1.5.13): solo la imagen del icono tal
-   cual, sin tarjeta, borde ni fondo dibujado por WordRed. Si una app
-   no trae icono, se muestra su inicial (solo en ese caso). */
-function launcherIconHtml(a, size) {
-  size = size || 60;
-  /* 1.5.55: si el icono no carga, se ve la inicial como cuando no hay
-     icono, nunca un hueco vacío. */
-  if (a.icon) { var ini1555 = (a.name || '?').trim().charAt(0).toUpperCase().replace(/['"\\]/g, '') || '?'; return '<img src="' + a.icon + '" alt="" draggable="false" style="width:' + size + 'px;height:' + size + 'px;pointer-events:none" onerror="window.__wrImgFail1555(this,\'appIcon\',\'' + esc(ini1555) + '\')">'; }
-  var initial = (a.name || '?').trim().charAt(0).toUpperCase() || '?';
-  return '<span style="display:inline-flex;align-items:center;justify-content:center;width:' + size + 'px;height:' + size + 'px;border-radius:14px;background:var(--accent);color:#fff;font-weight:700;font-size:' + Math.round(size * 0.45) + 'px;pointer-events:none">' + esc(initial) + '</span>';
-}
-function launcherTileHtml(a, i) {
-  /* v1.5.15: numerito rojo encima de cada aplicación con sus
-     notificaciones pendientes (del servicio nativo). Sin pendientes, la
-     app no lleva nada encima. 1.5.47: el interruptor de contadores del
-     cajón los apaga aunque el acceso esté concedido; el tamaño de icono
-     y de texto sale de los ajustes del cajón (60 px y 11 px por defecto,
-     como siempre). */
-  var d = drawerSettings1547();
-  var n = d.badges ? (appNotifCounts[a.pkg] || 0) : 0;
-  var badge = n > 0 ? '<span class="appNotifBadge">' + (n > 99 ? '99+' : n) + '</span>' : '';
-  var iconHtml = d.iconSize === 60 ? launcherIconHtml(a, 60) : launcherIconHtml(a, d.iconSize);
-  /* 1.5.54: la entrada fija del juego destacado lleva su icono real con
-     borde dorado, y su tipo propio para que el toque juegue (abrir o
-     instalar) en vez de abrir una app instalada. */
-  var tileKind1549 = a.featured1549 ? 'featured-game' : 'app';
-  var tileCls1549 = 'launcherTile' + (a.featured1549 ? ' launcherTileFeatured1549' : '');
-  if (a.featured1549) iconHtml = '<span class="launcherIconGold1549">' + iconHtml + '</span>';
-  return '<div class="' + tileCls1549 + '" data-launcher-kind="' + tileKind1549 + '" data-launcher-pkg="' + esc(a.pkg) + '" data-launcher-index="' + i + '">' + badge + iconHtml + '<div class="launcherName" style="font-size:' + d.textSize + 'px">' + esc(a.name) + '</div></div>';
-}
-/* v1.5.15: numerito rojo de notificaciones pendientes encima de cada app
-   del cajón. Se lee del puente (el servicio nativo cuenta las
-   notificaciones activas por paquete). Sin el acceso a notificaciones
-   concedido, no hay numeritos; el cajón muestra cómo activarlo. */
-var appNotifCounts = {};
-function refreshAppNotifCounts() {
-  appNotifCounts = {};
-  try {
-    if (window.AndroidBridge && AndroidBridge.getAppNotificationCounts) {
-      var raw = AndroidBridge.getAppNotificationCounts() || '{}';
-      var parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        Object.keys(parsed).forEach(function (pkg) {
-          var n = parseInt(parsed[pkg], 10);
-          if (n > 0) appNotifCounts[pkg] = n;
-        });
-      }
-    }
-  } catch (e) { appNotifCounts = {}; }
-  renderNotifAccessHint();
-  /* v1.5.21: los numeritos se actualizan EN SU SITIO, sin reconstruir
-     todo el grid. Antes, cada actualización de los conteos volvía a
-     dibujar el cajón entero por segunda vez en la misma apertura. */
-  updateAppNotifBadges();
-}
-/* v1.5.21: pone, cambia o quita el numerito rojo de cada ficha que ya
-   está dibujada, sin tocar el resto del cajón. Si la ficha no está en
-   pantalla (todavía no se dibujó el cajón), no hace nada: el próximo
-   renderAppsDrawer ya lleva los numeritos nuevos. */
-function updateAppNotifBadges() {
-  var grid = $('appsDrawerGrid');
-  if (!grid) return;
-  /* 1.5.47: con los contadores apagados no hay numeritos aunque haya
-     acceso concedido (el refresco no los vuelve a poner). */
-  if (!drawerSettings1547().badges) {
-    grid.querySelectorAll('.appNotifBadge').forEach(function (b) { if (b.parentNode) b.parentNode.removeChild(b); });
-    return;
-  }
-  grid.querySelectorAll('.launcherTile').forEach(function (tile) {
-    var pkg = tile.getAttribute('data-launcher-pkg');
-    var n = appNotifCounts[pkg] || 0;
-    var badge = tile.querySelector('.appNotifBadge');
-    if (n > 0) {
-      var txt = n > 99 ? '99+' : String(n);
-      if (badge) { if (badge.textContent !== txt) badge.textContent = txt; }
-      else {
-        var s = document.createElement('span');
-        s.className = 'appNotifBadge';
-        s.textContent = txt;
-        tile.insertBefore(s, tile.firstChild);
-      }
-    } else if (badge) { badge.parentNode.removeChild(badge); }
-  });
-}
-function notifAccessGranted() {
-  try {
-    if (window.AndroidBridge && AndroidBridge.isNotificationAccessGranted) return !!AndroidBridge.isNotificationAccessGranted();
-  } catch (e) {}
-  return false;
-}
-function renderNotifAccessHint() {
-  var el = $('appsDrawerNotifHint');
-  if (!el) return;
-  var hasBridge = !!(window.AndroidBridge && AndroidBridge.getAppNotificationCounts);
-  if (!hasBridge || notifAccessGranted()) { el.classList.add('hidden'); el.innerHTML = ''; return; }
-  el.classList.remove('hidden');
-  el.innerHTML = 'Para ver cuántas notificaciones tiene cada aplicación, activa el acceso a notificaciones. <button class="btn ghost small" type="button" onclick="window.__wrOpenNotifAccess()">Activar</button>';
-}
-window.__wrOpenNotifAccess = function () {
-  try {
-    if (window.AndroidBridge && AndroidBridge.openNotificationAccessSettings) { AndroidBridge.openNotificationAccessSettings(); return; }
-  } catch (e) {}
-  toast('Activa el acceso a notificaciones en los ajustes del teléfono.');
-}
 /* v1.5.15 (punto 11): la barra de abajo respeta la barra de navegación
    del sistema cuando el teléfono usa los 3 botones. Causa: el relleno
    que applySystemBarPadding pone al WebView (1.5.9) mueve el contenido
@@ -11682,296 +10972,11 @@ function initNavInset() {
   } catch (e) {}
 }
 initNavInset();;
-function renderAppsDrawer() {
-  var grid = $('appsDrawerGrid');
-  if (!grid) return;
-  /* Solo se ven las apps del orden guardado: al desinstalar una se
-     quita del orden y ya no aparece, aunque el puente la siga listando. */
-  var lay = C.launcherLayout(state);
-  var inLayout = {};
-  lay.forEach(function (e) { inLayout[e.pkg] = true; });
-  /* 1.5.47: las apps ocultas en los ajustes del cajón no se muestran
-     (siguen instaladas; se restauran desde los mismos ajustes). */
-  var d1547 = drawerSettings1547();
-  /* 1.5.48: sin columnas guardadas, el número se calcula del ancho real
-     y del tamaño de icono (como «Acomodar al justo») para que el icono
-     nunca se monte sobre el vecino en teléfonos angostos (a 320 px,
-     4 columnas de 53 px con iconos de 60 px se encimaban). No se guarda:
-     la elección guardada no se toca. */
-  var cols1548 = d1547.cols || Math.max(3, Math.min(6, Math.floor((grid.clientWidth || 360) / (d1547.iconSize + 24)) || 3));
-  var visible = installedApps.filter(function (a) { return inLayout[a.pkg] && d1547.hidden.indexOf(a.pkg) < 0; });
-  var ordered = C.launcherOrderedApps(state, visible);
-  /* v1.5.15: buscador del cajón: filtra por nombre mientras se escribe
-     (sin tildes y sin importar mayúsculas). Funciona con el orden y con
-     el desplazamiento; mientras se busca no se puede reordenar (como en
-     "Por nombre"), para no mover apps sin querer. */
-  var q = foldSearch(appsDrawerQuery);
-  var filtered = q ? ordered.filter(function (a) { return foldSearch(a.name).indexOf(q) >= 0; }) : ordered;
-  /* 1.5.54: entrada fija de Fantore Resurrección, el juego destacado:
-     va primera en el cajón, con su icono real y borde dorado, aunque no
-     esté instalado. Si el juego sí está instalado, su ficha real no se
-     duplica: la fija la cubre (abre el juego igual). */
-  var filteredNoFantore1549 = filtered.filter(function (a) { return a.pkg !== FEATURED_GAME_1549.package; });
-  var featuredApp1549 = { pkg: FEATURED_GAME_1549.package, name: FEATURED_GAME_1549.name, icon: FEATURED_GAME_1549.icon, featured1549: true };
-  var showFeatured1549 = !q || foldSearch(featuredApp1549.name).indexOf(q) >= 0;
-  filtered = showFeatured1549 ? [featuredApp1549].concat(filteredNoFantore1549) : filteredNoFantore1549;
-  var html = '';
-  if (!installedApps.length && !launcherAppsLoaded) {
-    /* v1.5.21: primera apertura de la historia, todavía sin lista en
-       memoria: el cajón se muestra igual de inmediato y los iconos se
-       rellenan al llegar (la actualización de fondo), sin bloquear la
-       apertura ni decir que no hay resultados. */
-    html = '<div class="empty" style="grid-column:1 / -1;padding:26px 10px;text-align:center;color:var(--mut)">Cargando aplicaciones…</div>';
-  } else if (!filtered.length) {
-    html = '<div class="empty" style="grid-column:1 / -1;padding:26px 10px;text-align:center;color:var(--mut)">Sin resultados para "' + esc(appsDrawerQuery) + '".</div>';
-  } else if (d1547.pages === 'multi') {
-    /* 1.5.47: varias páginas — 4 filas por página, se desliza de lado o
-       se tocan los puntos de abajo. */
-    var perPage = cols1548 * 4;
-    var pages = [];
-    for (var pi = 0; pi < filtered.length; pi += perPage) pages.push(filtered.slice(pi, pi + perPage));
-    html = '<div class="appsDrawerPages1547" id="appsDrawerPages1547">' + pages.map(function (pg) { return '<div class="appsDrawerPage1547"><div class="launcherGrid">' + pg.map(function (a, i) { return launcherTileHtml(a, i); }).join('') + '</div></div>'; }).join('') + '</div>' +
-      '<div class="appsDrawerDots1547">' + pages.map(function (pg, pgi) { return '<button type="button" data-page="' + pgi + '"' + (pgi === 0 ? ' class="on"' : '') + ' aria-label="Página ' + (pgi + 1) + '"></button>'; }).join('') + '</div>';
-  } else {
-    filtered.forEach(function (a, i) { html += launcherTileHtml(a, i); });
-  }
-  grid.innerHTML = html;
-  /* 1.5.47: las columnas del «acomodar al justo» valen para todas las
-     cuadrículas del cajón (también en modo por páginas). 1.5.48: cuando
-     no hay columnas guardadas se usa el cálculo del ancho real. Y la
-     cuadrícula exterior TAMBIÉN recibe sus columnas: antes nunca las
-     recibía — en una sola página el «acomodar al justo» no hacía nada,
-     y en varias páginas la exterior seguía en 4 columnas y el
-     contenedor de páginas se apretaba en la primera (1/4 del ancho)
-     con los puntitos al lado. */
-  if (d1547.pages === 'multi') grid.style.gridTemplateColumns = '1fr';
-  else grid.style.gridTemplateColumns = 'repeat(' + cols1548 + ',1fr)';
-  grid.querySelectorAll('.launcherGrid').forEach(function (g) { g.style.gridTemplateColumns = 'repeat(' + cols1548 + ',1fr)'; });
-  var pagesEl1547 = $('appsDrawerPages1547');
-  if (pagesEl1547) {
-    pagesEl1547.addEventListener('scroll', function () {
-      var idx = Math.round(pagesEl1547.scrollLeft / (pagesEl1547.clientWidth || 1));
-      var dots = document.querySelectorAll('#appsDrawerOverlay .appsDrawerDots1547 button');
-      dots.forEach(function (dot, di) { dot.classList.toggle('on', di === idx); });
-    });
-    document.querySelectorAll('#appsDrawerOverlay .appsDrawerDots1547 button').forEach(function (dot) {
-      dot.addEventListener('click', function () {
-        var idx = parseInt(dot.getAttribute('data-page'), 10) || 0;
-        if (pagesEl1547.scrollTo) pagesEl1547.scrollTo({ left: idx * pagesEl1547.clientWidth, behavior: drawerSettings1547().animations ? 'smooth' : 'auto' });
-      });
-    });
-  }
-  var sortMode = C.launcherSortMode(state);
-  var cBtn = $('appsSortCustom'), nBtn = $('appsSortName');
-  if (cBtn) cBtn.classList.toggle('on', sortMode !== 'name');
-  if (nBtn) nBtn.classList.toggle('on', sortMode === 'name');
-  var hint = $('appsDrawerHint');
-  if (hint) hint.textContent = q ? (filtered.length + (filtered.length === 1 ? ' aplicación encontrada.' : ' aplicaciones encontradas.')) : (sortMode === 'name' ? 'Ordenadas por nombre. Cambia a "Mi orden" para reordenarlas arrastrando.' : 'Toca una aplicación para abrirla. Mantén presionada una para desinstalarla, ver su información o compartirla. Mantén presionada una app y arrastra para reordenar.');
-  grid.querySelectorAll('.launcherTile').forEach(function (tile) { attachLauncherTile(tile, q ? 'name' : sortMode); });
-  updateAppsDrawerScrollbar();
-}
 /* v1.5.15: para buscar sin tildes ni mayúsculas ("cámara" encuentra
    "Camara"). */
 function foldSearch(s) {
   try { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) { return String(s || '').toLowerCase(); }
 }
-var appsDrawerQuery = '';
-function setAppsDrawerQuery(q) {
-  appsDrawerQuery = String(q == null ? '' : q);
-  var inp = $('appsDrawerSearch');
-  if (inp && inp.value !== appsDrawerQuery) inp.value = appsDrawerQuery;
-  renderAppsDrawer();
-}
-/* v1.5.14: barra roja visible del cajón. El pulgar se mide en % del
-   recorrido (sin depender del tamaño en píxeles del riel), así el
-   cálculo es el mismo en el teléfono y en las pruebas. Si todo cabe,
-   la barra se oculta: no hay nada que desplazar. */
-function updateAppsDrawerScrollbar() {
-  var sc = $('appsDrawerScroll'), bar = $('appsDrawerScrollbar'), thumb = $('appsDrawerThumb');
-  if (!sc || !bar || !thumb) return;
-  var total = sc.scrollHeight, visible = sc.clientHeight;
-  if (!total || total <= visible + 1) { bar.classList.remove('on'); return; }
-  bar.classList.add('on');
-  var hPct = Math.max(8, (visible / total) * 100);
-  var maxTop = 100 - hPct;
-  var topPct = (sc.scrollTop / (total - visible)) * maxTop;
-  if (topPct < 0) topPct = 0;
-  if (topPct > maxTop) topPct = maxTop;
-  thumb.style.height = hPct + '%';
-  thumb.style.top = topPct + '%';
-}
-/* Arrastrar la propia barra desplaza el cajón: el pulgar sigue al dedo
-   y el contenido se mueve en proporción al recorrido del riel. */
-var appsDrawerThumbDrag = null;
-function appsDrawerThumbPointerDown(ev) {
-  if (ev.button !== undefined && ev.button !== 0) return;
-  var track = $('appsDrawerScrollbar'), sc = $('appsDrawerScroll'), thumb = $('appsDrawerThumb');
-  if (!track || !sc || !thumb) return;
-  ev.preventDefault();
-  var rect = track.getBoundingClientRect();
-  var thumbH = thumb.getBoundingClientRect().height;
-  appsDrawerThumbDrag = { trackTop: rect.top, trackH: rect.height, thumbH: thumbH, startY: ev.clientY, startTop: sc.scrollTop, total: sc.scrollHeight, visible: sc.clientHeight };
-  function onMove(e2) {
-    var d = appsDrawerThumbDrag;
-    if (!d) return;
-    var range = d.trackH - d.thumbH;
-    if (range <= 0 || d.total <= d.visible) return;
-    var newTop = d.startTop + ((e2.clientY - d.startY) / range) * (d.total - d.visible);
-    sc.scrollTop = Math.max(0, Math.min(d.total - d.visible, newTop));
-    updateAppsDrawerScrollbar();
-  }
-  function onUp() {
-    appsDrawerThumbDrag = null;
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    document.removeEventListener('pointercancel', onUp);
-  }
-  document.addEventListener('pointermove', onMove);
-  document.addEventListener('pointerup', onUp);
-  document.addEventListener('pointercancel', onUp);
-}
-/* ================================================================
-   1.5.47 — AJUSTES DEL CAJÓN DE APLICACIONES + NOTICIAS
-   Todo con el mismo estilo que el resto de la app: paneles
-   translúcidos, botones redondos de 40 px, acento rojo, iconos en
-   blanco y negro; los ajustes se guardan en este teléfono y se
-   aplican al instante. Las noticias son reales: fuente pública sin
-   clave (rss2json) con caché de 1 día y lista fija de respaldo.
-   ================================================================ */
-var DRAWER_BG_COLORS_1547 = [
-  { id: 'wallpaper', name: 'Fondo de pantalla' },
-  { id: 'solid:#0a0a0a', name: 'Negro' },
-  { id: 'solid:#7a0d1d', name: 'Rojo oscuro' },
-  { id: 'solid:#123a6d', name: 'Azul' },
-  { id: 'solid:#14532d', name: 'Verde' },
-  { id: 'solid:#4c1d95', name: 'Violeta' }
-];
-var DRAWER_PACKS_1547 = [
-  { id: 'original', name: 'Original' },
-  { id: 'rojo', name: 'Rojo' },
-  { id: 'byn', name: 'Blanco y negro' },
-  { id: 'redondeado', name: 'Redondeado' },
-  { id: 'minimalista', name: 'Minimalista' }
-];
-function drawerSettings1547() {
-  var d = (state.settings && state.settings.drawer1547) || {};
-  return {
-    bg: d.bg || 'wallpaper',
-    bgPhoto: d.bgPhoto || '',
-    alpha: (typeof d.alpha === 'number' ? d.alpha : 30),
-    hidden: Array.isArray(d.hidden) ? d.hidden.slice() : [],
-    cols: (typeof d.cols === 'number' ? d.cols : null),
-    iconSize: d.iconSize || 60,
-    textSize: d.textSize || 11,
-    animations: !!d.animations,
-    pages: d.pages || 'multi', /* 1.5.52: varias páginas por defecto (quien guardó 'single' lo conserva) */
-    badges: (d.badges === false ? false : true),
-    pack: d.pack || 'original'
-  };
-}
-function saveDrawerSettings1547(d) {
-  if (!state.settings) state.settings = {};
-  state.settings.drawer1547 = d;
-  save();
-}
-function drawerBgCss1547(d) {
-  var a = Math.max(0, Math.min(100, d.alpha)) / 100;
-  if (d.bg === 'photo' && d.bgPhoto) return 'linear-gradient(rgba(5,1,2,' + a + '),rgba(5,1,2,' + a + ')),url(' + d.bgPhoto + ') center/cover';
-  if (d.bg && d.bg.indexOf('solid:') === 0) {
-    var hex = d.bg.slice(6);
-    var r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
-    return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
-  }
-  return 'rgba(5,1,2,' + a + ')';
-}
-function applyDrawerSettings1547() {
-  var ov = $('appsDrawerOverlay');
-  if (!ov) return;
-  var d = drawerSettings1547();
-  /* 1.5.47: el cajón es ventana flotante — el fondo de los ajustes va en
-     la tarjeta (.sheet); el velo de detrás es el estándar translúcido. */
-  var sheet = ov.querySelector('.sheet');
-  if (sheet) { sheet.style.background = drawerBgCss1547(d); sheet.style.backdropFilter = 'blur(4px)'; sheet.style.webkitBackdropFilter = 'blur(4px)'; }
-  /* Animaciones apagadas por defecto (regla de siempre: sin animaciones). */
-  ov.classList.toggle('noAnim1547', !d.animations);
-  DRAWER_PACKS_1547.forEach(function (pk) { ov.classList.remove('drawerPack-' + pk.id + '1547'); });
-  if (d.pack !== 'original') ov.classList.add('drawerPack-' + d.pack + '1547');
-  renderAppsDrawer();
-}
-function drawerAutoFit1547() {
-  var d = drawerSettings1547();
-  var grid = $('appsDrawerGrid');
-  var w = grid ? grid.clientWidth : 360;
-  var cols = Math.max(3, Math.min(6, Math.floor(w / (d.iconSize + 24)) || 3));
-  d.cols = cols;
-  saveDrawerSettings1547(d);
-  applyDrawerSettings1547();
-  toast('Cajón acomodado: ' + cols + ' columnas.');
-}
-function openDrawerSettings1547() {
-  renderDrawerSettings1547();
-  showOverlay('drawerSettingsOverlay1547');
-}
-/* 1.5.52: botón de ocultar del cajón — abre los ajustes del cajón
-   desplazados hasta la sección «Ocultar aplicaciones» (la sección sigue
-   viviendo solo en los ajustes; no se duplica la lista). */
-function openDrawerSettingsToHide1552() {
-  openDrawerSettings1547();
-  var el = document.getElementById('drawerHideSection1552');
-  if (el && el.scrollIntoView) { try { el.scrollIntoView(); } catch (e) {} }
-}
-function renderDrawerSettings1547() {
-  var body = $('drawerSettingsBody1547');
-  if (!body) return;
-  var d = drawerSettings1547();
-  var apps = C.launcherOrderedApps(state, installedApps.slice()) || [];
-  var hiddenSet = {};
-  d.hidden.forEach(function (pk) { hiddenSet[pk] = true; });
-  var visibleApps = apps.filter(function (a) { return !hiddenSet[a.pkg]; });
-  var hiddenApps = apps.filter(function (a) { return hiddenSet[a.pkg]; });
-  /* 1.5.52: secciones agrupadas — apariencia (Fondo, Transparencia, Tema
-     de iconos), tamaño y páginas (Tamaño, Acomodar, Páginas), comportamiento
-     (Ocultar aplicaciones, Contadores, Animaciones). Solo cambia el orden. */
-  body.innerHTML =
-    '<h3 class="sectitle">Fondo</h3><div class="glass card"><div class="chiprow">' + DRAWER_BG_COLORS_1547.map(function (b) {
-      return '<button class="chip' + (d.bg === b.id ? ' on' : '') + '" onclick="window.__wrDrawerBg(\'' + b.id + '\')">' + esc(b.name) + '</button>';
-    }).join('') + '<button class="chip' + (d.bg === 'photo' ? ' on' : '') + '" onclick="window.__wrDrawerBgPhoto()">Foto</button></div>' +
-    '<p class="tiny muted">«Fondo de pantalla» deja ver el fondo del celular, como hasta ahora.</p></div>' +
-    '<h3 class="sectitle">Transparencia</h3><div class="setRow1560"><span class="setRowTxt1560"><b>Fondo</b><span>Qué tan transparente se ve el fondo del cajón</span></span><input type="range" id="drawerAlpha1547" min="0" max="100" value="' + d.alpha + '" style="flex:0 0 150px;min-width:0;accent-color:#E60026"> <span id="drawerAlphaVal1547">' + d.alpha + '%</span></div>' +
-    '<h3 class="sectitle">Tema de iconos</h3><div class="glass card"><div class="chiprow">' + DRAWER_PACKS_1547.map(function (pk) {
-      return '<button class="chip' + (d.pack === pk.id ? ' on' : '') + '" onclick="window.__wrDrawerPack(\'' + pk.id + '\')">' + esc(pk.name) + '</button>';
-    }).join('') + '</div><p class="tiny muted">Temas incluidos en la app, sin descargas.</p></div>' +
-    '<h3 class="sectitle">Tamaño</h3><div class="glass card"><p class="muted" style="margin:0 0 6px">Iconos</p><div class="chiprow">' + [48, 60, 72].map(function (sz, i) {
-      return '<button class="chip' + (d.iconSize === sz ? ' on' : '') + '" onclick="window.__wrDrawerIconSize(' + sz + ')">' + ['Pequeño', 'Mediano', 'Grande'][i] + '</button>';
-    }).join('') + '</div><p class="muted" style="margin:12px 0 6px">Texto</p><div class="chiprow">' + [11, 13, 15].map(function (sz, i) {
-      return '<button class="chip' + (d.textSize === sz ? ' on' : '') + '" onclick="window.__wrDrawerTextSize(' + sz + ')">' + ['Pequeño', 'Mediano', 'Grande'][i] + '</button>';
-    }).join('') + '</div></div>' +
-    '<h3 class="sectitle">Acomodar</h3><div class="glass card"><button class="btn wOpt1542" onclick="window.__wrDrawerAutoFit()">Acomodar al justo</button><p class="tiny muted">Reparte los iconos para que quepan justos en la pantalla.</p></div>' +
-    '<h3 class="sectitle">Páginas</h3><div class="glass card"><div class="chiprow"><button class="chip' + (d.pages === 'single' ? ' on' : '') + '" onclick="window.__wrDrawerPages(\'single\')">Una sola página</button><button class="chip' + (d.pages === 'multi' ? ' on' : '') + '" onclick="window.__wrDrawerPages(\'multi\')">Varias páginas</button></div><p class="tiny muted">Con varias páginas se desliza de lado o se tocan los puntos de abajo.</p></div>' +
-    '<h3 class="sectitle" id="drawerHideSection1552">Ocultar aplicaciones</h3><div class="glass card">' + (visibleApps.length ? visibleApps.map(function (a) {
-      return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(a.name) + '</span><button class="btn ghost small wOpt1542" onclick="window.__wrDrawerHide(\'' + esc(a.pkg) + '\')">Ocultar</button></div>';
-    }).join('') : '<p class="tiny muted">No hay aplicaciones.</p>') +
-    (hiddenApps.length ? '<h3 class="sectitle" style="margin-top:12px">Ocultas (toca para mostrar)</h3>' + hiddenApps.map(function (a) {
-      return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(a.name) + '</span><button class="btn ghost small wOpt1542" onclick="window.__wrDrawerShow(\'' + esc(a.pkg) + '\')">Mostrar</button></div>';
-    }).join('') : '') + '</div>' +
-    '<h3 class="sectitle">Contadores de notificaciones</h3><label class="setRow1560"><span class="setRowTxt1560"><b>Mostrar contadores</b><span>Usa el acceso a notificaciones de siempre. Apagado no se ven numeritos aunque el acceso esté concedido.</span></span><span class="setSwitch1560"><input type="checkbox" id="drawerBadgesToggle1547"' + (d.badges ? ' checked' : '') + '><span class="setKnob1560"></span></span></label>' +
-    '<h3 class="sectitle">Animaciones</h3><label class="setRow1560"><span class="setRowTxt1560"><b>Animaciones del cajón</b><span>Por defecto apagadas. Prende la animación al abrir el cajón y al tocar un icono.</span></span><span class="setSwitch1560"><input type="checkbox" id="drawerAnimToggle1547"' + (d.animations ? ' checked' : '') + '><span class="setKnob1560"></span></span></label>';
-  var alpha = $('drawerAlpha1547');
-  if (alpha) alpha.addEventListener('input', function () { var v = parseInt(alpha.value, 10) || 0; var dd = drawerSettings1547(); dd.alpha = v; saveDrawerSettings1547(dd); var val = $('drawerAlphaVal1547'); if (val) val.textContent = v + '%'; applyDrawerSettings1547(); });
-  var anim = $('drawerAnimToggle1547');
-  if (anim) anim.addEventListener('change', function () { var dd = drawerSettings1547(); dd.animations = anim.checked; saveDrawerSettings1547(dd); applyDrawerSettings1547(); });
-  var badges = $('drawerBadgesToggle1547');
-  if (badges) badges.addEventListener('change', function () { var dd = drawerSettings1547(); dd.badges = badges.checked; saveDrawerSettings1547(dd); applyDrawerSettings1547(); });
-}
-window.__wrDrawerBg = function (id) { var d = drawerSettings1547(); d.bg = id; saveDrawerSettings1547(d); applyDrawerSettings1547(); renderDrawerSettings1547(); };
-window.__wrDrawerBgPhoto = function () { var inp = $('drawerBgPhotoInput1547'); if (inp) inp.click(); };
-window.__wrDrawerHide = function (pkg) { var d = drawerSettings1547(); if (d.hidden.indexOf(pkg) < 0) d.hidden.push(pkg); saveDrawerSettings1547(d); applyDrawerSettings1547(); renderDrawerSettings1547(); };
-window.__wrDrawerShow = function (pkg) { var d = drawerSettings1547(); d.hidden = d.hidden.filter(function (x) { return x !== pkg; }); saveDrawerSettings1547(d); applyDrawerSettings1547(); renderDrawerSettings1547(); };
-window.__wrDrawerAutoFit = function () { drawerAutoFit1547(); renderDrawerSettings1547(); };
-window.__wrDrawerIconSize = function (sz) { var d = drawerSettings1547(); d.iconSize = sz; if (d.cols) { var grid = $('appsDrawerGrid'); var w = grid ? grid.clientWidth : 360; d.cols = Math.max(3, Math.min(6, Math.floor(w / (sz + 24)) || 3)); } saveDrawerSettings1547(d); applyDrawerSettings1547(); renderDrawerSettings1547(); };
-window.__wrDrawerTextSize = function (sz) { var d = drawerSettings1547(); d.textSize = sz; saveDrawerSettings1547(d); applyDrawerSettings1547(); renderDrawerSettings1547(); };
-window.__wrDrawerPages = function (mode) { var d = drawerSettings1547(); d.pages = mode; saveDrawerSettings1547(d); applyDrawerSettings1547(); renderDrawerSettings1547(); };
-window.__wrDrawerPack = function (id) { var d = drawerSettings1547(); d.pack = id; saveDrawerSettings1547(d); applyDrawerSettings1547(); renderDrawerSettings1547(); };
 
 /* ---- noticias 1.5.47 ---- */
 var NEWS_CATEGORIES_1547 = [
@@ -12036,10 +11041,11 @@ function newsTileHtml1547(n) {
     '<div class="newsTitle1547">' + esc(n.title) + '</div>' +
     '<div class="newsSrc1547">' + esc(n.source || '') + '</div></button>';
 }
+/* Web 1.1: la fila de noticias del feed abre el centro de noticias (el botón del cajón se quitó). */
 function newsRowHtml1547() {
   var items = newsItems1547('noticias');
   if (!items.length) return '';
-  return '<div class="newsRow1547" id="newsRow1547"><div class="newsHead1547">' + ic('news', 20) + ' Noticias</div><div class="newsTiles1547">' + items.slice(0, 6).map(newsTileHtml1547).join('') + '</div></div>';
+  return '<div class="newsRow1547" id="newsRow1547"><div class="newsHead1547" onclick="window.__wrOpenNewsHub1547()">' + ic('news', 20) + ' Noticias</div><div class="newsTiles1547">' + items.slice(0, 6).map(newsTileHtml1547).join('') + '</div></div>';
 }
 function openNewsHub1547() {
   newsHubCat1547 = 'noticias';
@@ -12047,6 +11053,7 @@ function openNewsHub1547() {
   showOverlay('newsHubOverlay1547');
   refreshNews1547('noticias');
 }
+window.__wrOpenNewsHub1547 = function () { openNewsHub1547(); }; /* Web 1.1: la fila de noticias del feed abre el centro. */
 function renderNewsHub1547() {
   var tabs = $('newsHubTabs1547');
   if (tabs) tabs.innerHTML = NEWS_CATEGORIES_1547.map(function (c) {
@@ -12420,416 +11427,13 @@ function renderPromotionsHub1547() {
     '<h3 class="sectitle">Historial</h3><div class="glass card">' + (list.length ? list.slice().reverse().map(promoRowHtml1547).join('') : '<p class="tiny muted">Aún no hay promociones.</p>') + '</div>';
 }
 
-/* 1.5.48: deslizar el cajón con el dedo para cerrarlo. Un arrastre
-   hacia abajo de más de 70 px que empieza en la barra superior, o en la
-   lista cuando ya está arriba del todo, cierra el cajón. No estorba el
-   desplazamiento normal (el gesto solo cierra si empezó arriba) ni el
-   arrastre para reordenar (si hay un arrastre activo no se cierra). El
-   desplazamiento vertical ya lo hace el navegador (la lista es
-   overflow-y:auto) y el de lado lo hace el contenedor de páginas en
-   modo varias páginas (scroll-snap); aquí solo falta el cierre. */
-var drawerSwipeBound1548 = false;
-var drawerSwipeStart1548 = null;
-function bindDrawerSwipe1548() {
-  if (drawerSwipeBound1548) return;
-  var sc = $('appsDrawerScroll');
-  var top = document.querySelector('#appsDrawerOverlay .sheet .top');
-  if (!sc || !top) return;
-  drawerSwipeBound1548 = true;
-  function arm(el, fromTop) {
-    el.addEventListener('touchstart', function (ev) {
-      var t = ev.changedTouches && ev.changedTouches[0];
-      if (!t) return;
-      drawerSwipeStart1548 = { x: t.clientX, y: t.clientY, top: sc.scrollTop, fromTop: fromTop };
-    }, { passive: true });
-    el.addEventListener('touchend', function (ev) {
-      var s = drawerSwipeStart1548;
-      drawerSwipeStart1548 = null;
-      if (!s) return;
-      var t = ev.changedTouches && ev.changedTouches[0];
-      if (!t) return;
-      if (launcherDrag) return;
-      var dy = t.clientY - s.y, dx = Math.abs(t.clientX - s.x);
-      if (dy > 70 && dx < 40 && (s.fromTop || s.top <= 0)) closeAppsDrawer();
-    }, { passive: true });
-  }
-  arm(top, true);
-  arm(sc, false);
-}
-function openAppsDrawer() {
-  /* v1.5.21: el cajón se abre EN MILISEGUNDOS. Antes, el mismo clic
-     volvía a leer TODAS las apps del teléfono con sus iconos (el puente
-     síncrono tarda segundos con ~100 apps) antes de que el navegador
-     pudiera pintar el cajón, así que la apertura tardaba ~5 s en el
-     teléfono y la animación fluida de la 1.5.18 ni siquiera alcanzaba a
-     empezar. Ahora el cajón se dibuja DE INMEDIATO con la lista que YA
-     está en memoria (cargada al arrancar) y el manejador TERMINA: el
-     navegador pinta al instante. La lista y los numeritos se actualizan
-     POR DETRÁS, cuando el cajón ya se ve (setTimeout 0), y solo se
-     vuelve a dibujar si algo cambió de verdad. La transición fluida de
-     220 ms de la 1.5.18 se queda como está. */
-  /* 1.5.47: el engranaje es EL MISMO icono de Ajustes de la app
-     (ic('settings', 19), el de la fila superior del perfil propio); el de
-     noticias es el periódico, con el mismo estilo de botón redondo. */
-  var gsBtn = $('appsDrawerSettingsBtn1547');
-  if (gsBtn && !gsBtn.innerHTML) gsBtn.innerHTML = ic('settings', 19);
-  var nwBtn = $('appsDrawerNewsBtn1547');
-  if (nwBtn && !nwBtn.innerHTML) nwBtn.innerHTML = ic('news', 19);
-  /* 1.5.52: Actualizar y Ocultar aplicaciones son botones redondos con
-     solo símbolo, como Noticias y Ajustes. */
-  var rfBtn = $('appsDrawerRefresh');
-  if (rfBtn && !rfBtn.innerHTML) rfBtn.innerHTML = ic('refresh', 19);
-  var hdBtn = $('appsDrawerHideBtn1552');
-  if (hdBtn && !hdBtn.innerHTML) hdBtn.innerHTML = ic('eye-off', 19);
-  applyDrawerSettings1547();
-  showOverlay('appsDrawerOverlay');
-  bindDrawerSwipe1548();
-  setTimeout(function () {
-    refreshLauncherApps();
-    refreshAppNotifCounts();
-    initNavInset();
-  }, 0);
-}
-function closeAppsDrawer() {
-  hideOverlay('appsDrawerOverlay');
-  /* v1.5.15: al cerrar el cajón se limpia la búsqueda, para que al
-     volver a abrirlo se vean todas las aplicaciones. */
-  if (appsDrawerQuery) setAppsDrawerQuery('');
-}
-function launcherOpenApp(pkg) {
-  var a = launcherAppInfo(pkg);
-  try {
-    if (window.AndroidBridge && AndroidBridge.openApp) {
-      var r = AndroidBridge.openApp(pkg);
-      if (String(r).indexOf('ERROR') === 0) toast('No se pudo abrir ' + a.name + '.');
-      return;
-    }
-  } catch (e) {}
-  toast('Demo: en el teléfono se abriría ' + a.name + '.');
-}
-function launcherOpenAppInfo(pkg) {
-  var a = launcherAppInfo(pkg);
-  try {
-    if (window.AndroidBridge && AndroidBridge.openAppInfo) {
-      var r = AndroidBridge.openAppInfo(pkg);
-      if (String(r).indexOf('ERROR') === 0) toast('No se pudo abrir la información de ' + a.name + '.');
-      return;
-    }
-  } catch (e) {}
-  toast('Demo: en el teléfono se abriría la información de ' + a.name + '.');
-}
-function launcherShareApp(pkg) {
-  var a = launcherAppInfo(pkg);
-  try {
-    if (window.AndroidBridge && AndroidBridge.shareApp) {
-      var r = AndroidBridge.shareApp(pkg);
-      if (String(r).indexOf('ERROR') === 0) toast('No se pudo compartir ' + a.name + '.');
-      return;
-    }
-  } catch (e) {}
-  toast('Demo: en el teléfono se compartiría el enlace de ' + a.name + '.');
-}
-function launcherAskUninstall(pkg) {
-  var a = launcherAppInfo(pkg);
-  confirmDialog({
-    title: 'Desinstalar ' + a.name,
-    text: 'Se va a desinstalar ' + a.name + ' de tu teléfono. El sistema te pedirá confirmación.',
-    confirmText: 'Desinstalar',
-    onConfirm: function () {
-      var r = 'OK';
-      try { if (window.AndroidBridge && AndroidBridge.uninstallApp) r = AndroidBridge.uninstallApp(pkg); } catch (e) { r = 'ERROR'; }
-      if (String(r).indexOf('ERROR') === 0) { toast('No se pudo desinstalar.'); return; }
-      C.launcherRemoveApp(state, pkg);
-      save(); renderAppsDrawer();
-      toast('Se pidió desinstalar ' + a.name + '.');
-    }
-  });
-}
-function launcherReorderEntry(from, to) {
-  var r = C.launcherMoveEntry(state, from, to);
-  if (!r.ok) return false;
-  save(); renderAppsDrawer();
-  return true;
-}
-/* Soltar sobre otra app: la app arrastrada queda en el lugar de esa
-   app (sin carpetas). Soltar en el hueco de la cuadrícula reordena. */
-function launcherDrop(d, target) {
-  var tIndex = parseInt(target.getAttribute('data-launcher-index'), 10) || 0;
-  var toIdx = tIndex;
-  if (d.fromIndex < toIdx) toIdx = toIdx - 1;
-  if (toIdx < 0) toIdx = 0;
-  launcherReorderEntry(d.fromIndex, toIdx);
-}
-function launcherDropOnGrid(d, x, y, gridEl) {
-  var tiles = Array.prototype.slice.call(gridEl.querySelectorAll('.launcherTile'));
-  var idx = tiles.length;
-  for (var i = 0; i < tiles.length; i++) {
-    var r = tiles[i].getBoundingClientRect();
-    if (y < r.top + r.height / 2 || (y >= r.top && y <= r.bottom && x < r.left + r.width / 2)) { idx = i; break; }
-  }
-  var toIdx = idx;
-  if (d.fromIndex < toIdx) toIdx = toIdx - 1;
-  if (toIdx < 0) toIdx = 0;
-  launcherReorderEntry(d.fromIndex, toIdx);
-}
-function launcherStartDrag(tile, x, y) {
-  launcherDrag = {
-    kind: 'app',
-    pkg: tile.getAttribute('data-launcher-pkg') || null,
-    fromIndex: parseInt(tile.getAttribute('data-launcher-index'), 10) || 0,
-    moved: true, target: null, x: x, y: y
-  };
-  tile.classList.add('dragging');
-  var clone = document.createElement('div');
-  clone.className = 'launcherTile';
-  clone.style.cssText = 'position:fixed;z-index:10000;pointer-events:none;opacity:.9;transform:translate(-50%,-50%);width:76px';
-  clone.innerHTML = tile.innerHTML;
-  document.body.appendChild(clone);
-  launcherDrag.clone = clone;
-  launcherDragMove({ clientX: x, clientY: y });
-}
-function launcherDragMove(e) {
-  if (!launcherDrag || !launcherDrag.clone) return;
-  launcherDrag.clone.style.left = e.clientX + 'px';
-  launcherDrag.clone.style.top = e.clientY + 'px';
-  launcherDrag.x = e.clientX; launcherDrag.y = e.clientY;
-  document.querySelectorAll('.launcherTile.dropTarget').forEach(function (t) { t.classList.remove('dropTarget'); });
-  var el = (document.elementFromPoint ? document.elementFromPoint(e.clientX, e.clientY) : null);
-  var tile = el ? el.closest('.launcherTile') : null;
-  if (tile) { tile.classList.add('dropTarget'); launcherDrag.target = tile; }
-  else launcherDrag.target = null;
-}
-function launcherEndDrag() {
-  var d = launcherDrag;
-  launcherDrag = null;
-  if (!d) return;
-  if (d.clone) { try { d.clone.remove(); } catch (err) {} }
-  document.querySelectorAll('.launcherTile.dragging').forEach(function (t) { t.classList.remove('dragging'); });
-  document.querySelectorAll('.launcherTile.dropTarget').forEach(function (t) { t.classList.remove('dropTarget'); });
-  if (d.target) { launcherDrop(d, d.target); return; }
-  var el = (document.elementFromPoint ? document.elementFromPoint(d.x, d.y) : null);
-  var grid = el ? el.closest('#appsDrawerGrid') : null;
-  if (grid) { launcherDropOnGrid(d, d.x, d.y, grid); return; }
-  renderAppsDrawer();
-}
-/* v1.5.14: el deslizamiento normal siempre desplaza el cajón y NUNCA
-   reordena. Reordenar solo con mantener presionado + arrastrar: el
-   arrastre se "arma" tras 350 ms quieto sobre la app; un deslizamiento
-   rápido antes de ese tiempo es desplazamiento (el navegador lo hace
-   nativo gracias a touch-action:pan-y de la baldosa) y no dispara el
-   reordenar. */
-var LAUNCHER_DRAG_ARM_MS = 350;
-function launcherPointerDown(ev, tile, canDrag) {
-  if (ev.button !== undefined && ev.button !== 0) return;
-  if (launcherDrag) return;
-  tile.classList.add('pressed');
-  var startX = ev.clientX, startY = ev.clientY;
-  var dragArmed = false;
-  var armTimer = setTimeout(function () { dragArmed = true; }, LAUNCHER_DRAG_ARM_MS);
-  var longTimer = setTimeout(function () { openLauncherMenu(tile); }, 600);
-  function onMove(e2) {
-    if (!launcherDrag && dragArmed && canDrag && (Math.abs(e2.clientX - startX) > 12 || Math.abs(e2.clientY - startY) > 12)) {
-      clearTimeout(longTimer);
-      launcherStartDrag(tile, e2.clientX, e2.clientY);
-    }
-    if (launcherDrag) launcherDragMove(e2);
-  }
-  function onUp() {
-    clearTimeout(armTimer);
-    clearTimeout(longTimer);
-    tile.classList.remove('pressed');
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    document.removeEventListener('pointercancel', onUp);
-    if (launcherDrag) launcherEndDrag();
-  }
-  document.addEventListener('pointermove', onMove);
-  document.addEventListener('pointerup', onUp);
-  document.addEventListener('pointercancel', onUp);
-}
-function attachLauncherTile(tile, sortMode) {
-  tile.addEventListener('click', function () {
-    if (launcherDrag && launcherDrag.moved) return;
-    /* 1.5.54: la entrada fija del juego destacado juega (abrir o
-       instalar) en vez de abrir una app instalada. */
-    if (tile.getAttribute('data-launcher-kind') === 'featured-game') { playFeaturedGame1549(); return; }
-    tile.classList.remove('opening');
-    void tile.offsetWidth;
-    tile.classList.add('opening');
-    launcherOpenApp(tile.getAttribute('data-launcher-pkg'));
-  });
-  tile.addEventListener('contextmenu', function (ev) { ev.preventDefault(); if (tile.getAttribute('data-launcher-kind') === 'featured-game') return; openLauncherMenu(tile); });
-  tile.addEventListener('pointerdown', function (ev) { if (tile.getAttribute('data-launcher-kind') === 'featured-game') return; launcherPointerDown(ev, tile, sortMode !== 'name'); });
-}
-function launcherMenuBtn(label, fn) {
-  var b = document.createElement('button');
-  b.className = 'btn ghost';
-  b.textContent = label;
-  b.addEventListener('click', function () { hideOverlay('launcherMenuOverlay'); fn(); });
-  return b;
-}
-function openLauncherMenu(tile) {
-  var pkg = tile.getAttribute('data-launcher-pkg');
-  var box = $('launcherMenuBtns');
-  var title = $('launcherMenuTitle');
-  box.innerHTML = '';
-  var a = launcherAppInfo(pkg);
-  title.textContent = a.name;
-  box.appendChild(launcherMenuBtn('Abrir', function () { launcherOpenApp(pkg); }));
-  box.appendChild(launcherMenuBtn('Desinstalar', function () { launcherAskUninstall(pkg); }));
-  box.appendChild(launcherMenuBtn('Información de la aplicación', function () { launcherOpenAppInfo(pkg); }));
-  box.appendChild(launcherMenuBtn('Compartir', function () { launcherShareApp(pkg); }));
-  showOverlay('launcherMenuOverlay');
-  /* v1.5.15: el recuadro flotante aparece junto a la ficha presionada
-     (a su lado, o debajo/encima si no cabe al lado), no centrado. */
-  positionLauncherMenu(tile);
-}
-/* v1.5.15: ancla el recuadro flotante del menú junto a la ficha de la
-   aplicación presionada: primero a su derecha, si no cabe a su
-   izquierda, si tampoco cabe debajo y en último caso encima; siempre
-   pegado a esa ficha y sin salirse de la pantalla. Sin medidas (por
-   ejemplo, en pruebas), queda centrado. */
-function positionLauncherMenu(tile) {
-  var panel = $('launcherMenuBox');
-  if (!panel) return;
-  var vw = window.innerWidth || 360, vh = window.innerHeight || 640;
-  var w = panel.offsetWidth || 210, h = panel.offsetHeight || 200;
-  var gap = 8, left, top;
-  var r = null;
-  try { r = tile && tile.getBoundingClientRect ? tile.getBoundingClientRect() : null; } catch (e) {}
-  if (!r || !r.width) {
-    left = Math.max(8, (vw - w) / 2);
-    top = Math.max(8, (vh - h) / 2);
-  } else if (r.right + gap + w <= vw) {
-    left = r.right + gap;
-    top = Math.max(8, Math.min(r.top, vh - h - 8));
-  } else if (r.left - gap - w >= 0) {
-    left = r.left - gap - w;
-    top = Math.max(8, Math.min(r.top, vh - h - 8));
-  } else if (r.bottom + gap + h <= vh) {
-    left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, vw - w - 8));
-    top = r.bottom + gap;
-  } else {
-    left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, vw - w - 8));
-    top = Math.max(8, r.top - gap - h);
-  }
-  panel.style.left = Math.round(left) + 'px';
-  panel.style.top = Math.round(top) + 'px';
-}
-function launcherSetSortMode(mode) {
-  var r = C.launcherSetSort(state, mode);
-  if (!r.ok) return;
-  save(); renderAppsDrawer();
-}
-function refreshHomeRoleStatus() {
-  var el = $('homeRoleStatus');
-  if (!el) return;
-  var isHome = false;
-  try { if (window.AndroidBridge && AndroidBridge.isDefaultHome) isHome = !!AndroidBridge.isDefaultHome(); } catch (e) {}
-  el.textContent = isHome ? 'WordRed ya es tu lanzador de inicio: al pulsar Inicio se abre WordRed.' : 'WordRed puede ser la pantalla de inicio de tu teléfono: al pulsar Inicio se abrirá WordRed con tus aplicaciones.';
-  var btn = $('homeRoleBtn');
-  if (btn) btn.textContent = isHome ? 'Cambiar el lanzador en ajustes del sistema' : 'Usar WordRed como lanzador';
-}
-window.__onHomeRoleResult = function (granted) {
-  refreshHomeRoleStatus();
-  toast(granted ? 'WordRed ya es tu lanzador de inicio.' : 'No se cambió el lanzador.');
-};
-function initLauncher() {
-  var arrow = $('statusBarArrow');
-  if (arrow) arrow.addEventListener('click', function () {
-    /* Una app normal no puede bajar la barra por código: se revela la
-       barra de estado para bajarla deslizando como siempre. */
-    try {
-      if (window.AndroidBridge && AndroidBridge.revealStatusBar) { AndroidBridge.revealStatusBar(); return; }
-    } catch (e) {}
-    toast('La flecha solo funciona en el teléfono con Android.');
-  });
-  var navBtn = $('navLauncherBtn');
-  if (navBtn) navBtn.addEventListener('click', function () { openAppsDrawer(); });
-  var closeBtn = $('appsDrawerClose');
-  if (closeBtn) closeBtn.addEventListener('click', function () { closeAppsDrawer(); });
-  /* v1.5.14: la barra del cajón sigue al desplazamiento y se puede
-     arrastrar ella misma para desplazar el cajón. */
-  var scEl = $('appsDrawerScroll');
-  if (scEl) scEl.addEventListener('scroll', updateAppsDrawerScrollbar);
-  var thumbEl = $('appsDrawerThumb');
-  if (thumbEl) thumbEl.addEventListener('pointerdown', appsDrawerThumbPointerDown);
-  var cBtn = $('appsSortCustom');
-  if (cBtn) cBtn.addEventListener('click', function () { launcherSetSortMode('custom'); });
-  var nBtn = $('appsSortName');
-  if (nBtn) nBtn.addEventListener('click', function () { launcherSetSortMode('name'); });
-  /* v1.5.15: buscador del cajón: filtra mientras se escribe. */
-  var sInp = $('appsDrawerSearch');
-  if (sInp) sInp.addEventListener('input', function () { appsDrawerQuery = sInp.value || ''; renderAppsDrawer(); });
-  /* v1.5.15: tocar fuera del recuadro flotante del menú lo cierra (el
-     fondo del overlay es transparente y recibe el toque). */
-  var lmOv = $('launcherMenuOverlay');
-  if (lmOv) lmOv.addEventListener('click', function (e) { if (e.target === lmOv) hideOverlay('launcherMenuOverlay'); });
-  var ref = $('appsDrawerRefresh');
-  if (ref) ref.addEventListener('click', function () { refreshLauncherApps(); refreshAppNotifCounts(); toast('Aplicaciones actualizadas.'); });
-  /* 1.5.47: engranaje de ajustes del cajón y botón de noticias. */
-  var drGear = $('appsDrawerSettingsBtn1547');
-  if (drGear) drGear.addEventListener('click', function () { openDrawerSettings1547(); });
-  var drNews = $('appsDrawerNewsBtn1547');
-  if (drNews) drNews.addEventListener('click', function () { openNewsHub1547(); });
-  /* 1.5.52: botón de ocultar (ojo tachado) — abre los ajustes del cajón
-     en la sección «Ocultar aplicaciones». */
-  var drHide = $('appsDrawerHideBtn1552');
-  if (drHide) drHide.addEventListener('click', function () { openDrawerSettingsToHide1552(); });
-  var promoVid = $('promoVideoInput1547');
-  if (promoVid) promoVid.addEventListener('change', function () {
-    var f = this.files && this.files[0];
-    if (!f) return;
-    pickMedia(f, 1024, function (m) {
-      if (!m) return;
-      /* El video se publica como publicación normal y se abre su hoja de
-         promoción (la promoción es local: el servidor 4.0 no la guarda). */
-      /* 1.5.58: el video pasa por el mismo trabajo en segundo plano que el
-         compositor (primero se sube la media, luego se crea y se confirma
-         la publicación); la hoja de promoción se abre cuando ya existe.
-         Sin servidor, se crea en local como antes. */
-      if (!bgUploadHasServer1529()) {
-        var r0 = C.createPost(state, state.me, { text: '', mediaList: [m] });
-        if (r0.ok) { save(); openPromoteSheet1547(r0.post.id, null); }
-        return;
-      }
-      var pjob = { id: 'bg1529_promo_' + Date.now(), kind: 'create', data: { text: '', media: '', mediaType: '', mediaList: [m], bg: 'none', tags: [], location: '', link: null, song: null, poll: null, privacy: 'Público' }, groupId: null, pageId: null, editingPostId: null, editPollLocked: false, scheduleAt: 0, label: 'Subiendo publicación…', status: 'queued', progress: 0, error: '', openPromoAfter1547: true };
-      snapshotJobDraft1529(pjob);
-      bgUploadQueue1529.push(pjob);
-      bgUploadPump1529();
-    });
-    this.value = '';
-  });
-  var drBgPhoto = $('drawerBgPhotoInput1547');
-  if (drBgPhoto) drBgPhoto.addEventListener('change', function () {
-    var f = this.files && this.files[0];
-    if (!f) return;
-    fileToDataUrl(f, 1024, 0.82, function (dataUrl) {
-      if (!dataUrl) return;
-      var d = drawerSettings1547(); d.bg = 'photo'; d.bgPhoto = dataUrl; saveDrawerSettings1547(d);
-      applyDrawerSettings1547(); renderDrawerSettings1547();
-    });
-    this.value = '';
-  });
-  var homeBtn = $('homeRoleBtn');
-  if (homeBtn) homeBtn.addEventListener('click', function () {
-    try {
-      if (window.AndroidBridge && AndroidBridge.requestHomeRole) { AndroidBridge.requestHomeRole(); toast('Elige WordRed en el selector del sistema.'); return; }
-    } catch (e) {}
-    toast('Esto solo funciona en el teléfono con Android.');
-  });
-}
 
 /* v1.5.14: Amigos ya no está en la barra de abajo: se entra desde el
    Perfil (botón antes de Ajustes) y abre la misma vista de siempre. */
 window.__wrOpenFriends = function () { go('friends'); };
 
 window.__wrOpenSettings = function () {
-  refreshHomeRoleStatus();
-  var lockT = $('appLockToggle');
-  if (lockT) lockT.checked = !!state.settings.appLock;
   renderNotifPrefs();
-  renderUpdateCard();
   renderBlockedList();
   renderFaq();
   renderSettings1526(); /* 1.5.26 (35/37/38/49/31/10/41/45/46/44) */
@@ -12998,37 +11602,6 @@ function fallbackCopy(text, done) {
     done();
   } catch (e) { toast('No se pudo copiar. Apunta el número de la pantalla.'); }
 }
-/* ---- bloqueo de la app con huella o PIN del teléfono (v1.2) ----
-   El interruptor pide la autenticación al sistema; el resultado llega
-   por __onAppLockResult y ahí se guarda el ajuste. Si se cancela, el
-   interruptor vuelve a su estado anterior. */
-$('appLockToggle').addEventListener('change', function () {
-  var want = this.checked;
-  if (!window.AndroidBridge || !AndroidBridge.requestAppLockEnable) {
-    this.checked = !!state.settings.appLock;
-    toast('El bloqueo solo funciona con la app instalada en el teléfono.');
-    return;
-  }
-  try {
-    if (want) AndroidBridge.requestAppLockEnable();
-    else AndroidBridge.requestAppLockDisable();
-  } catch (e) {
-    this.checked = !!state.settings.appLock;
-    toast('No se pudo pedir la autenticación.');
-    return;
-  }
-  /* Si el puente no responde, el interruptor vuelve solo a su estado.
-     30 s: la huella o el PIN pueden tardar (v1.5). */
-  var el = this;
-  setTimeout(function () { el.checked = !!state.settings.appLock; }, 30000);
-});
-window.__onAppLockResult = function (locked) {
-  state.settings.appLock = !!locked;
-  save();
-  var t = $('appLockToggle');
-  if (t) t.checked = !!locked;
-  toast(locked ? 'Bloqueo activado. Al abrir WordRed pedirá tu huella o tu PIN.' : 'Bloqueo desactivado.');
-};
 /* ---- selector de colores en Ajustes (v2.0) ----
    El borrador (colorDraft, {h, s, l}) es lo que se está editando: los
    controles solo actualizan la vista previa; el color se aplica a toda
@@ -13243,15 +11816,6 @@ window.__onNotifTarget = function (target) {
     else if (t.phone) { go('messages'); window.__wrOpenChat(t.phone); }
   } else if (t.kind === 'live') {
     if (t.id) joinLive(t.id);
-  } else if (t.kind === 'update') {
-    /* v1.5.17 punto 2: la notificación de actualización abre el diálogo
-       para instalarla. Si esta sesión aún no sabe cuál es la última
-       versión, se revisa primero y el diálogo sale con el resultado. */
-    if (appUpdateInfo) openUpdateDialog(appUpdateInfo);
-    else checkAppUpdate({ silent: false });
-  } else if (t.kind === 'battery') {
-    /* v1.5.17 punto 4: la notificación de batería abre los Avisos. */
-    go('notifs');
   } else if (t.kind === 'birthday') {
     /* 1.5.26 (5): la notificación de cumpleaños abre el perfil de quien cumple. */
     if (t.phone) window.__wrOpenProfile(t.phone);
@@ -13416,21 +11980,11 @@ setInterval(function () {
   if (!C.serverBase(state) || !state.me) return;
   if (!ws) connectServer();
   else C.flushPendingQueue(state).then(function () { save(); });
-  /* v1.5.17 punto 2: revisar en silencio si hay una actualización nueva,
-     como mucho una vez por hora (la notificación llega una sola vez por
-     versión, aunque la app se abra muchas veces). */
-  if (Date.now() - appUpdateCheckLast > 3600000) checkAppUpdate({ silent: true });
 }, 60000);
-/* v1.5.17 punto 2: primera revisión silenciosa a los 20 s de abrir la
-   app (si ya hay sesión, la de alguien que vuelve). */
-setTimeout(function () { checkAppUpdate({ silent: true }); }, 20000);
 /* 1.5.53: a los 25 s, sincronizar en silencio el estado de las
    promociones con el servidor (una solicitud aprobada o rechazada se
    refleja en el centro de promociones y en el inicio). */
 setTimeout(function () { syncPromoStatus1553(); }, 25000);
-/* v1.5.17 punto 4: leer el nivel real de batería a los 2 s de abrir la
-   app (indicador del encabezado + avisos pendientes de la campana). */
-setTimeout(function () { checkBatteryNoticesOnStart(); }, 2000);
 
 /* ---------------- sincronización con el servidor ---------------- */
 
@@ -15209,7 +13763,7 @@ function renderCallInCall() {
 window.__wrAcceptCall = acceptCall;
 window.__wrRejectCall = function () { sendCallSignal('reject', {}); endCall(true); };
 window.__wrEndCall = function () { endCall(false); };
-$('chatCallBtn').addEventListener('click', function () { if (openChatPhone) chooseCallType(openChatPhone); });
+$('chatCallBtn').addEventListener('click', function () { if (openChatPhone) startCall(openChatPhone, false); /* Web 1.1: la llamada es por internet; la telefónica se quitó. */ });
 $('chatVideoBtn').addEventListener('click', function () { if (openChatPhone) startCall(openChatPhone, true); });
 
 /* ---------------- transmisiones en vivo (v1.5) ----------------
@@ -16878,10 +15432,6 @@ function homeWidgetNotesHtml1536() {
   return '<b>Notas</b><div style="display:flex;gap:8px;margin:8px 0"><input id="hwNoteInput1536" placeholder="Escribe una nota…" style="flex:1;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:#fff"><button type="button" class="btn small" data-hw-note-add="1">Guardar</button></div>' + (list || '<p class="tiny muted">Sin notas todavía.</p>');
 }
 
-function homeWidgetBatteryHtml1536() {
-  if (typeof batteryLevel !== 'number' || batteryLevel < 0) return '<b>Batería</b><p class="tiny muted">El nivel de batería no está disponible en este teléfono.</p>';
-  return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>Batería</b><div class="tiny muted">' + (batteryCharging ? 'Cargando' : 'No está cargando') + '</div></div><div style="font-size:26px;font-weight:800">' + batteryLevel + '%</div></div>';
-}
 
 function homeWidgetTimeHtml1536() {
   return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px" data-hw-open-profile="1"><div><b>Tiempo en pantalla</b><div class="tiny muted">Hoy, solo en este teléfono</div></div><div style="font-size:22px;font-weight:800">' + C.formatScreenTime(C.screenTimeTodayMs(state)) + '</div></div>';
@@ -16956,7 +15506,6 @@ function renderHomeWidgetBody1536(id, force) {
   else if (id === 'fotos') body.innerHTML = homeWidgetPhotosHtml1536();
   else if (id === 'calculadora') { if (force || !body.innerHTML) body.innerHTML = homeWidgetCalcHtml1536(); }
   else if (id === 'notas') { if (force || !body.innerHTML) body.innerHTML = homeWidgetNotesHtml1536(); }
-  else if (id === 'bateria') body.innerHTML = homeWidgetBatteryHtml1536();
   else if (id === 'tiempo') body.innerHTML = homeWidgetTimeHtml1536();
 }
 
@@ -17233,7 +15782,7 @@ function initHomeWidgets1536() {
    simple. Con «Saltar» se cierra y no vuelve a salir solo. */
 var TUTORIAL_STEPS_1533 = [
   { art: 'bienvenida', title: 'Bienvenido a WordRed', text: 'Aquí está tu inicio: las publicaciones de tus amigos y de la cuenta de ejemplo aparecen en un solo lugar.' },
-  { art: 'inicio', title: 'Tu inicio', text: 'Arriba siempre están los reels, luego «¿Qué estás pensando?» y el reloj con el clima a su derecha. Desliza para ver publicaciones, dale Me gusta, comenta y comparte. Entre las publicaciones verás los Reels grandes y la cartelera de estrenos. La etiqueta de Dramas nombra sus aplicaciones y llegan más dramas cada 2 semanas. Y arriba, bajo la barra, hay un buscador: escribe y toca una sugerencia para ir ahí.' },
+  { art: 'inicio', title: 'Tu inicio', text: 'Arriba siempre están los reels, luego «¿Qué estás pensando?» y el reloj con el clima a su derecha. Desliza para ver publicaciones, dale Me gusta, comenta y comparte. Entre las publicaciones verás los Reels grandes y la cartelera de estrenos. La etiqueta de Dramas nombra sus aplicaciones y llegan más dramas cada 2 semanas. Y arriba, bajo la barra, hay un buscador: escribe y toca una sugerencia para ir ahí. Las barras se ocultan solas al bajar y vuelven al subir; Mercado está en el centro de la barra de abajo.' },
   { art: 'publicar', title: 'Publica algo', text: 'Toca «Publicar» y comparte una foto, un video o lo que piensas. La vista previa sale al instante y la subida sigue en segundo plano: si la conexión se corta, continúa donde se quedó y nada se publica roto.' },
   { art: 'shorts', title: 'Shorts e historias', text: 'Mira videos cortos en Shorts y crea historias que duran 24 horas. Arriba en el inicio están los reels: toca tu foto con el + para publicar uno. Las historias se crean desde tu perfil y se ven en Shorts. Entre los Shorts aparecen tarjetas de dramas: al tocarlas se abre el drama en su primer capítulo.' },
   { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. Los grupos tienen sus propios administradores y reglas.' },
@@ -17310,15 +15859,10 @@ function tutorialArt1533(art) {
   return '<svg width="100%" height="200" viewBox="0 0 360 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ilustración de la app">' + frame + body + '</svg>';
 }
 var tutorialIndex1533 = 0;
-var tutorialRetries1533 = 0;
 function tutorialSeen1533() { return !!(state.settings && state.settings.tutorialSeen1533); }
 function maybeShowTutorial1533() {
   if (tutorialSeen1533()) return;
-  var perm = $('permissionsOverlay');
-  if (perm && perm.classList.contains('on')) {
-    if (tutorialRetries1533 < 10) { tutorialRetries1533++; setTimeout(maybeShowTutorial1533, 2000); }
-    return;
-  }
+  /* Web 1.1: la hoja de permisos del teléfono se quitó; el tutorial sale directo. */
   showTutorial1533();
 }
 function showTutorial1533() {
@@ -17415,12 +15959,23 @@ function restoreFeedPosition1526() {
   if (currentView !== 'feed') return; /* 1.5.28: fuera del inicio no se restaura. */
   if (feedRestoreDone || !state.lastFeedPostId) return;
   feedRestoreDone = true;
+  /* Web 1.1: ir de inmediato a la publicación guardada (sin parpadear en 0) y re-afirmar a los 300 ms por si las imágenes mueven el muro. */
+  try { var elNow11 = document.querySelector('#feed article[data-post="' + state.lastFeedPostId + '"]'); if (elNow11) elNow11.scrollIntoView({ block: 'start' }); } catch (e) {}
   setTimeout(function () {
+    /* Web 1.1: si hubo doble toque en Inicio, esta restauración queda cancelada (siempre arriba). */
+    if (skipFeedRestoreOnce1557) { skipFeedRestoreOnce1557 = false; return; }
     /* 1.5.29: si ya saliste del inicio en esos 300 ms, no desplazar nada
        (antes el desplazamiento se disparaba tarde, ya en otro apartado). */
     if (currentView !== 'feed') return;
     var el = document.querySelector('#feed article[data-post="' + state.lastFeedPostId + '"]');
-    if (el) { try { el.scrollIntoView({ block: 'start' }); } catch (e) { window.scrollTo(0, el.offsetTop); } }
+    if (!el) return;
+    /* Web 1.1: si ya te moviste en esos 300 ms (por ejemplo,
+       subiste a mano hasta arriba), la publicación guardada ya no está
+       cerca de arriba: no devolverte a la fuerza (antes, este
+       temporizador bajaba de nuevo la página aunque se acabara de subir). */
+    var top11 = el.getBoundingClientRect().top;
+    if (top11 < -300 || top11 > 300) return;
+    try { el.scrollIntoView({ block: 'start' }); } catch (e) { window.scrollTo(0, el.offsetTop); }
   }, 300);
 }
 
@@ -19808,9 +18363,6 @@ window.__wr1526 = {
   compressImageDataUrl1530: compressImageDataUrl1530,
   uploadMediaItemToServer: uploadMediaItemToServer,
   setUploadBarVisible1530: setUploadBarVisible1530,
-  maybeNotifyWindows1530: maybeNotifyWindows1530,
-  windowsDownloadUrl1530: function () { return WINDOWS_DOWNLOAD_URL_1530; },
-  windowsVersion1530: function () { return WINDOWS_VERSION_1530; },
   weatherTodayHtml1530: weatherTodayHtml1530,
   renderWeatherCard: renderWeatherCard,
   scheduleComposerPost1526: scheduleComposerPost1526,
@@ -19900,12 +18452,6 @@ window.__wr1526 = {
   getStoryMedia: function () { return storyMedia; },
   bgUploadRunJob1529: bgUploadRunJob1529,
   getBgUploadFloor1547: function () { return bgUploadFloor1547; },
-  drawerSettings1547: drawerSettings1547,
-  applyDrawerSettings1547: applyDrawerSettings1547,
-  openDrawerSettings1547: openDrawerSettings1547,
-  renderDrawerSettings1547: renderDrawerSettings1547,
-  drawerAutoFit1547: drawerAutoFit1547,
-  getDrawerSettings: function () { return state.settings && state.settings.drawer1547; },
   NEWS_CATEGORIES_1547: NEWS_CATEGORIES_1547,
   NEWS_BAKED_1547: NEWS_BAKED_1547,
   newsItems1547: newsItems1547,
@@ -20065,15 +18611,12 @@ window.__wordredTest = {
   fileCardHtml: fileCardHtml,
   openChatMedia: function (src, type) { window.__wrOpenChatMedia(encodeURIComponent(src).replace(/'/g, '%27'), type); },
   getCallState: function () { return call.state; },
-  getAppLock: function () { return !!state.settings.appLock; },
   applyAppColor: applyAppColor,
   getAppColor: currentAppColor,
   getColorDraftHex: colorDraftHex,
   renderColorPicker: renderColorPicker,
-  onAppLockResult: function (locked) { window.__onAppLockResult(locked); },
   sharePostExternally: sharePostExternally,
   getVoiceRec: function () { return voiceRec.active; },
-  maybeShowPermissions: maybeShowPermissions,
   showSuccess: showSuccess,
   finishServerLogin: finishServerLogin,
   loadProfileForLogin: loadProfileForLogin,
@@ -20093,9 +18636,6 @@ window.__wordredTest = {
   addDrawStroke: addDrawStroke,
   setStoryEditFilter: setStoryEditFilter,
   setStoryEditBg: setStoryEditBg,
-  placePhoneCall: placePhoneCall,
-  getTelecomCall: function () { return telecomCall; },
-  onTelecomCall: function (s, n) { window.__onTelecomCall(s, n); },
   maybeShowDefaults: maybeShowDefaults,
   getTutorialSteps1533: function () { return TUTORIAL_STEPS_1533; },
   getTutorialIndex1533: function () { return tutorialIndex1533; },
@@ -20105,8 +18645,6 @@ window.__wordredTest = {
   screenTimeFlush1533: screenTimeFlush1526,
   getScreenTimeFlushCap1533: function () { return screenTimeFlushCap1533; },
   setExamplesOverride1533: function (v) { state.settings.examplesOverride = v; save(); },
-  getDialNumber: function () { return dialNumberStr; },
-  setDialNumber: function (n) { dialNumberStr = n || ''; },
   getEditGradient: function () { return editGradient; },
   renderBlockedList: renderBlockedList,
   renderFaq: renderFaq,
@@ -20134,39 +18672,7 @@ window.__wordredTest = {
   hideOverlay: hideOverlay,
   toast: toast,
   esc: esc,
-  renderAppsDrawer: renderAppsDrawer,
-  refreshLauncherApps: refreshLauncherApps,
-  refreshAppNotifCounts: refreshAppNotifCounts,
-  updateAppNotifBadges: updateAppNotifBadges,
-  getAppNotifCounts: function () { return appNotifCounts; },
-  setAppNotifCounts: function (counts) { appNotifCounts = counts || {}; renderAppsDrawer(); },
-  getAppsDrawerQuery: function () { return appsDrawerQuery; },
-  setAppsDrawerQuery: setAppsDrawerQuery,
   foldSearch: foldSearch,
-  updateAppsDrawerScrollbar: updateAppsDrawerScrollbar,
-  isLauncherDragging: function () { return !!launcherDrag; },
-  setInstalledApps: function (list) {
-    installedApps = list || [];
-    installedAppsByPkg = {};
-    installedApps.forEach(function (a) { installedAppsByPkg[a.pkg] = a; });
-    /* v1.5.21: una lista puesta a mano ya es lista en memoria. */
-    launcherAppsLoaded = installedApps.length > 0;
-    C.launcherSyncApps(state, installedApps.map(function (a) { return a.pkg; }));
-    renderAppsDrawer();
-  },
-  openAppsDrawer: openAppsDrawer,
-  openDrawerSettingsToHide1552: openDrawerSettingsToHide1552,
-  closeAppsDrawer: closeAppsDrawer,
-  launcherOpenApp: launcherOpenApp,
-  launcherAskUninstall: launcherAskUninstall,
-  launcherOpenAppInfo: launcherOpenAppInfo,
-  launcherShareApp: launcherShareApp,
-  openLauncherMenu: openLauncherMenu,
-  positionLauncherMenu: positionLauncherMenu,
-  refreshHomeRoleStatus: refreshHomeRoleStatus,
-  launcherReorderEntry: launcherReorderEntry,
-  launcherSetSortMode: launcherSetSortMode,
-  getInstalledApps: function () { return installedApps; },
   pickCatalogSong: pickCatalogSong,
   toggleSong: function (id) { return window.__wrToggleSong(id); },
   toggleSongPreview: toggleSongPreview,
@@ -20238,13 +18744,11 @@ window.__wordredTest = {
   stopRingback: stopRingback,
   startIncomingRing: startIncomingRing,
   stopIncomingRing: stopIncomingRing,
-  chooseCallType: chooseCallType,
   getTypingPeers: function () { return typingPeers; },
   sendTyping: sendTyping,
   handleTyping: handleTyping,
   setTypingClearMs: function (ms) { TYPING_CLEAR_MS = ms; },
   /* ---- v1.6 ---- */
-  setTelecomWatchdogMs: function (ms) { TELECOM_WATCHDOG_MS = ms; },
   setCallRingMs: function (ms) { CALL_RING_MS = ms; },
   updateWeatherClock: updateWeatherClock,
   loadWeather: loadWeather,
@@ -20295,7 +18799,7 @@ window.__wordredTest = {
   psGameCardHtml: psGameCardHtml,
   openPsGame: openPsGame,
   publishGameRecord: publishGameRecord,
-  normalizeDialNumber: normalizeDialNumber,
+  /* Web 1.1: sin normalizeDialNumber (era solo para marcar por teléfono). */
   waitForServerConnected: waitForServerConnected,
   setAppHidden: setAppHidden,
   getAppHidden: function () { return appHidden; },
@@ -20306,7 +18810,6 @@ window.__wordredTest = {
   makePeerConnection: makePeerConnection,
   renderCallOutgoing: renderCallOutgoing,
   shareComment: function (postId, commentId, where) { return window.__wrShareComment(postId, commentId, where); },
-  getCallChoicePhone: function () { return callChoicePhone; },
   maybeNotify: maybeNotify,
   onNotifTarget: function (t) { window.__onNotifTarget(t); },
   onCallAction: function (a, p) { window.__onCallAction(a, p); },
@@ -20314,16 +18817,8 @@ window.__wordredTest = {
   getUnreadActivityCount: unreadActivityCount,
   refreshPostViews: refreshPostViews,
   renderNotifPrefs: renderNotifPrefs,
-  /* v1.5.17 punto 2 (actualización) y punto 3 (notificaciones de otras apps) */
   getAppVersionCode: function () { return APP_VERSION_CODE; },
   getAppVersionName: function () { return APP_VERSION_NAME; },
-  checkAppUpdate: checkAppUpdate,
-  openUpdateDialog: openUpdateDialog,
-  renderUpdateCard: renderUpdateCard,
-  getAppUpdateInfo: function () { return appUpdateInfo; },
-  setAppUpdateInfo: function (info) { appUpdateInfo = info; },
-  notifyAppUpdateAvailable: notifyAppUpdateAvailable,
-  pruneInstalledUpdateNotifs: pruneInstalledUpdateNotifs,
   updateBadges: updateBadges,
   /* v1.5.25: reproductor propio de video */
   wrFmtTime: wrFmtTime,
@@ -20335,19 +18830,6 @@ window.__wordredTest = {
   wrRefreshPlayerSubs: wrRefreshPlayerSubs,
   openVideoEditor: openVideoEditor,
   applyVideoEdits: applyVideoEdits,
-  getOtherNotifs: function () { return otherAppsNotifs; },
-  setOtherNotifs: function (list, granted) { otherAppsNotifs = list || []; otherAppsNotifGranted = !!granted; renderNotifs(); },
-  getOtherNotifsGranted: function () { return otherAppsNotifGranted; },
-  setOtherNotifsGranted: function (v) { otherAppsNotifGranted = !!v; },
-  toggleOtherNotifs: function () { window.__wrToggleOtherNotifs(); },
-  isOtherNotifsExpanded: function () { return otherNotifsExpanded; },
-  /* v1.5.17 punto 4 (batería) */
-  getBatteryLevel: function () { return batteryLevel; },
-  isBatteryCharging: function () { return batteryCharging; },
-  setBatteryStatus: function (level, charging) { batteryLevel = level; batteryCharging = !!charging; renderBatteryInd(); },
-  renderBatteryInd: renderBatteryInd,
-  batteryNotice: batteryNotice,
-  checkBatteryNoticesOnStart: checkBatteryNoticesOnStart,
   requestUnlock: function () { if (window.AndroidBridge && AndroidBridge.requestUnlock) AndroidBridge.requestUnlock(); },
   /* ---- v1.5 lives ---- */
   getLiveList: function () { return liveList; },
@@ -20491,12 +18973,6 @@ window.__wordredTest = {
   getCommentMedia: function () { return commentMedia1526; },
   bgUploadRunJob1529: bgUploadRunJob1529,
   getBgUploadFloor1547: function () { return bgUploadFloor1547; },
-  drawerSettings1547: drawerSettings1547,
-  applyDrawerSettings1547: applyDrawerSettings1547,
-  openDrawerSettings1547: openDrawerSettings1547,
-  renderDrawerSettings1547: renderDrawerSettings1547,
-  drawerAutoFit1547: drawerAutoFit1547,
-  getDrawerSettings: function () { return state.settings && state.settings.drawer1547; },
   newsItems1547: newsItems1547,
   refreshNews1547: refreshNews1547,
   newsRowHtml1547: newsRowHtml1547,
@@ -20538,17 +19014,6 @@ $('listingCategory').innerHTML = C.LISTING_CATEGORIES.map(function (c) { return 
 $('salesGroupCategory').innerHTML = C.LISTING_CATEGORIES.map(function (c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
 $('pageCategory').innerHTML = C.PAGE_CATEGORIES.map(function (c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
 $('editRelationship').innerHTML = '<option value="">Sin especificar</option>' + C.RELATIONSHIPS.map(function (r) { return '<option value="' + r + '">' + r + '</option>'; }).join('');
-$('phoneCallHangBtn').addEventListener('click', function () { clearTelecomWatchdog(); stopAllCallSounds(); if (window.AndroidBridge && AndroidBridge.endTelecomCall) { try { AndroidBridge.endTelecomCall(); } catch (e) {} } telecomCall.state = 'ended'; renderTelecomCall(); });
-$('phoneCallAnswerBtn').addEventListener('click', function () { stopIncomingRing(); if (window.AndroidBridge && AndroidBridge.answerTelecomCall) { try { AndroidBridge.answerTelecomCall(); } catch (e) {} } telecomCall.state = 'active'; telecomCall.startedAt = Date.now(); renderTelecomCall(); });
-$('phoneCallMuteBtn').addEventListener('click', function () { telecomCall.muted = !telecomCall.muted; if (window.AndroidBridge && AndroidBridge.setTelecomMuted) { try { AndroidBridge.setTelecomMuted(telecomCall.muted); } catch (e) {} } renderTelecomCall(); });
-$('phoneCallSpeakerBtn').addEventListener('click', function () {
-  telecomCall.speaker = !telecomCall.speaker;
-  /* v1.5: en la llamada real el altavoz se cambia en el servicio de
-     llamadas (ruta de audio); si no está, se usa el AudioManager. */
-  if (window.AndroidBridge && AndroidBridge.setTelecomSpeakerphone) { try { AndroidBridge.setTelecomSpeakerphone(telecomCall.speaker); } catch (e) {} }
-  else if (window.AndroidBridge && AndroidBridge.setSpeakerphone) { try { AndroidBridge.setSpeakerphone(telecomCall.speaker); } catch (e) {} }
-  renderTelecomCall();
-});
 $('liveStartBtn').addEventListener('click', startLive);
 $('liveChatSend').addEventListener('click', sendLiveChat);
 $('liveChatInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') sendLiveChat(); });
@@ -20577,14 +19042,11 @@ document.querySelectorAll('#storyEditTools .chip:not(#storyEditVideoBtn1547)').f
 var storyEditVideoBtn1547 = $('storyEditVideoBtn1547');
 if (storyEditVideoBtn1547) storyEditVideoBtn1547.addEventListener('click', function () { if (storyEdit.media) openVideoEditor('story', -1, storyEdit.media.src, null); });
 $('storyEditPublish').addEventListener('click', publishStoryEdited);
-initLauncher();
 $('feedEventsBtn').addEventListener('click', function () { go('events'); });
 $('feedPagesBtn').addEventListener('click', function () { go('pages'); });
-$('feedMarketBtn').addEventListener('click', function () { go('marketplace'); });
 /* 1.5.44: el arranque decide primero con la sesión guardada, sin
    parpadear la pantalla de cuentas (v2.1: el invitado sigue disponible
    con su botón en la pantalla de cuentas/registro). */
 boot1544();
-maybeShowPermissions();
 })();
 
