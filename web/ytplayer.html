@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Dramas · WordRed</title>
+<style>
+  /* 1.5.58: reproductor de dramas para el segundo WebView de la app.
+     Página autónoma: sin archivos locales, solo el iframe de YouTube.
+     Se carga con base https://app.wordred.local/ para que YouTube
+     reproduzca (desde file:// da Error 153). A pantalla completa,
+     vertical, con sonido; nada sale de la app (sin enlaces externos). */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #000; color: #fff; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; }
+  .stage { position: relative; height: 100dvh; max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; }
+  .top { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: flex; align-items: center; gap: 10px; padding: 14px; background: linear-gradient(180deg, rgba(0,0,0,.7), transparent); }
+  .top h2 { flex: 1; font-size: 19px; }
+  .xbtn { width: 38px; height: 38px; border-radius: 50%; border: 0; background: rgba(255,255,255,.15); color: #fff; font-size: 20px; line-height: 1; cursor: pointer; flex: none; }
+  .player { position: relative; flex: 1; background: #000; min-height: 0; overflow: hidden; }
+  .ytwrap { position: absolute; inset: 0; background: #000; }
+  .ytwrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .err { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 20px; background: rgba(0,0,0,.85); font-size: 16px; font-weight: 700; line-height: 1.4; }
+  .err button { padding: 12px 22px; border-radius: 999px; border: 0; background: #E60026; color: #fff; font-size: 16px; font-weight: 800; cursor: pointer; }
+  .member { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 2; width: 280px; max-width: 86%; background: rgba(20,20,26,.96); border: 1px solid rgba(255,255,255,.25); border-radius: 18px; padding: 22px 18px; text-align: center; }
+  .member img { width: 100%; border-radius: 12px; margin-bottom: 14px; display: block; }
+  .memberTitle { font-size: 19px; font-weight: 800; margin-bottom: 8px; }
+  .memberSub { font-size: 15px; line-height: 1.5; opacity: .85; }
+  .poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .info { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; padding: 14px 14px 20px; background: linear-gradient(0deg, rgba(0,0,0,.75), transparent); }
+  .ep { font-size: 15px; font-weight: 700; line-height: 1.35; margin-bottom: 10px; }
+  .chaptersBtn { display: block; width: 100%; padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.12); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; }
+  .guide { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 4; width: 280px; max-width: 86%; background: rgba(20,20,26,.96); border: 1px solid rgba(255,255,255,.25); border-radius: 18px; padding: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.6); }
+  .guideTitle { font-size: 17px; font-weight: 800; margin-bottom: 10px; }
+  .guideRow { font-size: 15px; line-height: 1.5; padding: 3px 0; }
+  .guideHint { font-size: 12px; opacity: .7; margin-top: 10px; text-align: center; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; max-height: 70%; overflow-y: auto; background: #1c1c22; border-radius: 18px 18px 0 0; padding: 14px; }
+  .sheetTop { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .sheetTop h3 { flex: 1; font-size: 17px; }
+  .sheetRow { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-top: 1px solid rgba(255,255,255,.12); }
+  .sheetEp { flex: 1; font-size: 15px; }
+  .sheetPlay { width: 38px; height: 38px; border-radius: 50%; border: 0; background: #E60026; color: #fff; font-size: 15px; cursor: pointer; flex: none; }
+  .sheetMember { font-size: 13px; font-weight: 700; color: #ffb3c0; white-space: nowrap; }
+  .loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; opacity: .8; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="top">
+    <button class="xbtn" id="closeBtn" aria-label="Cerrar">✕</button>
+    <h2 id="seriesTitle">Dramas</h2>
+  </div>
+  <div class="player" id="player">
+    <div class="loading" id="loading">Cargando…</div>
+    <img class="poster hidden" id="posterImg" src="" alt="">
+    <div class="ytwrap hidden" id="ytWrap">
+      <iframe id="ytFrame" title="Reproductor de drama" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+    </div>
+    <div class="err hidden" id="ytErr"><div id="ytErrMsg">No se pudo reproducir el video.</div><button type="button" id="ytRetry">Reintentar</button></div>
+    <div class="member hidden" id="memberCard">
+      <img id="memberImg" src="" alt="">
+      <div class="memberTitle" id="memberTitle">Disponible en DramaBox</div>
+      <div class="memberSub" id="memberSub">Este capítulo es solo para miembros de DramaBox.</div>
+    </div>
+  </div>
+  <div class="info">
+    <div class="ep" id="epTitle"></div>
+    <button class="chaptersBtn" id="chaptersBtn">Ver otros capítulos</button>
+  </div>
+  <div class="guide hidden" id="guide">
+    <div class="guideTitle">Cómo verlos</div>
+    <div class="guideRow">↑ Capítulo siguiente</div>
+    <div class="guideRow">↓ Capítulo anterior</div>
+    <div class="guideRow">→ Siguiente drama</div>
+    <div class="guideRow">← Drama anterior</div>
+    <div class="guideRow">Toca el video para ver el siguiente capítulo</div>
+    <div class="guideHint">Se quita sola en unos segundos · toca para cerrarla antes</div>
+  </div>
+  <div class="sheet hidden" id="sheet">
+    <div class="sheetTop"><button class="xbtn" id="sheetClose" aria-label="Cerrar">✕</button><h3 id="sheetTitle">Capítulos</h3></div>
+    <div id="sheetList"></div>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+  var catalog = [];
+  var seriesIdx = 0, epIdx = 0;
+  var playing = false, ready = false, currentTime = 0, videoId = '', lastError = '';
+  var watchdog = null, guideTimer = null, touchStart = null;
+  /* 1.5.60: modo tráiler (películas y juegos): solo el video y su
+     título, sin capítulos, sin guía y sin gestos de drama. */
+  var trailerMode = false;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function series() { return catalog[seriesIdx] || null; }
+  function total(s) { return (s && typeof s.totalEps === 'number' && s.totalEps > 0) ? s.totalEps : ((s && Array.isArray(s.eps)) ? s.eps.length : 0); }
+  function freeEps(s) { return (s && Array.isArray(s.eps)) ? s.eps : []; }
+  /* 1.5.61: la aplicación de la serie, desde `source` (ReelShort,
+     ShortMax o DramaBox). */
+  function appTag(s) {
+    var src = (s && s.source ? String(s.source) : '').toLowerCase();
+    if (src === 'reelshort') return 'ReelShort';
+    if (src === 'shortmax') return 'ShortMax';
+    if (src === 'dramabox') return 'DramaBox';
+    return 'DramaBox';
+  }
+  function chapterAt(s, idx) {
+    var eps = freeEps(s), t = total(s);
+    if (!s || idx < 0 || idx >= t) return null;
+    /* 1.5.61: el capítulo se busca POR SU NÚMERO, no por posición. */
+    var n = idx + 1, found = null;
+    for (var i = 0; i < eps.length; i++) { if (eps[i].ep === n) { found = eps[i]; break; } }
+    if (found) return { n: found.ep, title: found.title, videoId: found.videoId, thumb: found.thumb, member: false };
+    return { n: idx + 1, title: 'Capítulo ' + (idx + 1), videoId: null, thumb: s.poster, member: true };
+  }
+  function ytUrl(id) { return 'https://www.youtube.com/embed/' + id + '?autoplay=1&rel=0&playsinline=1&enablejsapi=1&modestbranding=1&iv_load_policy=3'; }
+  function ytPost(func, args) {
+    var f = $('ytFrame');
+    if (!f || !f.contentWindow) return false;
+    try { f.contentWindow.postMessage(JSON.stringify({ event: 'command', func: func, args: args || [] }), '*'); return true; } catch (e) { return false; }
+  }
+  function showErr(msg) { lastError = msg; var m = $('ytErrMsg'); if (m) m.textContent = msg; $('ytErr').classList.remove('hidden'); }
+  function hideErr() { $('ytErr').classList.add('hidden'); }
+  function watchdogStart() {
+    if (watchdog) clearTimeout(watchdog);
+    watchdog = setTimeout(function () { if (!playing) showErr('No se pudo reproducir el video. Toca Reintentar.'); }, 10000);
+  }
+  function watchdogClear() { if (watchdog) { clearTimeout(watchdog); watchdog = null; } }
+  function stopVideo() {
+    watchdogClear();
+    playing = false; ready = false; videoId = '';
+    var f = $('ytFrame');
+    if (f) { try { f.src = 'about:blank'; } catch (e) {} }
+    $('ytWrap').classList.add('hidden');
+    hideErr();
+  }
+  function loadVideo(id) {
+    videoId = id; playing = false; ready = false; currentTime = 0;
+    hideErr();
+    $('posterImg').classList.add('hidden');
+    $('memberCard').classList.add('hidden');
+    $('ytWrap').classList.remove('hidden');
+    var f = $('ytFrame');
+    try { f.src = ytUrl(id); } catch (e) {}
+    /* registrarse para recibir los eventos del reproductor, igual que
+       el reproductor de YouTube de ShortsSound (iframe fijo + src +
+       postMessage + vigilante de 10 s). */
+    f.onload = function () { try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1 }), '*'); } catch (e) {} };
+    watchdogStart();
+  }
+  function showGuide() {
+    var g = $('guide');
+    if (!g) return;
+    g.classList.remove('hidden');
+    if (guideTimer) clearTimeout(guideTimer);
+    guideTimer = setTimeout(hideGuide, 4000);
+  }
+  function hideGuide() { if (guideTimer) { clearTimeout(guideTimer); guideTimer = null; } $('guide').classList.add('hidden'); }
+  function loadCurrent() {
+    var s = series(), ch = chapterAt(s, epIdx);
+    if (!s || !ch) return;
+    stopVideo();
+    hideGuide();
+    $('loading').classList.add('hidden');
+    $('seriesTitle').textContent = s.name;
+    $('epTitle').textContent = 'Capítulo ' + ch.n + ' de ' + total(s) + ' · ' + ch.title + ' · ' + appTag(s);
+    var cb = $('chaptersBtn');
+    if (cb) cb.classList.remove('hidden');
+    if (ch.videoId) {
+      loadVideo(ch.videoId);
+    } else {
+      var img = $('posterImg');
+      img.src = ch.thumb || s.poster; img.alt = ch.title; img.classList.remove('hidden');
+      var mi = $('memberImg');
+      mi.src = s.poster; mi.alt = s.name;
+      /* 1.5.61: la tarjeta dice la aplicación de ESTA serie. */
+      var mTitle = $('memberTitle'); if (mTitle) mTitle.textContent = 'Disponible en ' + appTag(s);
+      var mSub = $('memberSub'); if (mSub) mSub.textContent = 'Este capítulo es solo para miembros de ' + appTag(s) + '.';
+      $('memberCard').classList.remove('hidden');
+    }
+    if (epIdx === 0) showGuide();
+  }
+  function nextEpisode() { var s = series(); if (s && epIdx < total(s) - 1) { epIdx++; loadCurrent(); } }
+  function prevEpisode() { if (epIdx > 0) { epIdx--; loadCurrent(); } }
+  function nextSeries() { if (seriesIdx < catalog.length - 1) { seriesIdx++; epIdx = 0; loadCurrent(); } }
+  function prevSeries() { if (seriesIdx > 0) { seriesIdx--; epIdx = 0; loadCurrent(); } }
+  function openChapters() {
+    var s = series();
+    if (!s) return;
+    $('sheetTitle').textContent = s.name + ' · Capítulos';
+    var rows = '', t = total(s);
+    for (var i = 0; i < t; i++) {
+      var ch = chapterAt(s, i);
+      rows += '<div class="sheetRow"><div class="sheetEp">' + esc('Capítulo ' + ch.n + ' · ' + ch.title) + '</div>' +
+        (ch.member ? '<span class="sheetMember">Disponible en ' + esc(appTag(s)) + '</span>'
+          : '<button type="button" class="sheetPlay" data-play="' + i + '" aria-label="Ver Capítulo ' + ch.n + '">▶</button>') + '</div>';
+    }
+    $('sheetList').innerHTML = rows;
+    $('sheet').classList.remove('hidden');
+  }
+  function closeChapters() { $('sheet').classList.add('hidden'); }
+  function closePlayer() {
+    stopVideo();
+    if (window.AndroidBridge && AndroidBridge.closeDramaPlayer) { try { AndroidBridge.closeDramaPlayer(); } catch (e) {} return; }
+    /* sin puente (web/pruebas): se marca el cierre para el harness. */
+    window.__wrDramaClosed = true;
+    $('stage').classList.add('hidden');
+  }
+  /* La app llama a esta función al cargar la página (el puente nativo
+     la invoca con el catálogo activo y la posición inicial). */
+  window.__wrDramaOpen = function (catalogJson, sIdx, eIdx) {
+    try {
+      var list = (typeof catalogJson === 'string') ? JSON.parse(catalogJson) : catalogJson;
+      if (!Array.isArray(list) || !list.length) return false;
+      catalog = list;
+      trailerMode = false;
+      seriesIdx = Math.max(0, Math.min(catalog.length - 1, sIdx || 0));
+      epIdx = Math.max(0, Math.min(total(series()) - 1, eIdx || 0));
+      loadCurrent();
+      return true;
+    } catch (e) { return false; }
+  };
+  /* 1.5.60: modo tráiler — la app lo llama con el id de YouTube del
+     tráiler y su título. Sin catálogo, sin capítulos y sin gestos: el
+     video se ve dentro de la app y se cierra con la X o con atrás. */
+  window.__wrTrailerOpen = function (id, title) {
+    try {
+      if (!id || typeof id !== 'string') return false;
+      trailerMode = true;
+      stopVideo();
+      hideGuide();
+      $('loading').classList.add('hidden');
+      $('seriesTitle').textContent = 'Tráiler';
+      $('epTitle').textContent = title || 'Tráiler';
+      var cb = $('chaptersBtn');
+      if (cb) cb.classList.add('hidden');
+      loadVideo(id);
+      return true;
+    } catch (e) { return false; }
+  };
+  /* La app llama a esta función antes de esconder el reproductor. */
+  window.__wrDramaClose = function () { stopVideo(); return true; };
+  /* Estado para las pruebas (Electron): si el video reproduce de
+     verdad, playing es true y currentTime avanza. */
+  window.__wrDramaState = function () {
+    var s = series(), ch = s ? chapterAt(s, epIdx) : null;
+    return { series: s ? s.name : '', seriesIdx: seriesIdx, ep: ch ? ch.n : 0, epIdx: epIdx, total: s ? total(s) : 0, videoId: videoId, playing: playing, ready: ready, currentTime: currentTime, error: lastError, closed: !!window.__wrDramaClosed, trailer: trailerMode };
+  };
+  window.addEventListener('message', function (ev) {
+    var d = ev && ev.data;
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { return; } }
+    if (!d || typeof d !== 'object') return;
+    if (d.event === 'onReady') { ready = true; ytPost('unMute'); ytPost('setVolume', [100]); ytPost('playVideo'); }
+    else if (d.event === 'onStateChange' && typeof d.info === 'number') {
+      if (d.info === 1) { playing = true; watchdogClear(); hideErr(); }
+      else if (d.info === 2) { playing = false; }
+      else if (d.info === 0) { playing = false; if (!trailerMode) nextEpisode(); }
+    }
+    else if (d.event === 'onError' && typeof d.info === 'number') { showErr('No se pudo reproducir el video. Toca Reintentar.'); }
+    else if (d.event === 'infoDelivery' && d.info && typeof d.info.currentTime === 'number') {
+      /* El reproductor no siempre manda onStateChange (en las pruebas
+         de Electron nunca llegó, aunque el video reproducía): el tiempo
+         que avanza es la señal fiable de que está sonando. */
+      if (d.info.currentTime > currentTime) { playing = true; watchdogClear(); hideErr(); }
+      currentTime = d.info.currentTime;
+    }
+  });
+  $('closeBtn').addEventListener('click', closePlayer);
+  $('ytRetry').addEventListener('click', function () { if (videoId) loadVideo(videoId); });
+  $('chaptersBtn').addEventListener('click', openChapters);
+  $('sheetClose').addEventListener('click', closeChapters);
+  $('sheetList').addEventListener('click', function (ev) {
+    var b = ev.target && ev.target.closest ? ev.target.closest('[data-play]') : null;
+    if (!b) return;
+    epIdx = parseInt(b.getAttribute('data-play'), 10) || 0;
+    closeChapters();
+    loadCurrent();
+  });
+  $('guide').addEventListener('click', function (ev) { ev.stopPropagation(); hideGuide(); });
+  var stage = $('stage');
+  stage.addEventListener('touchstart', function (e) {
+    var t = e.target;
+    if (t && t.closest && t.closest('.top, .info, .guide, .sheet, .err')) return;
+    var p = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
+    touchStart = { x: p.clientX, y: p.clientY };
+  }, { passive: true });
+  stage.addEventListener('touchend', function (e) {
+    if (!touchStart) return;
+    var p = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
+    var dx = p.clientX - touchStart.x, dy = p.clientY - touchStart.y;
+    touchStart = null;
+    /* 1.5.60: en modo tráiler no hay capítulos ni gestos de drama. */
+    if (trailerMode) return;
+    if (!$('sheet').classList.contains('hidden')) return;
+    if (Math.abs(dx) < 12 && Math.abs(dy) < 12) { nextEpisode(); return; }
+    if (Math.abs(dy) > Math.abs(dx)) { if (dy < -50) nextEpisode(); else if (dy > 50) prevEpisode(); }
+    else { if (dx > 50) nextSeries(); else if (dx < -50) prevSeries(); }
+  }, { passive: true });
+  document.addEventListener('keydown', function (e) {
+    /* 1.5.60: en modo tráiler solo se cierra con Escape. */
+    if (trailerMode) { if (e.key === 'Escape') closePlayer(); return; }
+    if (!$('sheet').classList.contains('hidden')) return;
+    if (e.key === 'ArrowDown') nextEpisode();
+    else if (e.key === 'ArrowUp') prevEpisode();
+    else if (e.key === 'ArrowRight') nextSeries();
+    else if (e.key === 'ArrowLeft') prevSeries();
+    else if (e.key === 'Escape') closePlayer();
+  });
+  /* El video también se para al salir de la página (el puente nativo
+     esconde el WebView: sin esto el sonido seguiría). */
+  window.addEventListener('pagehide', function () { stopVideo(); });
+})();
+</script>
+</body>
+</html>
