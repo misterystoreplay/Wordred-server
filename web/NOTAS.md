@@ -1,4 +1,4 @@
-# WordRed Web 1.5 — NOTAS
+# WordRed Web 1.6 — NOTAS
 
 Versión web de WordRed: se abre con un enlace en el navegador, sin
 descargar ni instalar nada. Las actualizaciones llegan solas al abrir
@@ -644,6 +644,155 @@ cerrada (sin cuenta ni token), cuentas disponibles después,
 volver a entrar desde la lista, ventana rediseñada a 360 px sin
 desborde y entrar de verdad desde ella por teléfono.
 
+## Qué cambió en la Web 1.6 (todo marcado «Web 1.6»)
+
+Seis cambios de aspecto, ninguno es una función nueva: la FAQ
+solo crece con su entrada de versión («¿Qué hay de nuevo en la
+Web 1.6?», FAQ 32) y el tutorial no cambia.
+
+1. **La sección Dramas del Inicio ya no existe.** El widget
+   `#homeKdrama1549` (encabezado «Dramas», búsqueda y filtros por
+   app, tarjetas) se quitó del Inicio junto con todo su código
+   (`renderKdramaHome1549`, `kdRenderTiles1550`,
+   `kdFilteredCatalog1550`, la insignia de la sección y
+   `kdSearch1550`/`__wrKdFilter1550`). El trabajo anterior de la
+   1.6 que dejó las tarjetas como los Reels (solo portada) queda
+   sustituido por esto: ya no hay tarjetas en el Inicio. Los
+   dramas ahora salen mezclados AL AZAR entre los Shorts (la vista
+   a pantalla completa del botón Shorts de la barra de abajo): cada
+   inserción cae tras un número aleatorio de Shorts (4–9) y la serie
+   también es aleatoria, sin repetir nunca la misma serie dos veces
+   seguidas (`kdShortGap1562` / `kdDramaPick1562`). Con muro corto
+   (menos de 4 Shorts) sale al menos un drama en una posición al
+   azar, porque sin la sección los Shorts son la única forma de
+   encontrarlos. La tarjeta entre
+   los Shorts y el visor/reproductor no se tocan: al tocar una se
+   abre el drama en su primer capítulo, con la guía de gestos;
+   Seguir y Guardados siguen existiendo (en el visor y en el
+   perfil). La búsqueda y los filtros de dramas se van CON la
+   sección: vivían solo ahí y no se reconstruyen en otro lado. El
+   catálogo se sigue descargando (`fetchKdramas1554`) porque lo usan
+   el intercalado y el visor. Comprobado en el DOM (W45): en el
+   Inicio no hay sección Dramas; en los Shorts hay tarjetas de drama
+   mezcladas; al tocar una se abre el drama; y el botón de cambiar
+   de cuenta sigue funcionando.
+2. **Fila de arriba simétrica.** Todas las tarjetas de la fila
+   (el primer tile con la foto propia y el `+`, y los Reels) miden
+   lo mismo: 213 px de alto (rectángulo 140×190 + nombre de 19 px).
+   Causa real, medida en el DOM con sesión a 390 px: cuando un Reel
+   no tenía portada guardada, `requestReelCovers()` borraba TODOS
+   los hijos de la tarjeta (rectángulo + nombre) y dejaba la imagen
+   del fotograma suelta dentro de la tarjeta: la imagen quedaba de
+   ~150×267 px y la fila (flex, `align-items:stretch`) estiraba
+   TODAS las tarjetas a 267 px, así que los Reels se veían más
+   largos que el primer tile (213 px). Antes de la captura las dos
+   medían 213 px; después de la captura, las dos medían 267 px
+   (la primera con 54 px de hueco vacío debajo del nombre). Ahora
+   la portada capturada va DENTRO del rectángulo (con su CSS
+   `100%` + `cover`) y el nombre se queda; en la fila de reels del
+   feed no cambiaba nada porque su CSS ya cubre cualquier `img`
+   dentro. Comprobado en el DOM (W41): a 390 y 360 px, tras
+   completarse la captura de portadas, todas las tarjetas miden
+   213 px (diferencia ≤ 2 px), todas conservan rectángulo y nombre,
+   y ninguna tiene una `img` suelta fuera del rectángulo.
+3. **Cerrar sesión es un botón de solo símbolo en Ajustes.** El
+   botón rojo de texto a lo ancho del final de Ajustes ya no existe;
+   en su lugar hay un botón redondo de solo símbolo junto al «?» de
+   la cabecera de Ajustes (mismo estilo redondo 40×40, icono de
+   puerta con flecha de salida, añadido al juego de iconos propio
+   como `logout`), con `title` y `aria-label` «Cerrar sesión». El
+   flujo es exactamente el mismo: confirmación → burbuja «Cerrando
+   cuenta» → cuentas disponibles. El `id="logoutBtn"` se movió al
+   botón nuevo, así que el manejador de siempre sigue atado sin
+   tocar JavaScript. Comprobado en el DOM (W42): a 390 y 360 px el
+   botón está junto al «?», no hay botón de texto a lo ancho, y al
+   tocar el símbolo sale la confirmación, la burbuja y las cuentas
+   (W39 sigue pasando igual).
+4. **Ajustes rediseñados.** Mismo lenguaje de diseño de la app
+   (hoja oscura flotante traslúcida, interruptores rojos #E60026,
+   control a la derecha, sin texto de pie) y todas las secciones con
+   la misma fila alineada (`.setRow1560`: etiqueta a la izquierda,
+   control a la derecha, mismo espaciado). Orden nuevo, de lo más
+   intuitivo:
+   1. **Cuenta** — Cambiar de cuenta, Mi nombre, Mi código QR,
+      Cuenta de ejemplo, Eliminar mi cuenta.
+   2. **Apariencia** — Colores, Tamaño del texto, Fondo de chats.
+   3. **Notificaciones** — preferencias de avisos (13), avisos
+      push, No molestar, Horas tranquilas.
+   4. **Privacidad y seguridad** — Privacidad de publicaciones,
+      Bloqueados, Silenciados, Palabras que no quiero ver, Estado
+      en línea.
+   5. **Inicio** — Solo amigos, Ahorro de datos.
+   6. **Tus datos** — Respaldo de tus chats, Mis datos (exportar).
+   7. **Ayuda** — Tutorial, Cuenta verificada.
+   8. **Apoyar a WordRed**.
+   9. **Acerca de**.
+   Ninguna opción se quita ni cambia de comportamiento; solo cambia
+   el orden y la fila. Los interruptores que antes eran casillas a la
+   izquierda con el texto a la derecha ahora son el interruptor rojo
+   de la app a la derecha, como los de avisos. Dos detalles medidos
+   en el DOM: el desplegable de la fila medía 210 px y aplastaba la
+   etiqueta a 58 px de ancho (el texto de «Tamaño del texto» se
+   estiraba a 360 px de alto); ahora mide 160 px como mucho y la
+   etiqueta queda en ~110 px (la fila de «Tamaño del texto» pasó de
+   393 px a 82 px de alto; la descripción de «Tamaño del texto» y
+   la de «Privacidad de publicaciones» bajaron a nota debajo de la
+   fila, para que ninguna se estire: la de privacidad llegaba a
+   185 px de alto a 360 px). A 360 px, la fila del horario de «Horas
+   tranquilas» se salía 21 px por la derecha (los dos campos de hora
+   no cabían: su ancho mínimo era 275 px en una fila de 256 px);
+   ahora pueden encogerse (`min-width:0`) y quedan dentro. El título «Seguridad» quedaba vacío (sin
+   ningún control debajo): se quitó el título y su contenido vive en
+   «Privacidad y seguridad». El `input` oculto duplicado
+   `chatBackupInput` (había dos con el mismo `id`, uno muerto)
+   también se quitó: queda solo el de la tarjeta de respaldo. Las
+   secciones de aspecto del perfil (Marco de avatar, Color de tu
+   perfil, Degradado de la portada, Privacidad de cada sección,
+   Publicaciones destacadas) viven en «Editar perfil», no en
+   Ajustes, y no se mueven. «No molestar» ya aparecía dos veces en
+   la 1.5 (una fila en Notificaciones y una tarjeta en la lista
+   dinámica, las dos con el mismo botón «Elegir tiempo»): sigue
+   apareciendo dos veces, ahora las dos en Notificaciones.
+   Comprobado en el DOM (W43): a 390 y 360 px las 9 secciones están
+   en ese orden, todos los controles anteriores existen y los
+   interruptores cambian de verdad, y todas las filas comparten la
+   misma alineación (mismo borde izquierdo y derecho, mismo control
+   a la derecha, mismo relleno de 16 px).
+5. **Cambiar de cuenta también es un botón de solo símbolo junto al
+   de cerrar sesión.** En la cabecera de Ajustes, junto al «?» y al
+   botón de cerrar sesión, hay un segundo botón redondo de solo
+   símbolo (mismo estilo 40×40, icono de flechas de intercambio,
+   añadido al juego de iconos propio como `switchaccount`), con
+   `title` y `aria-label` «Cambiar de cuenta». Al tocarlo se abre la
+   misma lista de cuentas de siempre (`openSwitchAccount1526`); el
+   flujo no cambia. El botón «Cambiar de cuenta» de la sección
+   Cuenta se queda como está, con su texto explicativo («Varias
+   cuentas en este teléfono…»). Comprobado en el DOM (W44): a 390 y
+   360 px el botón está junto al de cerrar sesión, sin texto, y al
+   tocarlo se abre la lista de cuentas; el botón de la sección
+   Cuenta sigue existiendo.
+6. **Las secciones del Inicio van en posiciones al azar.** La
+   cartelera de cine «Próximos estrenos», la fila de noticias y la
+   cartelera de juegos «Próximos estrenos de juegos» ya no van
+   fijas tras la 5ª, 7ª y 10ª publicación: en cada render caen en
+   posiciones sorteadas entre las publicaciones
+   (`feedSectionPositions1562`), para que se usen más. Nunca van
+   antes de las dos primeras publicaciones, nunca seguidas (al
+   menos 2 publicaciones entre dos secciones cuando el muro da
+   para ello, 8+ publicaciones) ni pegadas a la fila de Reels. La
+   fila de Reels se queda fija tras la 2ª publicación y el juego
+   destacado va pegado a su cartelera, como antes. Con muro corto
+   ninguna sección se pierde: con 6–7 publicaciones salen las
+   tres con al menos 1 publicación entre ellas, con 4–5 salen
+   una o dos entre las publicaciones y el resto al final, y con
+   menos de 4 van todas al final, como antes. El contenido no
+   cambia: mismas películas, noticias y juegos, mismos datos y
+   mismos clics (el tráiler y la noticia se abren igual).
+   Comprobado en el DOM (W46): el sorteo varía entre renders y
+   respeta los huecos, en el Inicio real las tres secciones
+   aparecen entre las publicaciones con separación y la fila de
+   Reels fija, y el tráiler y la noticia se abren al tocarlos.
+
 ## Qué se conservó y por qué (sí funciona en la web)
 
 - **Llamadas dentro de WordRed** (botón de llamada en el chat,
@@ -908,3 +1057,42 @@ Por qué Pages y no las otras opciones:
 
 En la 1.4 las pruebas decían (histórico): `node tests/test-web.js`
 **273 PASS, 0 FAIL** y `tests/test-web-dom.js` **28 PASS, 0 FAIL**.
+
+En la 1.6 (esta versión):
+- `node tests/test-web.js`: **356 PASS, 0 FAIL** (log
+  `~/workspace/kd150/test-web-16-node-mine.log`): lo de la 1.5
+  (338 PASS en su último re-run) MÁS los checks de la 1.6: tarjetas
+  de drama sin etiqueta ni insignia (solo portada, con
+  `data-kd-series`, `kdPoster1563` y `aria-label`), fila de tarjetas
+  como fila horizontal, icono de cerrar sesión, 7 contenedores
+  dinámicos de Ajustes, 9 secciones en orden, desplegable de fila
+  de 160 px como mucho, sin `#settings1526`, sin duplicado de
+  `chatBackupInput`, sin título «Seguridad» vacío, versión «Web 1.6»
+  y FAQ 32.
+- `tests/test-web-dom.js` (Electron + xvfb, con servidor HTTP
+  local): **85 PASS, 0 FAIL** (log
+  `~/workspace/kd150/test-web-16-dom-mine.log`): lo de la 1.5
+  (66 PASS en su último re-run) MÁS 19 checks nuevos — W40:
+  tarjetas de drama 264×400 solo portada sin etiqueta ni insignia
+  (48 tarjetas, en la misma fila, con imágenes y `aria-label`),
+  iguales a una tarjeta de Reel, y tocar una abre el visor del
+  drama; W41: fila de arriba simétrica a 390 y 360 px (primer tile
+  y Reels miden 213 px, rectángulo 140×190 + nombre, sin `<img>`
+  suelta), tras esperar a que la captura de portadas termine o se
+  estabilice; W42: cerrar sesión es un botón de solo símbolo junto
+  al «?» en la cabecera de Ajustes, y al tocarlo pide confirmar,
+  sale la burbuja «Cerrando cuenta» y aparecen las cuentas
+  disponibles (y se vuelve a entrar para seguir); W43: 9 secciones
+  de Ajustes en el orden nuevo con los 26 controles anteriores
+  presentes (incluidos los de la 1.5), filas simétricas a 390 y
+  360 px (mismo borde, mismo relleno, control a la derecha, títulos
+  con el mismo margen, filas con desplegable de 150 px como mucho),
+  y los interruptores «Ahorro de datos», «Solo amigos» y «Cuenta de
+  ejemplo» y el desplegable «Tamaño del texto» cambian de verdad y
+  se restauran. La cuenta de prueba se borra del servidor al final
+  de cada run. Nota: el run DOM anterior falló 1 vez en la espera
+  de la captura de portadas (W41, la cola tardó más de 45 s) y otra
+  vez en la simetría a 360 px (W43, la fila del horario se salía
+  21 px y la fila de privacidad medía 185 px) — ambos se arreglaron
+  de verdad (espera hasta estabilizarse; `min-width:0` en el horario
+  y descripción de privacidad como nota) y el run final pasó 85/0.

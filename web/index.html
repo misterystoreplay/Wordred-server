@@ -129,21 +129,6 @@ main{max-width:640px;margin:0 auto;padding:12px 12px calc(104px + var(--sys-nav-
 .reelTile{flex:0 0 264px;height:400px;border-radius:14px;overflow:hidden;position:relative;background:#3a1218;cursor:pointer}
 .reelTile img,.reelTile video{width:100%;height:100%;object-fit:cover;display:block}
 .reelTilePh{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.45)}
-/* 1.5.49: K-Dramas en el Inicio, fijo debajo de «+ Agregar apartado».
-   La sección NO lleva data-widget: no se puede mover, quitar, cambiar
-   de tamaño ni de color. La portada es un fotograma vertical real del
-   primer capítulo gratis de cada serie (1.5.63; antes era su miniatura
-   horizontal de YouTube). */
-#homeKdrama1549{flex:1 1 100%}
-#homeKdrama1549 .reelsRow{margin-bottom:0}
-.kdTileLabel1549{position:absolute;left:0;right:0;bottom:0;padding:34px 12px 12px;background:linear-gradient(0deg,rgba(0,0,0,.85),transparent);color:#fff}
-.kdTileName1549{font-size:16px;font-weight:800;line-height:1.2}
-.kdTileSub1549{font-size:12px;opacity:.85;margin-top:2px}
-/* 1.5.55: si la portada de un drama no carga, la tarjeta muestra el
-   nombre bien visible sobre el fondo rojo, nunca un hueco vacío. */
-.reelTile.kdNoImg1555{background:linear-gradient(160deg,#E60026,#7a0e1d)}
-.reelTile.kdNoImg1555 .kdTileLabel1549{top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;background:none;padding:12px}
-.reelTile.kdNoImg1555 .kdTileName1549{font-size:20px}
 /* 1.5.40 Cartelera «Próximos estrenos»: fila horizontal mezclada entre
    las publicaciones (después de la 5ª, o al final si hay menos). Cada
    película es un rectángulo grande con su portada real, título y fecha
@@ -274,7 +259,6 @@ button.fgStar1549{cursor:pointer}
 body.hwEditing1536 #view-feed .homeWidget:not(.hwActive){opacity:.35}
 body.hwEditing1536 #view-feed > :not(#homeWidgets1536){opacity:.35}
 body.hwEditing1536 #view-feed #homeWidgets1536 .homeAddBtn{opacity:.35}
-body.hwEditing1536 #view-feed #homeKdrama1549{opacity:1} /* 1.5.49: la sección de K-Dramas no se edita ni se atenúa */
 body.hwEditing1536 header,body.hwEditing1536 #bottomNav{opacity:.35}
 body.hwEditing1536 #view-feed .homeWidget.hwActive{opacity:1;outline:3px solid var(--hwAccent,#e01430);outline-offset:2px}
 #homeEditBar1536{position:fixed;left:12px;right:12px;bottom:calc(68px + var(--sys-nav-bottom,0px));z-index:1200;display:flex;gap:8px;align-items:center;background:#1c1c22;border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:0 6px 24px rgba(0,0,0,.5)}
@@ -948,7 +932,16 @@ button:active,.chip:active{transform:scale(.95)}
 .setSwitch1560:has(input:checked) .setKnob1560{left:27px}
 .setSheet1560 select{-webkit-appearance:none;appearance:none;width:100%;padding:12px 38px 12px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.3);background-color:rgba(255,255,255,.08);background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round'/></svg>");background-repeat:no-repeat;background-position:right 14px center;color:#fff;font-size:15px;font-weight:700;cursor:pointer}
 .setSheet1560 select option{color:#111}
-.setRow1560>select{flex:0 0 auto;max-width:210px}
+.setRow1560>select{flex:0 0 auto;max-width:160px}
+/* Web 1.6: Ajustes rediseñados — todas las secciones comparten el
+   mismo título (mismo margen arriba y abajo) y la misma fila
+   alineada (.setRow1560: etiqueta a la izquierda, control a la
+   derecha); la última fila de cada sección no deja una línea
+   colgando antes del título siguiente. El desplegable de la fila
+   mide 160 px como mucho (antes 210): con 210 la etiqueta quedaba
+   aplastada a 58 px y el texto se estiraba a 360 px de alto. */
+.setSec1560 .sectitle{margin:18px 2px 8px}
+.setSec1560 .setRow1560:last-child{border-bottom:0}
 .setSheet1560 input[type=range]{accent-color:#E60026}
 .setSheet1560 .chip.on{background:linear-gradient(135deg,#FF2E4D,#E60026);border-color:transparent;color:#fff}
 #kdramaOverlay1549 .kdGuide1549{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;width:280px;max-width:86%;background:rgba(20,20,26,.96);border:1px solid rgba(255,255,255,.25);border-radius:18px;padding:18px 18px 14px;color:#fff;box-shadow:0 12px 40px rgba(0,0,0,.6)}
@@ -959,8 +952,6 @@ button:active,.chip:active{transform:scale(.95)}
 .kdSheetRow1549{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--line)}
 .kdSheetEp1549{flex:1;font-size:15px;font-weight:700}
 .kdSheetPlay1549{flex:0 0 auto;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.kdBadge1549{display:inline-block;padding:2px 8px;border-radius:999px;background:#E60026;color:#fff;font-size:11px;font-weight:800;vertical-align:middle;white-space:nowrap}
-.reelTile .kdBadge1549{position:absolute;top:8px;left:8px;z-index:2}
 /* ---- v1.2 ola 5: pestañas de sección (Chats/SMS) ---- */
 .sectabs{display:flex;gap:8px;margin:10px 0}
 .sectabs button{flex:1;padding:9px 4px;border-radius:999px;background:rgba(255,255,255,.06);color:#c9a8ae;font-weight:700;font-size:13px}
@@ -1356,15 +1347,6 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
            navegador) y Páginas queda sin entrada desde el Inicio. El
            reloj, el clima y «+ Agregar apartado» se quedan como están. -->
       <button type="button" class="homeAddBtn" id="homeAddBtn1536">+ Agregar apartado</button>
-      <!-- 1.5.54: Dramas fijo en el Inicio, debajo de «+ Agregar apartado». 1.5.58: series de DramaBox.
-           Sin data-widget: no es editable ni movible, y applyHomeWidgets1536
-           no lo toca. Las portadas las pinta renderKdramaHome1549(). -->
-      <div class="homeWidget" id="homeKdrama1549">
-        <div class="reelsRow">
-          <div class="reelsHead"><span class="reelsIcon"><span class="ic" style="width:18px;height:18px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></span></span><span>Dramas</span> <span class="kdBadge1549" id="kdSectionBadge1562">ReelShort · DramaBox · ShortMax</span></div>
-          <div class="reels" id="kdramaReels1549"></div>
-        </div>
-      </div>
     </div>
     <div id="feed"></div>
     <footer class="appfoot">Creada y diseñada por Mistery Store Play</footer>
@@ -2056,17 +2038,30 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
 <!-- ============ AJUSTES ============ -->
 <div class="overlay floatWin1547" id="settingsOverlay">
   <div class="sheet setSheet1560">
-    <div class="top"><button class="xbtn" data-close="settingsOverlay">✕</button><h2>Ajustes</h2><button type="button" class="wOptRound1542" id="settingsFaqBtn1542" aria-label="Preguntas" title="Preguntas"><span class="wOptQ1542">?</span></button></div>
-    <!-- v1.5.17 punto 2: buscar actualización, hasta arriba de Ajustes -->
-    <h3 class="sectitle">Notificaciones</h3>
-    <div id="notifPrefs"></div>
-    <div class="setRow1560"><div class="setRowTxt1560"><b>Privacidad de publicaciones</b><span>Quién puede ver lo que publicas</span></div>
-    <select id="settingsPrivacy">
-      <option value="Público">Público</option>
-      <option value="Amigos">Amigos</option>
-      <option value="Solo yo">Solo yo</option>
-    </select></div>
-    <h3 class="sectitle">Colores</h3>
+    <div class="top"><button class="xbtn" data-close="settingsOverlay">✕</button><h2>Ajustes</h2><button type="button" class="wOptRound1542" id="settingsFaqBtn1542" aria-label="Preguntas" title="Preguntas"><span class="wOptQ1542">?</span></button><button type="button" class="wOptRound1542" id="logoutBtn" aria-label="Cerrar sesión" title="Cerrar sesión"><span class="ic"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span></button><!-- Web 1.6: cambiar de cuenta como botón de solo símbolo junto al de cerrar sesión --><button type="button" class="wOptRound1542" id="switchAccountBtn" aria-label="Cambiar de cuenta" title="Cambiar de cuenta"><span class="ic"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span></button></div>
+    <!-- Web 1.6: Ajustes rediseñados — secciones en el orden más
+       intuitivo (Cuenta, Apariencia, Notificaciones, Privacidad y
+       seguridad, Inicio, Tus datos, Ayuda, Apoyar a WordRed, Acerca
+       de) y todas con la misma fila alineada (.setRow1560: etiqueta
+       a la izquierda, control a la derecha, mismo espaciado).
+       Ninguna opción se quita: solo cambia el orden y la fila.
+       El título «Seguridad» quedaba vacío (sin ningún control
+       debajo): su contenido vive ahora en «Privacidad y seguridad». -->
+    <section class="setSec1560" id="setSecCuenta1560">
+    <h3 class="sectitle">Cuenta</h3>
+    <div id="setDynCuenta1560"></div>
+    <p class="muted mb">Muestra este código para que otros te agreguen y te sigan rápido con su cámara. Se genera dentro de la app, sin internet.</p>
+    <div class="glass card" style="display:block;text-align:center">
+      <div id="myQrCode" style="display:flex;justify-content:center;padding:6px 0"></div>
+      <div style="display:flex;gap:10px;align-items:center;justify-content:center;margin-top:8px"><div class="avatar" id="myQrAvatar">?</div><b id="myQrName"></b></div>
+      <button class="btn mt" id="scanQrBtn" style="width:100%">Escanear código QR</button>
+      <p class="tiny muted" style="margin-top:8px">Apunta la cámara al código QR de otra cuenta de WordRed para abrir su perfil y agregarla.</p>
+    </div>
+    <button class="btn danger mt" id="deleteAccountBtn" style="width:100%">Eliminar mi cuenta para siempre</button>
+    <p class="tiny mt">Eliminar tu cuenta borra tu perfil, tus publicaciones, tus anuncios, tus mensajes y todo lo demás. No se puede deshacer.</p>
+    </section>
+    <section class="setSec1560" id="setSecApariencia1560">
+    <h3 class="sectitle">Apariencia</h3>
     <p class="muted mb">Elige el color de WordRed: se aplica a toda la app y se guarda. La base sigue oscura. Mueve los controles para ver cómo queda antes de aplicarlo.</p>
     <div class="glass card" style="display:block" id="colorPickerCard">
       <div style="display:flex;gap:12px;align-items:center">
@@ -2094,32 +2089,50 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
       <button class="btn ghost mt wOpt1542" id="colorSaveBtn" style="width:100%">Guardar este color en Mis colores</button>
       <button class="btn ghost mt wOpt1542" id="colorResetBtn" style="width:100%">Volver al rojo de WordRed</button>
     </div>
-    <h3 class="sectitle">Mi código QR</h3>
-    <p class="muted mb">Muestra este código para que otros te agreguen y te sigan rápido con su cámara. Se genera dentro de la app, sin internet.</p>
-    <div class="glass card" style="display:block;text-align:center">
-      <div id="myQrCode" style="display:flex;justify-content:center;padding:6px 0"></div>
-      <div style="display:flex;gap:10px;align-items:center;justify-content:center;margin-top:8px"><div class="avatar" id="myQrAvatar">?</div><b id="myQrName"></b></div>
-      <button class="btn mt" id="scanQrBtn" style="width:100%">Escanear código QR</button>
-      <p class="tiny muted" style="margin-top:8px">Apunta la cámara al código QR de otra cuenta de WordRed para abrir su perfil y agregarla.</p>
-    </div>
-    <h3 class="sectitle">Cuenta</h3>
-    <button class="btn danger" id="logoutBtn" style="width:100%">Cerrar sesión</button>
-    <button class="btn danger mt" id="deleteAccountBtn" style="width:100%">Eliminar mi cuenta para siempre</button>
-    <p class="tiny mt">Eliminar tu cuenta borra tu perfil, tus publicaciones, tus anuncios, tus mensajes y todo lo demás. No se puede deshacer.</p>
-    <h3 class="sectitle">Bloqueados</h3>
+    <div id="setDynApariencia1560"></div>
+    </section>
+    <section class="setSec1560" id="setSecNotif1560">
+    <h3 class="sectitle">Notificaciones</h3>
+    <div id="notifPrefs"></div>
+    <div id="setDynNotif1560"></div>
+    </section>
+    <section class="setSec1560" id="setSecPriv1560">
+    <h3 class="sectitle">Privacidad y seguridad</h3>
+    <div class="setRow1560"><div class="setRowTxt1560"><b>Privacidad de publicaciones</b></div>
+    <select id="settingsPrivacy">
+      <option value="Público">Público</option>
+      <option value="Amigos">Amigos</option>
+      <option value="Solo yo">Solo yo</option>
+    </select></div>
+    <p class="tiny muted">Quién puede ver lo que publicas.</p>
     <p class="muted mb">Las personas bloqueadas no ven tus publicaciones ni tu perfil, no pueden escribirte y no aparecen en tu feed.</p>
     <div id="blockedList"></div>
-    <div id="settings1526"></div>
-    <input type="file" id="chatBackupInput" accept=".json,application/json" class="hidden">
-    <h3 class="sectitle">Seguridad</h3>
+    <div id="setDynPriv1560"></div>
+    </section>
+    <section class="setSec1560" id="setSecInicio1560">
+    <h3 class="sectitle">Inicio</h3>
+    <div id="setDynInicio1560"></div>
+    </section>
+    <section class="setSec1560" id="setSecDatos1560">
+    <h3 class="sectitle">Tus datos</h3>
+    <div id="setDynDatos1560"></div>
+    </section>
+    <section class="setSec1560" id="setSecAyuda1560">
+    <h3 class="sectitle">Ayuda</h3>
+    <div id="setDynAyuda1560"></div>
+    </section>
+    <section class="setSec1560" id="setSecApoyo1560">
     <h3 class="sectitle">¿Quieres apoyar a WordRed?</h3>
     <div id="supportSection" class="glass card" style="display:block">
       <p style="font-size:16px;line-height:1.5">WordRed es gratis y la hace una sola persona.</p>
       <p class="mt" style="font-size:16px;line-height:1.8">Banco: <b>BBVA</b><br>Titular: <b>CHRISTIAN CARRILLO CORTEZANO</b><br>Cuenta: <b id="supportAccount">4815163105956802</b></p>
       <button type="button" class="wOptRound1542 mt" id="supportCopyBtn" aria-label="Copiar número de cuenta" title="Copiar número de cuenta"><span class="ic"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span></button>
     </div>
+    </section>
+    <section class="setSec1560" id="setSecAcerca1560">
     <h3 class="sectitle">Acerca de</h3>
-    <p class="muted">WordRed Web 1.5 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
+    <p class="muted">WordRed Web 1.6 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
+    </section>
   </div>
 </div>
 

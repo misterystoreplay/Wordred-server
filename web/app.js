@@ -8,7 +8,7 @@ var C = window.WordRedCore;
    última versión del servidor (GET /api/app/latest). Tiene que ser
    igual que versionCode/versionName del AndroidManifest.xml. */
 var APP_VERSION_CODE = 79;
-var APP_VERSION_NAME = 'Web 1.5'; /* Web 1.5: contenido de Android 1.5.64. */
+var APP_VERSION_NAME = 'Web 1.6'; /* Web 1.6: contenido de Android 1.5.64. */
 var LS_KEY = 'wordred_state_v1';
 var state = loadState();
 ensure1526State(); /* 1.5.26: rellenar los campos nuevos en estados guardados de la 1.5.25. */
@@ -255,7 +255,11 @@ var ICONS = {
   volumeoff: '<path d="M11 5 6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>',
   /* v1.5.25: reproductor propio de video: subtítulos (CC) y menú de más opciones (⋮). */
   cc: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M10.5 10.2a2.8 2.8 0 1 0 0 3.6M17.5 10.2a2.8 2.8 0 1 0 0 3.6"/>',
-  more: '<circle cx="12" cy="5" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none"/>'
+  more: '<circle cx="12" cy="5" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none"/>',
+  /* Web 1.6: salir (puerta con flecha, estilo feather como el resto). */
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
+  /* Web 1.6: cambiar de cuenta (flechas de intercambio, estilo feather como el resto). */
+  switchaccount: '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>'
 };
 function ic(name, size) {
   var s = size || 18;
@@ -3460,6 +3464,7 @@ var FAQ = [
   { q: '¿Qué hay de nuevo en la Web 1.3?', a: 'Los Eventos del perfil ahora están abajo de «¿Qué estás pensando?», en vez de estar arriba, justo después de la cabecera. Todo lo demás sigue igual.' }, /* Web 1.3: los Eventos bajan debajo de «¿Qué estás pensando?». */
   { q: '¿Qué hay de nuevo en la Web 1.4?', a: 'En los dramas, el botón «Saltar anuncio» de YouTube ya se puede presionar: antes la barra de abajo del visor lo tapaba. Ahora el video termina arriba de la barra y la esquina donde sale el botón queda libre. Los anuncios los pone YouTube y no se pueden quitar.' }, /* Web 1.4: el botón de saltar anuncios ya se puede presionar. */
   { q: '¿Qué hay de nuevo en la Web 1.5?', a: 'Mucho: notificaciones push reales (con la pestaña cerrada), Guardados para publicaciones y dramas, diseño ancho en computadora, compartir por WhatsApp, seguir dramas con aviso de capítulos nuevos, buscar y filtrar dramas, reels a pantalla completa con deslizamiento, notas de voz en chats y en publicaciones, instalar la Web como app, audio en segundo plano, subidas que no mueren al cerrar la pestaña, transmisiones en vivo, traducción de publicaciones y comentarios, encuestas en publicaciones e historias, fotos en comentarios, insignia verificada (solo la otorga el dueño), sugerencias de amigos, reacciones con emoji en publicaciones y comentarios, videollamadas y llamadas de voz en grupo, vistas de tus publicaciones, fijar publicaciones y comentarios, recordatorios de cumpleaños, menciones con @, archivar publicaciones e historias, fondos de perfil, historias con música, descargar tus publicaciones, bloquear y reportar, mensajes que se autodestruyen, subtítulos automáticos, estado en línea, compartir pantalla en llamadas, filtros de foto antes de publicar, texto grande y modo lectura, eventos en grupos con recordatorios, silenciar sin bloquear, QR de tu perfil, historial de Me gusta, respuestas en comentarios, notas de perfil, retomar videos donde los dejaste, buscar y fijar chats, ahorro de datos, cambiar tu nombre, stickers propios, compartir canciones, ver quién reaccionó, foto con doble cámara, editar comentarios, borrar mensajes para todos, copiar enlace de una publicación, modo No molestar, programar historias, grupos privados, reacciones rápidas en historias, negocio en tu perfil, estadísticas de tus historias, escuchar y ver juntos en grupo, y exportar tus datos. Los avisos push y las subidas en segundo plano dependen de lo que permita tu navegador; la traducción usa un servicio gratuito y puede fallar a veces; lo guardado vive en este navegador.' }, /* Web 1.5: 70 novedades. */
+  { q: '¿Qué hay de nuevo en la Web 1.6?', a: 'Ya no hay sección de Dramas en el Inicio: los dramas salen mezclados al azar entre los Shorts, y al tocar uno se abre el drama como siempre. Además, en la fila de arriba los Reels ya no se ven más largos que el primer tile: todas las tarjetas miden lo mismo. En Ajustes, cerrar sesión y cambiar de cuenta son botones de solo símbolo junto al «?», y las secciones están ordenadas de la forma más intuitiva.' }, /* Web 1.6: sin sección Dramas (dramas al azar entre los Shorts); fila de arriba simétrica; logout y cambiar de cuenta como símbolos; Ajustes rediseñado. */
 
 ];
 function renderFaq() {
@@ -3704,20 +3709,35 @@ window.__wrOpenStory = function (storyId) { openShorts(storyId); };
    Se desliza hacia arriba/abajo, y el me gusta, el comentario y el compartir
    están EN la pantalla mientras se ve el video. */
 function loadShortsItems() {
-  /* 1.5.62: entre los Shorts se cuelan tarjetas de dramas (cada 6–9). */
+  /* Web 1.6: entre los Shorts se cuelan tarjetas de dramas AL AZAR
+     (la sección Dramas del Inicio ya no existe: esto es ahora la
+     única forma de encontrarlos, además de Guardados). */
   return kdInterleaveDramas1562(C.shortsFeed(state, state.me));
 }
-/* 1.5.62: dramas entre los Shorts: cada 6–9 videos se cuela una
-   tarjeta de drama (se ve como un Short, con su portada 1080×1920, su
-   título y la etiqueta de su aplicación; al tocarla abre el drama en
-   su primer capítulo, con la guía de gestos). El intervalo rota 6, 7,
-   8, 9… y las series rotan para que varíen. La sección Dramas del
-   inicio no se toca: esto es adicional. */
-var KD_SHORTS_GAPS_1562 = [6, 7, 8, 9];
-function kdDramaPick1562(n) {
+/* Web 1.6: dramas entre los Shorts, mezclados AL AZAR: cada inserción
+   cae tras un número aleatorio de Shorts (4–9) y la serie también es
+   aleatoria, sin repetir nunca la misma serie dos veces seguidas.
+   Con el muro corto (menos de 4 Shorts) el hueco 4–9 nunca se
+   alcanza: en ese caso sale un drama en una posición al azar entre
+   los Shorts que haya, porque sin la sección Dramas los Shorts son
+   la única forma de encontrarlos. La tarjeta se ve como un Short
+   (portada 1080×1920, título y etiqueta de su aplicación); al
+   tocarla abre el drama en su primer capítulo, con la guía de
+   gestos. */
+var KD_SHORTS_GAP_MIN_1562 = 4;
+var KD_SHORTS_GAP_MAX_1562 = 9;
+var kdLastShortSeries1562 = null;
+function kdShortGap1562() {
+  return KD_SHORTS_GAP_MIN_1562 + Math.floor(Math.random() * (KD_SHORTS_GAP_MAX_1562 - KD_SHORTS_GAP_MIN_1562 + 1));
+}
+function kdDramaPick1562() {
   var cat = kdActiveCatalog1549();
   if (!cat.length) return null;
-  return cat[((n % cat.length) + cat.length) % cat.length];
+  var pool = cat.filter(function (s) { return s.id !== kdLastShortSeries1562; });
+  if (!pool.length) pool = cat;
+  var s = pool[Math.floor(Math.random() * pool.length)];
+  kdLastShortSeries1562 = s.id;
+  return s;
 }
 function kdSeriesById1562(id) {
   var found = null;
@@ -3728,19 +3748,27 @@ function kdInterleaveDramas1562(items) {
   items = items || [];
   var cat = kdActiveCatalog1549();
   if (!cat.length || !items.length) return items;
-  var out = [], gapIdx = 0, since = 0, dramaN = 0, nextGap = KD_SHORTS_GAPS_1562[0];
+  var out = [], since = 0, dramaN = 0, nextGap = kdShortGap1562();
   items.forEach(function (it) {
     out.push(it);
     since++;
     if (since >= nextGap) {
-      var s = kdDramaPick1562(dramaN);
-      if (s) out.push({ kind: 'drama', id: 'kd-short-' + dramaN, seriesId: s.id, series: s });
-      dramaN++;
+      var s = kdDramaPick1562();
+      if (s) { out.push({ kind: 'drama', id: 'kd-short-' + dramaN, seriesId: s.id, series: s }); dramaN++; }
       since = 0;
-      gapIdx++;
-      nextGap = KD_SHORTS_GAPS_1562[gapIdx % KD_SHORTS_GAPS_1562.length];
+      nextGap = kdShortGap1562();
     }
   });
+  /* Web 1.6: con el muro corto (menos de 4 Shorts) el hueco 4–9
+     nunca se alcanza y no saldría ningún drama — y como ya no hay
+     sección Dramas, los Shorts son la única forma de encontrarlos.
+     En ese caso se mete un drama en una posición al azar entre los
+     Shorts que haya (después del 1º o del último). */
+  if (!dramaN) {
+    var pos1562 = 1 + Math.floor(Math.random() * items.length);
+    var s1562 = kdDramaPick1562();
+    if (s1562) out.splice(pos1562, 0, { kind: 'drama', id: 'kd-short-0', seriesId: s1562.id, series: s1562 });
+  }
   return out;
 }
 /* 1.5.62: abre un drama en su PRIMER capítulo (kdEpIdx1549 === 0), con
@@ -5130,7 +5158,7 @@ function kdramasSaveCache1554(list) {
 }
 function fetchKdramas1554() {
   var cached = kdramasReadCache1554();
-  if (cached) { kdServerCatalog1554 = cached; kdramasCache1550 = cached; renderKdramaHome1549(); return; }
+  if (cached) { kdServerCatalog1554 = cached; kdramasCache1550 = cached; return; }
   if (kdServerFetch1554) return;
   kdServerFetch1554 = (async function () {
     try {
@@ -5143,7 +5171,7 @@ function fetchKdramas1554() {
         kdServerCatalog1554 = null;
       }
     } catch (e) { kdServerCatalog1554 = null; }
-    finally { kdServerFetch1554 = null; renderKdramaHome1549(); }
+    finally { kdServerFetch1554 = null; }
   })();
 }
 function kdCurrentSeries1549() { return kdActiveCatalog1549()[kdSeriesIdx1549]; }
@@ -5184,81 +5212,6 @@ function kdSeriesLabel1549(s) {
   var total = kdSeriesTotal1558(s);
   return free + (free === 1 ? ' capítulo gratis' : ' capítulos gratis') + ' de ' + total;
 }
-/* 1.5.62: aplicaciones de la sección Dramas: las tres nombradas
-   (ReelShort, DramaBox y ShortMax, en ese orden) más las que traiga el
-   catálogo, sin duplicados y en orden del catálogo. Así, cuando una
-   aplicación nueva entra al catálogo (kdramas.json), su nombre aparece
-   solo en la etiqueta, sin actualizar la app. */
-var KD_SECTION_APPS_1562 = ['ReelShort', 'DramaBox', 'ShortMax'];
-function kdSectionApps1562() {
-  var apps = KD_SECTION_APPS_1562.slice();
-  kdActiveCatalog1549().forEach(function (s) {
-    var tag = kdAppTag1561(s);
-    if (tag && tag !== 'Original de WordRed' && apps.indexOf(tag) < 0) apps.push(tag);
-  });
-  return apps;
-}
-function kdRenderSectionBadge1562() {
-  var el = $('kdSectionBadge1562');
-  if (el) el.textContent = kdSectionApps1562().join(' · ');
-}
-var kdSearchText1550 = '';
-var kdSearchApp1550 = 'all';
-/* Web 1.5 (6): buscar dramas por nombre y filtrar por aplicación, en
-   vivo al teclear. La barra se pinta una vez; solo las tarjetas se
-   vuelven a dibujar al filtrar (si no, el input perdería el foco). */
-function kdFilteredCatalog1550() {
-  var all = kdActiveCatalog1549();
-  var q = kdSearchText1550.trim().toLowerCase();
-  return all.filter(function (s) {
-    if (kdSearchApp1550 !== 'all' && (s.source || '') !== kdSearchApp1550) return false;
-    if (q && (s.name || '').toLowerCase().indexOf(q) < 0) return false;
-    return true;
-  });
-}
-function kdRenderTiles1550() {
-  var tiles = document.getElementById('kdTiles1550');
-  if (!tiles) return;
-  var all = kdActiveCatalog1549();
-  var list = kdFilteredCatalog1550();
-  if (!list.length) {
-    tiles.innerHTML = '<div class="empty" style="margin:8px">No hay dramas con ese nombre' + (kdSearchApp1550 !== 'all' ? ' en ' + esc(kdSearchApp1550) : '') + '. Prueba con otro nombre o quita el filtro.</div>';
-    return;
-  }
-  tiles.innerHTML = list.map(function (s) {
-    var i = all.indexOf(s);
-    /* 1.5.55: sin lazy (las 5 portadas son el contenido de la sección) y
-       con red de seguridad: si la portada falla, la tarjeta muestra el
-       nombre bien visible sobre el fondo rojo, nunca un hueco vacío.
-       1.5.61: la etiqueta es el nombre de la aplicación de la serie
-       (ReelShort, ShortMax o DramaBox, desde `source`); las
-       originales llevan «Original de WordRed».
-       1.5.63: la portada es el fotograma vertical del video
-       (kdPoster1563); si no carga, primero se intenta la miniatura de
-       YouTube y luego el respaldo rojo. */
-    var tag = kdAppTag1561(s);
-    var marks = (isDramaFollowed1550(s.id) ? ' · Siguiendo' : '') + (isSaved1550('drama', s.id) ? ' · Guardado' : '');
-    return '<div class="reelTile" data-kd-series="' + i + '" role="button" aria-label="' + esc(s.name) + '">' +
-      '<img src="' + esc(kdPoster1563(s)) + '" data-kd-fallback="' + esc(s.poster) + '" data-kd-kind="dramaTile" onerror="window.__wrKdPosterFallback1563(this)" alt="">' +
-      '<div class="kdTileLabel1549"><div class="kdTileName1549">' + esc(s.name) + '</div><div class="kdTileSub1549">' + esc(kdSeriesLabel1549(s)) + ' · ' + tag + marks + '</div></div>' +
-      '<span class="kdBadge1549">' + tag + '</span></div>';
-  }).join('');
-}
-function renderKdramaHome1549() {
-  var box = $('kdramaReels1549');
-  if (!box) return;
-  kdRenderSectionBadge1562();
-  var apps = ['all', 'ReelShort', 'ShortMax', 'DramaBox'];
-  box.innerHTML = '<div style="margin:0 8px 10px"><input id="kdSearch1550" type="search" placeholder="Buscar dramas por nombre…" value="' + esc(kdSearchText1550) + '" style="width:100%">' +
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">' + apps.map(function (a) {
-      return '<button class="chip' + (kdSearchApp1550 === a ? ' on' : '') + '" onclick="window.__wrKdFilter1550(\'' + a + '\')">' + (a === 'all' ? 'Todas' : a) + '</button>';
-    }).join('') + '</div></div><div id="kdTiles1550"></div>';
-  var inp = document.getElementById('kdSearch1550');
-  if (inp) inp.addEventListener('input', function () { kdSearchText1550 = inp.value; kdRenderTiles1550(); });
-  kdRenderTiles1550();
-}
-window.__wrKdSearch1550 = function (v) { kdSearchText1550 = v || ''; kdRenderTiles1550(); };
-window.__wrKdFilter1550 = function (app) { kdSearchApp1550 = app; renderKdramaHome1549(); };
 /* 1.5.55: ninguna tarjeta queda en blanco si una imagen no carga. La
    causa de la 1.5.54 era la ruta con un 'assets/' de más (la página
    carga desde file:///android_asset/index.html, así que 'assets/...'
@@ -5269,7 +5222,6 @@ window.__wrKdFilter1550 = function (app) { kdSearchApp1550 = app; renderKdramaHo
 window.__wrImgFail1555 = function (img, kind, label) {
   try {
     if (!img) return;
-    if (kind === 'dramaTile') { var t = img.parentElement; if (t) t.classList.add('kdNoImg1555'); img.remove(); return; }
     if (kind === 'kdViewer') { img.style.display = 'none'; var f = $('kdImageFail1555'); if (f) { var st = $('kdSeriesTitle1549'); f.textContent = st ? st.textContent : ''; f.classList.remove('hidden'); } return; }
     if (kind === 'gameLogo') { var s = document.createElement('span'); s.className = 'featuredGameLogoFail1555'; s.textContent = 'F'; img.replaceWith(s); return; }
     if (kind === 'appIcon') { var ini = String(label || '?').charAt(0).toUpperCase() || '?'; var sp = document.createElement('span'); sp.className = 'appIconFail1555'; sp.textContent = ini; var w = parseInt(img.style.width, 10) || 60; sp.style.width = w + 'px'; sp.style.height = w + 'px'; sp.style.fontSize = Math.round(w * 0.45) + 'px'; img.replaceWith(sp); return; }
@@ -7395,6 +7347,44 @@ function postCardHtml(post) {
     liveShareButtonHtml(post) +
     '</article>';
 }
+/* Web 1.6: posiciones AL AZAR para las tres secciones del Inicio
+   (cine «Próximos estrenos», noticias y juegos «Próximos estrenos
+   de juegos») entre las publicaciones, en cada render. Cada una cae
+   tras una publicación (el número es el índice de la publicación
+   tras la que va): nunca antes de las dos primeras, nunca seguidas
+   (al menos 2 publicaciones entre dos secciones) y nunca pegadas a
+   la fila de Reels (que va tras la 2ª). Con muro corto se relaja la
+   separación (al menos 1 publicación entre secciones) antes que
+   perder una sección; lo que no cabe queda en -1 y va al final,
+   como antes. */
+function feedSectionPositions1562(n) {
+  var pos = { movies: -1, news: -1, games: -1 };
+  if (n < 4) return pos; /* muro muy corto: todo al final, como hoy */
+  var minGap = n >= 8 ? 2 : 1; /* con 8+ publicaciones caben las tres con 2 entre ellas */
+  var lo = 3, hi = n - 1;
+  var slots = [];
+  if (hi - lo + 1 >= 2 * minGap + 1) {
+    /* Caben tres posiciones con el hueco mínimo: se sortean por
+       tramos (así siempre caben las tres cuando el muro da para
+       ello; con 8 publicaciones la única terna con hueco 2 es
+       3, 5, 7 y lo que varía es qué sección cae en cada hueco). */
+    var a = lo + Math.floor(Math.random() * (hi - 2 * minGap - lo + 1));
+    var b = a + minGap + Math.floor(Math.random() * (hi - minGap - (a + minGap) + 1));
+    var c = b + minGap + Math.floor(Math.random() * (hi - (b + minGap) + 1));
+    slots = [a, b, c];
+  } else {
+    /* Muro corto (4–5 publicaciones): solo caben 1–2 posiciones. */
+    for (var i = lo; i <= hi; i++) slots.push(i);
+  }
+  /* Mezclar las secciones y las posiciones: qué sección cae en cada
+     hueco también es al azar. Lo que no tiene hueco queda en -1 y
+     va al final, como antes. */
+  var keys = ['movies', 'news', 'games'];
+  for (var j = keys.length - 1; j > 0; j--) { var k = Math.floor(Math.random() * (j + 1)); var t = keys[j]; keys[j] = keys[k]; keys[k] = t; }
+  for (var m = slots.length - 1; m > 0; m--) { var q = Math.floor(Math.random() * (m + 1)); var u = slots[m]; slots[m] = slots[q]; slots[q] = u; }
+  for (var s = 0; s < slots.length && s < keys.length; s++) pos[keys[s]] = slots[s];
+  return pos;
+}
 function renderFeed() {
   var feed = C.feedFor(state, state.me);
   /* Web 1.5 (41): los silenciados no salen en el inicio local tampoco. */
@@ -7424,19 +7414,19 @@ function renderFeed() {
   shown.sort(function (a, b) { return (isPromoted1547(b) ? 1 : 0) - (isPromoted1547(a) ? 1 : 0); });
   var parts = [];
   var adStoresShown = {};
+  /* Web 1.6: las tres secciones (cine, noticias, juegos) van en
+     posiciones AL AZAR entre las publicaciones en cada render; la
+     fila de Reels se queda fija tras la 2ª publicación. */
+  var secPos1562 = feedSectionPositions1562(shown.length);
   shown.forEach(function (p, i) {
     parts.push(postCardHtml(p));
     /* v1.5.14 Reels: la fila va mezclada entre las publicaciones, después
        de la segunda (o después de la única, si solo hay una). */
     if (i === 1) parts.push(reelsRowHtml());
-    /* 1.5.40: la cartelera va después de la 5ª publicación. */
-    if (i === 4) parts.push(billboardHtml1540());
-    /* 1.5.44: la cartelera de juegos va aparte, después de la 10ª
-       publicación, con publicaciones entre las dos carteleras. */
-    /* 1.5.47: las noticias van después de la 7ª publicación, con
-       publicaciones entre la de cine (5ª) y la de juegos (10ª). */
-    if (i === 6) parts.push(newsRowHtml1547());
-    if (i === 9) { parts.push(featuredGameHtml1549()); parts.push(gamesBillboardHtml1543()); }
+    if (i === secPos1562.movies) parts.push(billboardHtml1540());
+    if (i === secPos1562.news) parts.push(newsRowHtml1547());
+    /* El juego destacado va pegado a su cartelera, como antes. */
+    if (i === secPos1562.games) { parts.push(featuredGameHtml1549()); parts.push(gamesBillboardHtml1543()); }
     if ((i + 1) % 4 === 0 && i + 1 < shown.length) {
       var block = nextAdBlock();
       /* 1.5.34: el inicio ahora trae 6 publicaciones de ejemplo (una cuenta), así
@@ -7446,17 +7436,16 @@ function renderFeed() {
       if (block && !adStoresShown[block.store.id]) { adStoresShown[block.store.id] = true; parts.push(adBlockHtml(block)); }
     }
   });
-  /* 1.5.47: con el muro corto las secciones van al final en el mismo
-     orden (reels, cine, noticias, juegos), nunca dos seguidas sin
-     publicaciones entre ellas cuando el muro da para ello. */
+  /* Web 1.6: con el muro corto las secciones que no cupieron con
+     separación van al final en el mismo orden (cine, noticias,
+     juegos), como antes. Con una sola publicación la fila de Reels
+     también va al final (en el bucle no sale: solo hay i === 0). */
   if (shown.length === 1) { parts.push(reelsRowHtml()); parts.push(billboardHtml1540()); parts.push(newsRowHtml1547()); parts.push(featuredGameHtml1549()); parts.push(gamesBillboardHtml1543()); }
-  else if (shown.length > 1 && shown.length < 5) { parts.push(billboardHtml1540()); parts.push(newsRowHtml1547()); parts.push(featuredGameHtml1549()); parts.push(gamesBillboardHtml1543()); }
-  /* 1.5.44: con 5-9 publicaciones la de cine ya salió tras la 5ª y la de
-     juegos va al final, después de la última (la segunda rama de antes
-     nunca se alcanzaba: repetía la misma condición). 1.5.47: con 5-6
-     publicaciones las noticias aún no salieron (van tras la 7ª), así que
-     van al final antes de la de juegos; con 7-9 ya salieron tras la 7ª. */
-  else if (shown.length >= 5 && shown.length < 10) { if (shown.length < 7) parts.push(newsRowHtml1547()); parts.push(featuredGameHtml1549()); parts.push(gamesBillboardHtml1543()); }
+  else {
+    if (secPos1562.movies < 0) parts.push(billboardHtml1540());
+    if (secPos1562.news < 0) parts.push(newsRowHtml1547());
+    if (secPos1562.games < 0) { parts.push(featuredGameHtml1549()); parts.push(gamesBillboardHtml1543()); }
+  }
   el.innerHTML = feedTop1526 + parts.join('');
   clearAnim();
   /* v1.5.14: al redibujar el inicio, volver a observar los videos. */
@@ -7642,10 +7631,27 @@ function requestReelCovers() {
       captureVideoFrame(src, function (url) {
         if (!url) return;
         try {
-          while (tile.firstChild) tile.removeChild(tile.firstChild);
           var img = document.createElement('img');
           img.src = url; img.alt = 'Reel';
-          tile.appendChild(img);
+          /* Web 1.6 (causa real, medida en el DOM): en la fila de
+             arriba la portada se ponía borrando TODA la tarjeta
+             (rectángulo 140×190 + nombre) y dejando la imagen suelta
+             dentro de la tarjeta: la imagen quedaba de ~150×267 y la
+             fila estiraba TODAS las tarjetas a esa altura, así que
+             los Reels se veían más largos que el primer tile
+             («Agregar reel», 213 px). Ahora la portada va DENTRO del
+             rectángulo, con su CSS (100% + cover), y el nombre se
+             queda: todas las tarjetas miden 213 px. En la fila de
+             reels del feed (.reelTile) no cambiaba nada porque su
+             CSS ya cubre cualquier img dentro. */
+          var rect = tile.classList.contains('homeReel1549') ? tile.querySelector('.homeReelRect1560') : null;
+          if (rect) {
+            while (rect.firstChild) rect.removeChild(rect.firstChild);
+            rect.appendChild(img);
+          } else {
+            while (tile.firstChild) tile.removeChild(tile.firstChild);
+            tile.appendChild(img);
+          }
           tile.removeAttribute('data-reel-video');
         } catch (e) {}
       });
@@ -12168,6 +12174,13 @@ $('logoutBtn').addEventListener('click', function () {
     }, 1400);
   }});
 });
+/* Web 1.6: cambiar de cuenta como botón de solo símbolo junto al de
+   cerrar sesión — abre la misma lista de cuentas que el botón de la
+   sección Cuenta (openSwitchAccount1526); el flujo no cambia. */
+$('switchAccountBtn').addEventListener('click', function () {
+  hideOverlay('settingsOverlay');
+  window.__wrOpenSwitchAccount();
+});
 /* Web 1.5: burbuja de «Cerrando cuenta» al cerrar sesión. */
 function showClosingBubble1550() {
   var b = $('closingBubble1550');
@@ -15974,7 +15987,6 @@ function initHomeWidgets1536() {
   if (!cont || cont._hwBound1536) return;
   cont._hwBound1536 = true;
   applyHomeWidgets1536();
-  renderKdramaHome1549(); /* 1.5.49: la sección fija de K-Dramas (debajo del botón de agregar). */
   cont.addEventListener('pointerdown', function (ev) { hwLongPressBegin1536(ev); });
   cont.addEventListener('pointerup', function () { hwLongPressCancel1536(); });
   cont.addEventListener('pointercancel', function () { hwLongPressCancel1536(); });
@@ -18286,8 +18298,16 @@ window.__wrToggleFriendsOnlyFeed = toggleFriendsOnlyFeed1526;
 
 /* ---- Ajustes 1.5.26: texto, horas tranquilas, silenciados, verificación, fondo de chats, ahorro de datos, filtro de palabras, respaldo, tiempo, cuentas ---- */
 function renderSettings1526() {
-  var box = $('settings1526');
-  if (!box) return;
+  /* Web 1.6: Ajustes rediseñados — cada sección se dibuja en su
+     propio contenedor (ver index.html: setDynCuenta1560,
+     setDynApariencia1560, setDynNotif1560, setDynPriv1560,
+     setDynInicio1560, setDynDatos1560, setDynAyuda1560) en el orden
+     Cuenta, Apariencia, Notificaciones, Privacidad y seguridad,
+     Inicio, Tus datos, Ayuda. Todos los interruptores usan la misma
+     fila (.setRow1560 con el control a la derecha) que las
+     preferencias de avisos. Ninguna opción se quita ni cambia de
+     comportamiento: solo cambia el orden y la fila. */
+  if (!$('setDynCuenta1560')) return;
   var hiddenCount = 0;
   try {
     var feed = C.feedFor(state, state.me);
@@ -18295,54 +18315,40 @@ function renderSettings1526() {
   } catch (e) {}
   var qh = state.quietHours || { on: false, start: '22:00', end: '07:00' };
   var muted = mutedList1526();
-  box.innerHTML =
-    '<h3 class="sectitle">Tamaño del texto</h3>' +
-    '<select id="textSizeSelect">' + C.TEXT_SIZES.map(function (s) {
+  function setDyn1560(id, html) { var el = $(id); if (el) el.innerHTML = html; }
+  setDyn1560('setDynCuenta1560',
+    '<div class="glass card" style="display:block"><p class="muted">Varias cuentas en este teléfono, cada una con sus datos.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrOpenSwitchAccount()">Cambiar de cuenta</button></div></div>' +
+    '<div class="glass card" style="display:block"><p class="muted">Tu nombre visible: ' + esc((state.profiles[state.me] || {}).name || '') + '. Entrar sigue siendo con tu número de teléfono.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrChangeName1550()">Cambiar mi nombre</button></div></div>' +
+    '<label class="setRow1560"><span class="setRowTxt1560"><b>Cuenta de ejemplo</b><span>La cuenta de ejemplo (marcada «Ejemplo») aparece en el inicio para que veas cómo se ve WordRed. Es solo de ejemplo, en este teléfono, y desaparece sola cuando ya hay 10 publicaciones reales. Con este interruptor la puedes volver a mostrar u ocultar.</span></span><span class="setSwitch1560"><input type="checkbox" id="examplesToggle"' + (!C.shouldHideExamples(state) ? ' checked' : '') + '><span class="setKnob1560"></span></span></label>');
+  setDyn1560('setDynApariencia1560',
+    '<div class="setRow1560"><div class="setRowTxt1560"><b>Tamaño del texto</b></div><select id="textSizeSelect">' + C.TEXT_SIZES.map(function (s) {
       return '<option value="' + s + '"' + (state.settings.textSize === s ? ' selected' : '') + '>' + C.TEXT_SIZE_LABELS[s] + '</option>';
-    }).join('') + '</select>' +
+    }).join('') + '</select></div>' +
     '<p class="tiny muted">Solo escala el texto, no los iconos ni la barra de abajo. Con la letra muy grande los textos ocupan más líneas.</p>' +
-    '<h3 class="sectitle">Fondo de chats</h3>' +
-    '<div class="glass card" style="display:block"><p class="muted">El fondo solo se ve en este teléfono.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrOpenChatBg()">Elegir fondo de chats</button></div></div>' +
-    '<h3 class="sectitle">Ahorro de datos</h3>' +
-    '<label style="display:flex;gap:10px;align-items:center;padding:9px 2px"><input type="checkbox" id="dataSaverToggle" style="width:auto"' + (state.settings.dataSaver ? ' checked' : '') + '> Ahorro de datos</label>' +
-    '<p class="tiny muted">Con datos móviles, los videos no se cargan solos: muestran su portada con «Tocar para cargar». Con Wi-Fi todo sigue igual. Las fotos sí cargan.</p>' +
-    '<h3 class="sectitle">Inicio</h3>' +
-    '<label style="display:flex;gap:10px;align-items:center;padding:9px 2px"><input type="checkbox" id="friendsOnlyToggle" style="width:auto"' + (state.friendsOnlyFeed ? ' checked' : '') + '> Solo amigos</label>' +
-    '<p class="tiny muted">En el inicio solo se ven las publicaciones de tus amigos y las tuyas. Con «No», se ven todas las publicaciones.</p>' +
-    '<h3 class="sectitle">Tutorial</h3>' +
-    '<div class="glass card" style="display:block"><p class="muted">Al abrir WordRed por primera vez aparece un tutorial con ilustraciones de cada parte de la app. Puedes verlo otra vez cuando quieras.</p><div class="mt"><button class="btn ghost small wOpt1542" onclick="window.__wrShowTutorial()">Ver el tutorial otra vez</button></div></div>' +
-    '<h3 class="sectitle">Cuenta de ejemplo</h3>' +
-    '<label style="display:flex;gap:10px;align-items:center;padding:9px 2px"><input type="checkbox" id="examplesToggle" style="width:auto"' + (!C.shouldHideExamples(state) ? ' checked' : '') + '> Cuenta de ejemplo</label>' +
-    '<p class="tiny muted">La cuenta de ejemplo (marcada «Ejemplo») aparece en el inicio para que veas cómo se ve WordRed. Es solo de ejemplo, en este teléfono, y desaparece sola cuando ya hay 10 publicaciones reales. Con este interruptor la puedes volver a mostrar u ocultar.</p>' +
-    '<h3 class="sectitle">Horas tranquilas</h3>' +
-    '<label style="display:flex;gap:10px;align-items:center;padding:9px 2px"><input type="checkbox" id="quietHoursToggle" style="width:auto"' + (qh.on ? ' checked' : '') + '> Horas tranquilas</label>' +
-    '<div style="display:flex;gap:8px;align-items:center"><input type="time" id="quietStart" value="' + esc(qh.start) + '" style="flex:1"><span class="muted">a</span><input type="time" id="quietEnd" value="' + esc(qh.end) + '" style="flex:1"></div>' +
-    '<p class="tiny muted">Durante esas horas, los avisos no suenan ni aparecen en el teléfono: se guardan en la campana. Las llamadas sí suenan, son urgentes.</p>' +
-    '<h3 class="sectitle">Silenciados</h3>' +
+    '<div class="glass card" style="display:block"><p class="muted">El fondo solo se ve en este teléfono.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrOpenChatBg()">Elegir fondo de chats</button></div></div>');
+  setDyn1560('setDynNotif1560',
+    '<label class="setRow1560"><span class="setRowTxt1560"><b>Horas tranquilas</b><span>Durante esas horas, los avisos no suenan ni aparecen en el teléfono: se guardan en la campana. Las llamadas sí suenan, son urgentes.</span></span><span class="setSwitch1560"><input type="checkbox" id="quietHoursToggle"' + (qh.on ? ' checked' : '') + '><span class="setKnob1560"></span></span></label>' +
+    '<div class="setRow1560"><div style="display:flex;gap:8px;align-items:center;flex:1;min-width:0"><input type="time" id="quietStart" value="' + esc(qh.start) + '" style="flex:1;min-width:0"><span class="muted">a</span><input type="time" id="quietEnd" value="' + esc(qh.end) + '" style="flex:1;min-width:0"></div></div>' +
+    '<div class="glass card" style="display:block"><p><b>No molestar</b></p><p class="muted">Silencia los avisos push y de la campana por un tiempo.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrOpenDnd1550()">Elegir tiempo</button></div></div>'); /* Web 1.5 (63): también desde Ajustes. */
+  setDyn1560('setDynPriv1560',
     (muted.length ? muted.map(function (ph) {
       return '<div class="glass card row">' + avatarHtml(ph) + '<div class="who"><b>' + esc(profileName(ph)) + '</b><span class="muted">Solo sus avisos están apagados</span></div><button class="btn ghost small" onclick="window.__wrUnmute(\'' + ph + '\')">Quitar silencio</button></div>';
     }).join('') : '<p class="muted">Nadie silenciado. El silencio solo apaga avisos, no oculta nada.</p>') +
-    '<h3 class="sectitle">Cuenta verificada</h3>' +
-    '<div class="glass card" style="display:block"><p class="muted">Verificación automática por criterios, no manual.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrOpenVerification()">Solicitar verificación</button></div></div>' +
-    '<h3 class="sectitle">Estado en línea</h3>' + /* Web 1.5 (32): punto verde para tus amigos. */
-    '<label style="display:flex;gap:10px;align-items:center;padding:9px 2px"><input type="checkbox" id="showOnlineToggle" style="width:auto"' + ((state.profiles[state.me] && state.profiles[state.me].showOnline === false) ? '' : ' checked') + '> Mostrar que estoy en línea</label>' +
-    '<p class="tiny muted">Con esto apagado, nadie ve tu punto verde ni «en línea», aunque estés conectado.</p>' +
-    '<h3 class="sectitle">Mis datos</h3>' + /* Web 1.5 (71): exportar solo lo mío. */
-    '<div class="glass card" style="display:block"><p class="muted">Descarga tus publicaciones, tu perfil y tus chats en un archivo JSON. Solo lo tuyo, nunca lo de otros.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrExportMyData1550()">Exportar mis datos</button></div></div>' +
-    '<h3 class="sectitle">Mi nombre</h3>' + /* Web 1.5 (52): cambiar el nombre sin tocar el inicio de sesión. */
-    '<div class="glass card" style="display:block"><p class="muted">Tu nombre visible: ' + esc((state.profiles[state.me] || {}).name || '') + '. Entrar sigue siendo con tu número de teléfono.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrChangeName1550()">Cambiar mi nombre</button></div></div>' +
-    '<h3 class="sectitle">No molestar</h3>' + /* Web 1.5 (63): también desde Ajustes. */
-    '<div class="glass card" style="display:block"><p class="muted">Silencia los avisos push y de la campana por un tiempo.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrOpenDnd1550()">Elegir tiempo</button></div></div>' +
-    '<h3 class="sectitle">Cambiar de cuenta</h3>' +
-    '<div class="glass card" style="display:block"><p class="muted">Varias cuentas en este teléfono, cada una con sus datos.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrOpenSwitchAccount()">Cambiar de cuenta</button></div></div>' +
-    '<h3 class="sectitle">Palabras que no quiero ver</h3>' +
-    '<div style="display:flex;gap:8px"><input id="wordFilterInput" type="text" placeholder="Palabra a ocultar" style="flex:1"><button class="btn small" id="wordFilterAdd">Añadir</button></div>' +
+    '<div class="setRow1560"><div style="display:flex;gap:8px;flex:1"><input id="wordFilterInput" type="text" placeholder="Palabra a ocultar" style="flex:1"><button class="btn small" id="wordFilterAdd">Añadir</button></div></div>' +
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">' + (state.wordFilter || []).map(function (w) {
       return '<span class="chip on">' + esc(w) + ' <button class="tiny" onclick="window.__wrRemoveWordFilter(\'' + esc(w) + '\')">✕</button></span>';
     }).join('') + '</div>' +
     '<p class="tiny muted">Hay ' + hiddenCount + ' publicaciones ocultas en tu inicio actual. El filtro solo existe en este teléfono; no borra ni reporta nada.</p>' +
-    '<h3 class="sectitle">Respaldo de tus chats</h3>' +
-    '<div class="glass card" style="display:block"><p class="muted">Exporta tus mensajes a un archivo JSON. Las fotos y videos van como su enlace, no copiados dentro del archivo.</p><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn ghost small" onclick="window.__wrExportChats()">Respaldar mis chats</button><button class="btn ghost small" onclick="window.__wrImportChats()">Restaurar respaldo</button></div><input type="file" id="chatBackupInput" accept="application/json,.json" class="hidden"></div>'; /* 1.5.31: "Tu tiempo hoy" sale de Ajustes: va en el perfil propio, en el lugar de la nota (un solo lugar, no duplicada). */
+    '<label class="setRow1560"><span class="setRowTxt1560"><b>Estado en línea</b><span>Con esto apagado, nadie ve tu punto verde ni «en línea», aunque estés conectado.</span></span><span class="setSwitch1560"><input type="checkbox" id="showOnlineToggle"' + ((state.profiles[state.me] && state.profiles[state.me].showOnline === false) ? '' : ' checked') + '><span class="setKnob1560"></span></span></label>'); /* Web 1.5 (32): punto verde para tus amigos. */
+  setDyn1560('setDynInicio1560',
+    '<label class="setRow1560"><span class="setRowTxt1560"><b>Solo amigos</b><span>En el inicio solo se ven las publicaciones de tus amigos y las tuyas. Con «No», se ven todas las publicaciones.</span></span><span class="setSwitch1560"><input type="checkbox" id="friendsOnlyToggle"' + (state.friendsOnlyFeed ? ' checked' : '') + '><span class="setKnob1560"></span></span></label>' +
+    '<label class="setRow1560"><span class="setRowTxt1560"><b>Ahorro de datos</b><span>Con datos móviles, los videos no se cargan solos: muestran su portada con «Tocar para cargar». Con Wi-Fi todo sigue igual. Las fotos sí cargan.</span></span><span class="setSwitch1560"><input type="checkbox" id="dataSaverToggle"' + (state.settings.dataSaver ? ' checked' : '') + '><span class="setKnob1560"></span></span></label>');
+  setDyn1560('setDynDatos1560',
+    '<div class="glass card" style="display:block"><p class="muted">Exporta tus mensajes a un archivo JSON. Las fotos y videos van como su enlace, no copiados dentro del archivo.</p><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn ghost small" onclick="window.__wrExportChats()">Respaldar mis chats</button><button class="btn ghost small" onclick="window.__wrImportChats()">Restaurar respaldo</button></div><input type="file" id="chatBackupInput" accept="application/json,.json" class="hidden"></div>' +
+    '<div class="glass card" style="display:block"><p class="muted">Descarga tus publicaciones, tu perfil y tus chats en un archivo JSON. Solo lo tuyo, nunca lo de otros.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrExportMyData1550()">Exportar mis datos</button></div></div>'); /* 1.5.31: "Tu tiempo hoy" sale de Ajustes: va en el perfil propio, en el lugar de la nota (un solo lugar, no duplicada). */ /* Web 1.5 (71): exportar solo lo mío. */
+  setDyn1560('setDynAyuda1560',
+    '<div class="glass card" style="display:block"><p class="muted">Al abrir WordRed por primera vez aparece un tutorial con ilustraciones de cada parte de la app. Puedes verlo otra vez cuando quieras.</p><div class="mt"><button class="btn ghost small wOpt1542" onclick="window.__wrShowTutorial()">Ver el tutorial otra vez</button></div></div>' +
+    '<div class="glass card" style="display:block"><p class="muted">Verificación automática por criterios, no manual.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrOpenVerification()">Solicitar verificación</button></div></div>');
   var ts = $('textSizeSelect');
   if (ts) ts.addEventListener('change', function () { setTextSize1526(ts.value); });
   var ds = $('dataSaverToggle');
@@ -19201,7 +19207,6 @@ window.__wordredTest = {
   kdYtLoad1558: kdYtLoad1558,
   kdYtStop1558: kdYtStop1558,
   resetKdramas1554: function () { kdServerCatalog1554 = null; kdServerFetch1554 = null; },
-  renderKdramaHome1549: renderKdramaHome1549,
   openKdrama1549: kdOpen1549,
   kdNextEpisode1549: kdNextEpisode1549,
   kdPrevEpisode1549: kdPrevEpisode1549,
@@ -19221,9 +19226,12 @@ window.__wordredTest = {
   kdSeriesLabel1549: kdSeriesLabel1549,
   kdDismissGuide1549: kdDismissGuide1549,
   getKdState1549: function () { return { series: kdSeriesIdx1549, ep: kdEpIdx1549 }; },
-  /* 1.5.62: dramas entre Shorts, etiqueta dinámica y buscador del inicio. */
-  kdSectionApps1562: kdSectionApps1562,
+  /* Web 1.6: dramas mezclados al azar entre los Shorts (la sección
+     Dramas del Inicio ya no existe). */
   kdInterleaveDramas1562: kdInterleaveDramas1562,
+  /* Web 1.6: posiciones al azar de las secciones del feed (W46). */
+  feedSectionPositions1562: feedSectionPositions1562,
+  kdActiveCatalog1549: kdActiveCatalog1549, /* Web 1.6: gancho de pruebas (W12/W45 esperan el catálogo). */
   /* 1.5.63: portada vertical del drama (fotograma real del video). */
   kdPoster1563: kdPoster1563,
   renderStories: renderStories,
@@ -19662,13 +19670,11 @@ window.__wrToggleDramaFollow1550 = async function (dramaId) {
   if (!r.ok) { toast('No se pudo ' + (followed ? 'dejar de seguir' : 'seguir') + ' el drama.'); return; }
   await getDramaFollows1550(true);
   toast(followed ? 'Ya no sigues este drama.' : 'Siguiendo. Te aviso cuando haya capítulos nuevos.');
-  if (typeof renderKdramaHome1549 === 'function') renderKdramaHome1549();
 };
 window.__wrToggleDramaSave1550 = function (dramaId) {
   var d = (kdramasCache1550 || []).filter(function (x) { return String(x.id) === String(dramaId); })[0];
   var saved = toggleSaved1550('drama', dramaId, d ? d.name : 'Drama', d ? d.poster : '');
   toast(saved ? 'Drama guardado en «Guardados».' : 'Drama quitado de «Guardados».');
-  if (typeof renderKdramaHome1549 === 'function') renderKdramaHome1549();
 };
 window.__wrShareDrama1550 = function (dramaId) { openShareChoice('drama', dramaId); };
 /* ---- Comentarios (19/40/60): reacciones con emoji, fijar, editar. ---- */
