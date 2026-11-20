@@ -24,22 +24,6 @@ textarea{resize:vertical;min-height:80px}
 img,video{max-width:100%;display:block}
 .hidden{display:none!important}
 .glass{background:var(--card);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid var(--line);border-radius:var(--radius)}
-/* 1.5.62: buscador del inicio (solo en el Inicio): barra translúcida
-   bajo la barra superior, con sugerencias en vivo en el flujo (no
-   tapan las historias: las empujan abajo mientras están abiertas). */
-#homeSearchWrap1562{margin-bottom:12px}
-#homeSearchBar1562{display:flex;align-items:center;gap:8px;padding:8px 12px}
-#homeSearchBar1562 .ic{flex:0 0 auto;color:var(--muted)}
-#homeSearchInput1562{flex:1;border:none;background:transparent;padding:4px 0;width:auto}
-#homeSearchClear1562{flex:0 0 auto;border:none;background:transparent;color:var(--muted);font-size:18px;line-height:1;padding:2px 6px;cursor:pointer}
-#homeSearchSug1562{margin-top:8px;overflow:hidden}
-.homeSearchHead1562{padding:8px 12px 2px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
-.homeSearchItem1562{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer}
-.homeSearchItem1562:active{background:rgba(255,255,255,.06)}
-.homeSearchIc1562{flex:0 0 auto;color:var(--red);display:flex}
-.homeSearchTx1562{display:flex;flex-direction:column;min-width:0}
-.homeSearchTx1562 b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.homeSearchTx1562 .muted{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,var(--red),var(--red2));color:#fff;font-weight:700;border-radius:12px;padding:11px 16px;font-size:15px}
 .btn:disabled{opacity:.5}
 .btn.ghost{background:rgba(255,255,255,.1);color:var(--txt)}
@@ -115,10 +99,6 @@ main{max-width:640px;margin:0 auto;padding:12px 12px calc(104px + var(--sys-nav-
 .thinkBox1559 .avatar{flex:0 0 auto}
 .thinkText1559{color:var(--mut);font-size:15px}
 .ownShareBtn1559{background:none;border:none;padding:4px;color:var(--mut);cursor:pointer;display:inline-flex;align-items:center}
-/* 1.5.60: botón del Navegador en el perfil propio: ANTES de la moneda,
-   con símbolo Y texto (los demás botones de la fila son solo símbolo). */
-.ownBrowserBtn1560{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:999px;padding:4px 10px 4px 6px;color:var(--fg);font-size:13px;font-weight:700;cursor:pointer;vertical-align:middle;margin:0 2px}
-.ownBrowserBtn1560 .ic{color:var(--red2)}
 /* v1.6: cada historia es una TARJETA rectangular con esquinas redondeadas
    (estilo historias de redes sociales): se ve la historia y encima el
    avatar de la cuenta que la publicó.
@@ -584,10 +564,16 @@ nav#bottomNav .bn-side button:active,nav#bottomNav .bn-side button.bnPress1547{t
    táctil 4→8 px de alto): 9 botones que comparten el ancho (flex:1),
    sin salirse de la pantalla; las etiquetas se siguen leyendo igual. */
 nav#bottomNav{position:fixed;left:0;right:0;bottom:var(--sys-nav-bottom,0px);z-index:60;display:flex;align-items:stretch;background:rgba(18,6,8,.45);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid var(--line);padding:4px 4px calc(4px + env(safe-area-inset-bottom));transition:transform .25s ease}/* Web 1.1: barra de abajo más pequeña y translúcida; se oculta sola al bajar. */
-/* v1.5.14: sin "Avisos" en la barra quedan 8 botones; los lados son dos
-   grupos flex:1 y el botón de Mercado queda centrado exacto. Web 1.1: el centro es Mercado (mismo tamaño que los otros) y ya no hay botón de Aplicaciones. */
-nav#bottomNav .bn-side{flex:1;display:flex;min-width:0}
+/* Web 1.2: los 5 botones de la barra de abajo miden lo mismo: cada lado
+   (2 botones) es flex:2 y Mercado al centro es flex:1, así cada botón
+   ocupa 1/5 de la barra, los huecos entre centros son iguales y el grupo
+   queda centrado. Antes los lados eran flex:1 y Mercado medía por
+   contenido (37 px contra 86 px a 390 px), así los huecos eran
+   86/62/62/86 y no simétricos. Web 1.1: el centro es Mercado (mismo
+   tamaño que los otros) y ya no hay botón de Aplicaciones. */
+nav#bottomNav .bn-side{flex:2;display:flex;min-width:0}
 nav#bottomNav .bn-side button{flex:1;min-width:0}
+nav#bottomNav > button[data-nav="marketplace"]{flex:1;min-width:0}
 nav#bottomNav button{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;font-weight:700;color:var(--dim);padding:5px 0;position:relative;border-radius:12px}
 nav#bottomNav button.on{color:#fff}
 nav#bottomNav button .ic{display:flex;line-height:0}
@@ -1282,17 +1268,8 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
          luego el reloj con el clima a su derecha: los dos en su propio
          recuadro (v2.0) y por defecto en tamaño s, así que quedan lado a
          lado como antes. -->
-    <!-- 1.5.62: buscador del inicio (solo aquí): lupa + barra para
-         escribir; las sugerencias en vivo aparecen debajo, en el flujo
-         (no tapan las historias). Reutiliza la búsqueda existente. -->
-    <div id="homeSearchWrap1562">
-      <div class="glass" id="homeSearchBar1562">
-        <span class="ic" style="width:18px;height:18px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></span>
-        <input id="homeSearchInput1562" type="search" placeholder="Buscar personas, publicaciones, dramas, grupos…" autocomplete="off">
-        <button type="button" id="homeSearchClear1562" class="hidden" aria-label="Limpiar búsqueda" onclick="window.__wrHomeSearchClear1562()">✕</button>
-      </div>
-      <div class="glass hidden" id="homeSearchSug1562"></div>
-    </div>
+    <!-- Web 1.2: el buscador del Inicio (1.5.62) se quitó: la búsqueda
+         sigue en la vista «Buscar» con la lupa de la barra de arriba. -->
     <div id="homeWidgets1536">
       <div class="homeWidget" data-widget="historias" data-size="m" data-color="rojo">
         <div class="stories" id="storiesRow"></div>
@@ -1317,12 +1294,10 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
           <div class="weatherInfo" id="weatherInfo">Buscando el clima…</div>
         </div>
       </div>
-      <div class="homeWidget" data-widget="accesos" data-size="m" data-color="rojo">
-        <div class="chiprow" style="margin-bottom:12px">
-          <button class="chip" id="feedEventsBtn"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span> Eventos</button>
-          <button class="chip" id="feedPagesBtn"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></span> Páginas</button>
-        </div>
-      </div>
+      <!-- Web 1.2: el apartado de accesos (Eventos y Páginas) se quitó
+           del Inicio: los Eventos se mudaron al perfil (donde estaba el
+           navegador) y Páginas queda sin entrada desde el Inicio. El
+           reloj, el clima y «+ Agregar apartado» se quedan como están. -->
       <button type="button" class="homeAddBtn" id="homeAddBtn1536">+ Agregar apartado</button>
       <!-- 1.5.54: Dramas fijo en el Inicio, debajo de «+ Agregar apartado». 1.5.58: series de DramaBox.
            Sin data-widget: no es editable ni movible, y applyHomeWidgets1536
@@ -1409,14 +1384,8 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
     <div class="empty hidden" id="marketEmpty"><div class="big"><span class="eic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3H4v7l9.59 9.59a2 2 0 0 0 2.82 0l4.18-4.18a2 2 0 0 0 0-2.82z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/></svg></span></div><p>Sin anuncios por aquí todavía.</p><p class="tiny">Publica el primero con "Vender algo".</p></div>
   </section>
 
-  <!-- EVENTOS -->
-  <section class="view" id="view-events">
-    <h2 class="sectitle">Eventos</h2>
-    <button class="btn" id="eventCreateBtn" style="width:100%">＋ Crear un evento</button>
-    <div id="eventsList" class="mt"></div>
-    <div class="empty hidden" id="eventsEmpty"><div class="big"><span class="eic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span></div><p>Sin eventos próximos.</p><p class="tiny">Crea el primero y invita a tus amigos.</p></div>
-  </section>
-
+  <!-- Web 1.2: los Eventos se mudaron al perfil (vista «view-profile»,
+       dentro de renderOwnProfile en app.js); esta vista ya no existe. -->
   <!-- PÁGINAS -->
   <section class="view" id="view-pages">
     <h2 class="sectitle">Páginas</h2>
@@ -2064,7 +2033,7 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
       <button type="button" class="wOptRound1542 mt" id="supportCopyBtn" aria-label="Copiar número de cuenta" title="Copiar número de cuenta"><span class="ic"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span></button>
     </div>
     <h3 class="sectitle">Acerca de</h3>
-    <p class="muted">WordRed Web 1.1 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
+    <p class="muted">WordRed Web 1.2 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
   </div>
 </div>
 

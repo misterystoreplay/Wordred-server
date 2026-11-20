@@ -1,13 +1,14 @@
-/* WordRed Web 1.1 — parche en tiempo de ejecución (web-inject.js).
+/* WordRed Web 1.2 — parche en tiempo de ejecución (web-inject.js).
    Se carga justo después de app.js en index.html y corre en el mundo
    principal de la página, antes de que arranque la app.
 
    DIVISIÓN DE TRABAJO (importante): app.js y core.js ya llevan los cambios
-   que necesitan tocar el interior de la app (versión «Web 1.1», barras
+   que necesitan tocar el interior de la app (versión «Web 1.2», barras
    transparentes que se ocultan solas, sin cajón de aplicaciones, Mercado
    en el centro de la barra, Inicio en rojo, sin actualizaciones ni
    descarga de Windows, sin opciones del teléfono, regla de Inicio y
-   desplazamiento). Todo el código de la app vive dentro de una función
+   desplazamiento, iconos de la barra de abajo simétricos, Eventos en el
+   perfil, sin buscador del Inicio). Todo el código de la app vive dentro de una función
    anónima (IIFE) y sus variables y funciones NO son propiedades de
    window, así que asignar window.checkAppUpdate = ... NO cambia lo que
    la app usa de verdad. Este parche solo hace lo que SÍ se puede desde
@@ -20,9 +21,9 @@
    quitó. */
 (function () {
 'use strict';
-var WEB_VERSION = 'Web 1.1';
+var WEB_VERSION = 'Web 1.2';
 /* Marcador de diagnóstico (solo para pruebas externas): la versión que
-   se muestra sale del app.js editado (APP_VERSION_NAME = 'Web 1.1'); esta
+   se muestra sale del app.js editado (APP_VERSION_NAME = 'Web 1.2'); esta
    propiedad de window NO toca el interior de la app. */
 window.__wrWebPatchInstalled = true;
 window.APP_VERSION_NAME = WEB_VERSION;

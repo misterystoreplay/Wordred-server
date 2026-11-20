@@ -1,4 +1,4 @@
-# WordRed Web 1.1 — NOTAS
+# WordRed Web 1.2 — NOTAS
 
 Versión web de WordRed: se abre con un enlace en el navegador, sin
 descargar ni instalar nada. Las actualizaciones llegan solas al abrir
@@ -11,6 +11,14 @@ funcionan en el teléfono, y cambia las barras: translúcidas, se
 ocultan solas al bajar y vuelven al subir; la barra de abajo es más
 pequeña, con Mercado en el centro e Inicio en rojo.
 
+La Web 1.2 deja los 5 iconos de la barra de abajo simétricos (mismo
+ancho, huecos iguales, grupo centrado), muda los Eventos al perfil
+(en el lugar que deja el navegador, que se quita del perfil), quita
+del Inicio la fila de botones «Eventos» y «Páginas» y quita el
+buscador del Inicio (la búsqueda sigue con la lupa de la barra de
+arriba). El reloj, el clima y «+ Agregar apartado» se quedan en el
+Inicio como están.
+
 ## Qué hay aquí
 
 - `index.html`, `app.js`, `core.js`, `games.js`, `ytplayer.html`,
@@ -20,14 +28,17 @@ pequeña, con Mercado en el centro e Inicio en rojo.
 - `games.js`, `ytplayer.html`, `qrcode.js`, `jsqr.js`: byte-idénticos
   a los de Android 1.5.64.
 - `app.js`, `index.html`: copias ADAPTADAS con cambios documentados,
-  cada uno marcado «Web 1.1» (la 1.0 marcó los suyos «Web 1.0»). En
-  la 1.1 el diff contra Android ya no es mínimo: `app.js` pierde
-  ~1.500 líneas (cajón, actualizaciones, llamadas de teléfono,
-  permisos y batería) y `index.html` ~200 líneas; la prueba Node
+  cada uno marcado «Web 1.2» (la 1.1 marcó los suyos «Web 1.1» y la
+  1.0 los suyos «Web 1.0»). En la 1.2 el diff contra Android es:
+  `app.js` pierde ~1.950 líneas y `index.html` ~326; la prueba Node
   comprueba que lo quitado es solo código de cajón/actualizaciones/
-  teléfono y que lo añadido lleva la marca «Web 1.1».
-- `core.js`: sin cambios en la 1.1 (su diff de la 1.0, la entrada
-  «Batería» quitada de «+ Agregar apartado», sigue vigente).
+  teléfono/buscador del inicio y que lo añadido lleva la marca
+  «Web 1.2».
+- `core.js`: en la 1.2 se quitaron las dos funciones del buscador del
+  inicio (`foldSearchText1562`, `searchAllFolded1562`); su diff
+  contra Android es de 50 líneas en 3 hunks (el de la 1.0, la nota
+  de lo quitado y la exportación). La vista «Buscar» sigue con
+  `searchAll` sin cambios.
 - `web-inject.js`: el parche pequeño que queda en tiempo de ejecución
   (puente web mínimo + `history.scrollRestoration = 'manual'` para
   que al cargar la página se empiece arriba del Inicio). En la 1.1
@@ -159,6 +170,62 @@ y que el navegador no restaure el desplazamiento al cargar).
        nada (antes, ese temporizador bajaba de nuevo la página
        aunque se acabara de subir).
 
+## Qué cambió en la Web 1.2 (todo marcado «Web 1.2»)
+
+1. **Barra de abajo simétrica.** Los 5 iconos (Inicio, Shorts,
+   Mercado al centro, Grupos, Perfil) ahora miden exactamente lo
+   mismo y quedan equidistantes y centrados, en móvil (360–430 px)
+   y en escritorio. Causa real: los dos lados eran `flex:1` y
+   Mercado medía por contenido (37 px contra 86 px a 390 px, con
+   huecos entre centros de 86/62/62/86). Arreglo con flex de
+   verdad: cada lado (2 botones) es `flex:2` y Mercado al centro
+   es `flex:1`, así cada botón ocupa 1/5 de la barra. Medido en
+   el DOM: a 390 px los 5 botones miden 76 px y los huecos son
+   77/76/76/77 (±1 px por redondeo de subpíxeles), con la misma
+   distancia del primer y último centro a su borde. El tamaño de
+   la 1.1 se conserva (iconos 24 px, texto 9 px, padding 5 px).
+2. **Eventos en el perfil, en el lugar del navegador.** El botón
+   «Navegador» del perfil propio (`ownBrowserBtn1560`, que abría
+   Google con `__wrOpenBrowserHome`) se quitó, y ahí van los
+   Eventos: la sección se pinta con el perfil, tras la cabecera
+   (título «Eventos», botón «＋ Crear un evento», lista y mensaje
+   de vacío, con los mismos ids de antes, así `renderEvents()`
+   funciona igual) y se llena al pintar el perfil. El botón
+   «Crear» abre el diálogo con `onclick`
+   (`__wrShowEventCreate`): el botón se recrea al pintar el
+   perfil, así que el listener del arranque ya no existe. El
+   navegador interno (`__wrOpenBrowser`) sigue para los enlaces
+   y los tráileres. Los Eventos también se ven como invitado, en
+   el perfil.
+3. **Del Inicio sale solo la fila «Eventos» y «Páginas».** El
+   apartado de accesos del Inicio (los chips «Eventos» y
+   «Páginas») se quitó, con sus dos escuchas del arranque. El
+   reloj, el clima y «+ Agregar apartado» se quedan en el Inicio
+   como están, con toda la edición de apartados (mantener
+   presionado, mover, tamaño, color, agregar). «Páginas» no se
+   reubica: desaparece del Inicio con esa fila, pero la vista de
+   Páginas (`view-pages` + `renderPages`) sigue existiendo sin
+   entrada desde el Inicio — se puede volver a poner el acceso
+   cuando se quiera, sin reconstruir nada.
+4. **Sin buscador del Inicio.** La barra de búsqueda translúcida
+   del Inicio (`#homeSearchWrap1562`: barra, input, sugerencias
+   en vivo) se quitó por completo, con su CSS y su código
+   (`renderHomeSearch1562`, `homeSearchSuggest1562`,
+   `homeSearchClose1562`, `__wrHomeSearchGo1562`,
+   `__wrHomeSearchClear1562`, `kdSearchDramas1562`, `foldSearch`
+   y, en `core.js`, `foldSearchText1562` y
+   `searchAllFolded1562`). La lupa de la barra de arriba
+   (`#hdrSearch`) SE QUEDA, y la búsqueda sigue en la vista
+   «Buscar» (`renderSearch` + `searchAll`), que busca personas,
+   publicaciones, grupos y #etiquetas.
+5. **Tutorial y FAQ.** El paso «Tu inicio» del tutorial ya no
+   menciona el buscador, y el paso «Tu perfil» dice que los
+   eventos están en el perfil. La FAQ tiene una entrada nueva
+   («¿Qué hay de nuevo en la Web 1.2?») y la de buscar ahora
+   apunta a la lupa de arriba («¿Cómo busco algo?»); quedó en 28
+   entradas. La versión visible queda en «Acerca de»: «WordRed
+   Web 1.2 · contenido de Android 1.5.64».
+
 ## Qué se conservó y por qué (sí funciona en la web)
 
 - **Llamadas dentro de WordRed** (botón de llamada en el chat,
@@ -189,9 +256,9 @@ y que el navegador no restaure el desplazamiento al cargar).
   `navigator.geolocation` en la web (cuando no hay puente
   Android), así que funciona.
 - **Tutorial y FAQ:** el tutorial (6 pasos) menciona las barras
-  que se ocultan solas y Mercado en el centro; la FAQ quedó en 27
-  entradas (29 − 3 de teléfono/cajón/actualización/batería + 1
-  nueva: «¿Qué hay de nuevo en la Web 1.1?»).
+  que se ocultan solas y Mercado en el centro, y que los eventos
+  están en el perfil; la FAQ quedó en 28 entradas (27 de la 1.1
+  + 1 nueva: «¿Qué hay de nuevo en la Web 1.2?»).
 
 ## Qué se adaptó en la Web 1.0 (sigue vigente)
 
@@ -236,10 +303,12 @@ y que el navegador no restaure el desplazamiento al cargar).
    puro: feed, publicaciones, Shorts, dramas (48 series, reproductor
    de YouTube en la página — en la web NO da el Error 153 de
    `file://`), Reels, historias, grupos, perfil, chat, promociones,
-   noticias (vía rss2json), búsqueda, ajustes, tutorial y FAQ (27
-   en la 1.1), llamadas y lives (WebRTC + `getUserMedia`),
+   noticias (vía rss2json), búsqueda, ajustes, tutorial y FAQ (28
+   en la 1.2), llamadas y lives (WebRTC + `getUserMedia`),
    geolocalización del clima (`navigator.geolocation`), exportar
-   chats (descarga JSON), juegos (visor web interno).
+   chats (descarga JSON), juegos (visor web interno). La 1.2 quita
+   el buscador del Inicio (la búsqueda sigue con la lupa de arriba)
+   y muda los Eventos al perfil.
 
 ## Qué NO funciona igual en la web (quitado limpio, sin botones muertos)
 
@@ -276,6 +345,7 @@ El servidor 4.9 está en vivo desde la publicación de la Web 1.0:
 `Access-Control-Allow-Methods` (GET, POST, PUT, DELETE, OPTIONS),
 así que editar y borrar publicaciones, grupos, anuncios y cuenta
 funcionan desde la web. La Web 1.1 no cambia el servidor (sigue 4.9).
+Tampoco la 1.2.
 
 ## Publicar la web (recomendado: GitHub Pages)
 
@@ -340,17 +410,21 @@ Por qué Pages y no las otras opciones:
 
 ## Pruebas
 
-- `node tests/test-web.js`: **211 PASS, 0 FAIL** (archivos, diffs
-  «Web 1.1» contra Android 1.5.64, sintaxis, sin referencias a lo
-  quitado, barras que se ocultan, Mercado en el centro, Inicio en
-  rojo, regla de Inicio y desplazamiento, FAQ 27, servidor 4.9 en
-  vivo).
+- `node tests/test-web.js`: **262 PASS, 0 FAIL** (archivos, diffs
+  «Web 1.2» contra Android 1.5.64, sintaxis, sin referencias a lo
+  quitado en la 1.1 ni en la 1.2, barras que se ocultan, Mercado en
+  el centro, Inicio en rojo, barra simétrica, Eventos en el perfil,
+  sin buscador del Inicio, regla de Inicio y desplazamiento, FAQ 28,
+  servidor 4.9 en vivo).
 - `tests/test-web-dom.js` (Electron + xvfb, con servidor HTTP
-  local): **17 PASS, 0 FAIL** (arranque, versión Web 1.1, pantalla
+  local): **24 PASS, 0 FAIL** (arranque, versión Web 1.2, pantalla
   de inicio, tarjetas de actualización y Windows NO EXISTEN, barra
   sin Aplicaciones ni cajón con Mercado en el centro e Inicio en
-  rojo y más pequeña, puente mínimo, feed en vivo, 48 dramas en
-  vivo, sonda PUT permitida con la 4.9 en vivo, botón de Google sin
+  rojo y más pequeña, barra simétrica medida en el DOM a 430, 360
+  y 1280 px, Inicio sin buscador ni Eventos/Páginas con reloj,
+  clima y agregar, Eventos en el perfil con creación real de un
+  evento, puente mínimo, feed en vivo, 48 dramas en vivo, sonda
+  PUT permitida con la 4.9 en vivo, botón de Google sin
   errores, inicio de sesión real por teléfono con cuenta NUEVA en
   cada run, feed dibujado, barras que se ocultan al bajar y vuelven
   al subir, regla de Inicio y desplazamiento —doble toque a arriba,

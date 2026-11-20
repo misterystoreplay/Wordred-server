@@ -8,7 +8,7 @@ var C = window.WordRedCore;
    última versión del servidor (GET /api/app/latest). Tiene que ser
    igual que versionCode/versionName del AndroidManifest.xml. */
 var APP_VERSION_CODE = 79;
-var APP_VERSION_NAME = 'Web 1.1'; /* Web 1.1: contenido de Android 1.5.64. */
+var APP_VERSION_NAME = 'Web 1.2'; /* Web 1.2: contenido de Android 1.5.64. */
 var LS_KEY = 'wordred_state_v1';
 var state = loadState();
 ensure1526State(); /* 1.5.26: rellenar los campos nuevos en estados guardados de la 1.5.25. */
@@ -1430,8 +1430,9 @@ window.__wrOpenBrowser = function (url) {
   if (window.AndroidBridge && AndroidBridge.openInAppBrowser) { try { AndroidBridge.openInAppBrowser(url); return true; } catch (e) {} }
   return false;
 };
-/* Inicio del navegador: Google, la página principal del navegador. */
-window.__wrOpenBrowserHome = function () { window.__wrOpenBrowser('https://www.google.com'); };
+/* Web 1.2: el botón del Navegador del perfil se quitó (ahí van los
+   Eventos): __wrOpenBrowserHome ya no existe. El navegador interno
+   (__wrOpenBrowser) sigue para los enlaces y los tráileres. */
 window.__wrOpenUrl = function (enc) {
   var url = '';
   try { url = decodeURIComponent(enc); } catch (e) { return; }
@@ -1668,7 +1669,6 @@ function go(view) {
   if (view === 'friends') renderFriends();
   if (view === 'activity') renderActivity();
   if (view === 'marketplace') renderMarketplace();
-  if (view === 'events') renderEvents();
   if (view === 'pages') renderPages();
   if (view === 'groups') renderGroups();
   if (view === 'messages') { renderConvos(); }
@@ -3303,9 +3303,10 @@ var FAQ = [
   { q: '¿Qué hay de nuevo en la 1.5.64?', a: 'Arriba en el inicio ahora solo hay Reels: se quitaron las tarjetas de dramas de esa fila y todos los Reels se ven del mismo tamaño que el primero, el de tu foto con el +. Los dramas siguen entre los Shorts y en su sección.' },
   { q: '¿Por qué ya no falla publicar al final?', a: 'Antes, si un trozo de la foto o el video no llegaba, la subida empezaba de cero y al final salía el error. Ahora la subida continúa donde se quedó con el mismo intento y tiene más tiempo por trozo. Y nada se publica roto: si el medio no se sube, la publicación queda pendiente y se avisa.' },
   { q: '¿Por qué aparecen dramas entre los Shorts?', a: 'Entre los Shorts se cuelan tarjetas de dramas, con su portada y el nombre de su aplicación. Al tocar una, se abre el drama en su primer capítulo, con la guía de gestos. Los demás capítulos se ven desde la sección Dramas del inicio, que sigue igual.' },
-  { q: '¿Cómo busco algo desde el inicio?', a: 'En el inicio, bajo la barra de arriba, está el buscador: escribe y van apareciendo sugerencias de personas, publicaciones, Reels, dramas, grupos y #etiquetas. Toca una sugerencia para ir ahí: el perfil, la publicación, el Reel, el drama en su primer capítulo o el grupo.' },
+  { q: '¿Cómo busco algo?', a: 'Toca la lupa de la barra de arriba para abrir «Buscar»: escribe y van apareciendo personas, publicaciones, grupos y #etiquetas. Toca un resultado para ir ahí: el perfil, la publicación o el grupo.' }, /* Web 1.2: el buscador del Inicio se quitó; se busca con la lupa de arriba. */
   { q: '¿Cada cuánto llegan dramas y aplicaciones nuevas?', a: 'Cada 2 semanas llegan más capítulos y más series de dramas, todos gratis y doblados en español latino. Y cada semana se suman aplicaciones nuevas: la etiqueta junto a «Dramas» las nombra todas (ahora ReelShort, DramaBox y ShortMax).' },
   { q: '¿Qué hay de nuevo en la Web 1.1?', a: 'Las barras de arriba y de abajo ahora son transparentes y se ocultan solas al bajar, y vuelven al subir. Mercado está en el centro de la barra de abajo, Inicio está en rojo, y se quitaron el cajón de aplicaciones, las actualizaciones y las opciones que solo funcionan en el teléfono.' },
+  { q: '¿Qué hay de nuevo en la Web 1.2?', a: 'Los 5 iconos de la barra de abajo ahora miden lo mismo y quedan equidistantes y centrados. Los Eventos se mudaron al perfil, donde estaba el navegador; la fila de Eventos y Páginas salió del Inicio, y el buscador del Inicio se quitó: para buscar, toca la lupa de la barra de arriba.' },
 
 ];
 function renderFaq() {
@@ -8603,6 +8604,20 @@ window.__wrShareOwnProfile = function () {
   if (navigator.share) { navigator.share({ text: text }).catch(function () {}); return; }
   toast('Para compartir fuera necesitas la app instalada en el teléfono.');
 };
+/* Web 1.2: los Eventos viven en el perfil, en el lugar que deja el
+   botón del Navegador (tras la cabecera del perfil): la sección se
+   pinta con el perfil y su lista la llena renderEvents(), que también
+   se llama al pintar el perfil. El botón «Crear» abre el diálogo con
+   onclick (se recrea al pintar el perfil, así que el listener del
+   inicio de la app ya no existe). */
+function profileEventsHtml1560() {
+  return '<section id="profileEvents1560"><h3 class="sectitle">Eventos</h3>' +
+    '<button class="btn" id="eventCreateBtn" style="width:100%" onclick="window.__wrShowEventCreate()">＋ Crear un evento</button>' +
+    '<div id="eventsList" class="mt"></div>' +
+    '<div class="empty hidden" id="eventsEmpty"><div class="big"><span class="eic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span></div><p>Sin eventos próximos.</p><p class="tiny">Crea el primero y invita a tus amigos.</p></div>' +
+    '</section>';
+}
+window.__wrShowEventCreate = function () { showOverlay('eventCreateOverlay'); };
 function renderOwnProfile() {
   var p = myProfile();
   var el = $('ownProfile');
@@ -8612,8 +8627,10 @@ function renderOwnProfile() {
     el.innerHTML =
       '<div class="glass" style="padding:16px;margin-bottom:12px"><h2>Estás explorando como invitado</h2>' +
       '<p class="muted">Sin registro puedes ver el inicio, los perfiles, las ventas y los juegos. Para publicar, reaccionar, comentar o ver lives, verifica tu número de teléfono.</p>' +
-      '<button class="btn" onclick="window.__wrOpenVerify()">Verificar mi número</button></div>';
+      '<button class="btn" onclick="window.__wrOpenVerify()">Verificar mi número</button></div>' +
+      profileEventsHtml1560(); /* Web 1.2: los Eventos también se ven como invitado, en el perfil. */
     renderGames();
+    renderEvents();
     return;
   }
   var friends = (state.friends[state.me] || []).length;
@@ -8650,7 +8667,7 @@ function renderOwnProfile() {
     '</div>' +
     '<div class="ownHeadRow">' +
     '<div class="ownHeadCol">' +
-    '<h2 class="ownName">' + esc(p.name) + verifiedBadgeHtml(state.me) + '<button class="ownBrowserBtn1560" aria-label="Navegador" title="Navegador" onclick="window.__wrOpenBrowserHome()">' + ic('globe', 18) + '<span>Navegador</span></button><button class="ownPromoCoin1547" aria-label="Promociones" title="Promociones" onclick="window.__wrOpenPromotionsHub()"><span class="coinW1547">W</span></button><button class="ownShareBtn1559" aria-label="Compartir perfil" title="Compartir perfil" onclick="window.__wrShareOwnProfile()">' + ic('share', 18) + '</button><button class="ownEditBtn" aria-label="Editar perfil" title="Editar perfil" onclick="window.__wrEditProfile()">' + ic('edit', 18) + '</button></h2>' + /* 1.5.26 (10) */ /* 1.5.59: el botón de compartir va ANTES de Editar */ /* 1.5.60: el botón del Navegador (símbolo + texto) va ANTES de la moneda */
+    '<h2 class="ownName">' + esc(p.name) + verifiedBadgeHtml(state.me) + '<button class="ownPromoCoin1547" aria-label="Promociones" title="Promociones" onclick="window.__wrOpenPromotionsHub()"><span class="coinW1547">W</span></button><button class="ownShareBtn1559" aria-label="Compartir perfil" title="Compartir perfil" onclick="window.__wrShareOwnProfile()">' + ic('share', 18) + '</button><button class="ownEditBtn" aria-label="Editar perfil" title="Editar perfil" onclick="window.__wrEditProfile()">' + ic('edit', 18) + '</button></h2>' + /* 1.5.26 (10) */ /* 1.5.59: el botón de compartir va ANTES de Editar */ /* Web 1.2: el botón del Navegador se quitó; en su lugar van los Eventos (tras la cabecera). */
     /* v1.5.25: la biografía con sus datos va en la columna izquierda,
        JUSTO ABAJO DEL NOMBRE y al lado de la foto: antes quedaba debajo
        de toda la fila (que mide lo del avatar, 92 px) y se veía una banda
@@ -8662,6 +8679,7 @@ function renderOwnProfile() {
     '</div>' +
     '<div class="ownStats"><div><b>' + friends + '</b><span>amigos</span></div><div><b>' + posts.length + '</b><span>publicaciones</span></div><div><b>' + saved.length + '</b><span>guardadas</span></div></div>' +
     '</div>' +
+    profileEventsHtml1560() + /* Web 1.2: los Eventos en el perfil, tras la cabecera (donde estaba el Navegador). */
     /* 1.5.26: recuerdos (2) y atajos a Shorts guardados (43),
        programadas (6), borradores (14) y enlaces guardados (59).
        1.5.27: la tarjeta de la canción (33) ya no se muestra aquí.
@@ -8691,6 +8709,7 @@ function renderOwnProfile() {
     '</div>';
   renderGames();
   renderLiveRecordings();
+  renderEvents(); /* Web 1.2: la lista de Eventos vive en el perfil y se llena al pintarlo. */
   /* 1.5.39: "Tu tiempo hoy" se pinta en su propio hueco, justo antes de
      "Tienda de juegos" (ownScreenTime1539, en index.html entre las
      grabaciones de lives y la tienda); mismo contenido y mismo conteo. */
@@ -8935,15 +8954,6 @@ function renderFriends() {
   }
   el.innerHTML = html;
 }
-window.__wrHomeSearchGo1562 = function (type, id) {
-  homeSearchClose1562();
-  if (type === 'person') { window.__wrOpenProfile(id); return; }
-  if (type === 'group') { window.__wrOpenGroup(id); return; }
-  if (type === 'drama') { window.__wrOpenDrama1562(id); return; }
-  if (type === 'reel') { window.__wrOpenReel(id); return; }
-  if (type === 'tag') { go('search'); var si = $('searchInput'); if (si) si.value = '#' + id; renderSearch(); return; }
-  window.__wrOpenPost(id);
-};
 window.__wrDeclineReq = function (reqId) {
   var r = C.respondFriendRequest(state, state.me, reqId, false);
   if (!r.ok) { toast(r.error); return; }
@@ -9939,8 +9949,11 @@ async function pushRatingToServer(phone, stars, comment) {
 /* ---------------- eventos (v1.1) ---------------- */
 function renderEvents() {
   var list = C.listEvents(state);
-  $('eventsEmpty').classList.toggle('hidden', list.length > 0);
-  $('eventsList').innerHTML = list.map(function (e) {
+  var evList = $('eventsList');
+  var evEmpty = $('eventsEmpty');
+  if (!evList || !evEmpty) return; /* Web 1.2: la lista vive en el perfil. */
+  evEmpty.classList.toggle('hidden', list.length > 0);
+  evList.innerHTML = list.map(function (e) {
     var rsvp = e.attendees[state.me];
     var going = Object.keys(e.attendees).filter(function (p) { return e.attendees[p] === 'asiste'; }).length;
     var interested = Object.keys(e.attendees).filter(function (p) { return e.attendees[p] === 'interes'; }).length;
@@ -9951,7 +9964,6 @@ function renderEvents() {
       '</div></div>';
   }).join('');
 }
-$('eventCreateBtn').addEventListener('click', function () { showOverlay('eventCreateOverlay'); });
 $('eventCreateSave').addEventListener('click', function () {
   var r = C.createEvent(state, state.me, { name: $('eventName').value, date: $('eventDate').value, time: $('eventTime').value, place: $('eventPlace').value, desc: $('eventDesc').value });
   if (!r.ok) { toast(r.error); return; }
@@ -10848,17 +10860,7 @@ window.__wrReadNotif = function (id) {
 
 /* ---------------- búsqueda ---------------- */
 $('searchInput').addEventListener('input', function () { renderSearch(); });
-/* 1.5.62: buscador del inicio: sugerencias en vivo al escribir; tocar
-   fuera las cierra (sin tocar la búsqueda vieja de arriba). */
-var homeSearchInput1562El = $('homeSearchInput1562');
-if (homeSearchInput1562El) homeSearchInput1562El.addEventListener('input', function () { renderHomeSearch1562(); });
-document.addEventListener('click', function (ev) {
-  var wrap = $('homeSearchWrap1562');
-  var box = $('homeSearchSug1562');
-  if (!wrap || !box || box.classList.contains('hidden')) return;
-  if (wrap.contains(ev.target)) return;
-  box.classList.add('hidden'); box.innerHTML = '';
-});
+/* Web 1.2: el buscador del Inicio se quitó (la búsqueda sigue en la vista «Buscar»). */
 function renderSearch() {
   var q = ($('searchInput').value || '').trim();
   var el = $('searchResults');
@@ -10888,65 +10890,6 @@ function renderSearch() {
   el.innerHTML = html;
 }
 
-/* 1.5.62: buscador del inicio: barra translúcida bajo la barra
-   superior, con sugerencias en vivo (personas, publicaciones, Reels,
-   dramas, grupos y #etiquetas). Reutiliza la búsqueda existente
-   (searchAllFolded1562: mismo índice y mismas reglas que la vista
-   «Buscar», pero sin tildes ni mayúsculas) y suma los dramas del
-   catálogo. Las sugerencias van EN EL FLUJO (no tapan las historias:
-   las empujan abajo mientras están abiertas). */
-function kdSearchDramas1562(q) {
-  var f = foldSearch(q);
-  if (!f) return [];
-  return kdActiveCatalog1549().filter(function (s) { return foldSearch(s.name || '').indexOf(f) >= 0; });
-}
-function homeSearchSuggest1562(q) {
-  q = (q || '').trim();
-  if (!q) return [];
-  var res = C.searchAllFolded1562(state, state.me, q);
-  var out = [];
-  res.people.slice(0, 3).forEach(function (p) { out.push({ type: 'person', id: p.phone, title: p.name || p.phone, sub: 'Perfil', icon: 'user' }); });
-  res.groups.slice(0, 3).forEach(function (g) { out.push({ type: 'group', id: g.id, title: g.name, sub: 'Grupo · ' + (g.members || []).length + ' miembros', icon: 'users' }); });
-  kdSearchDramas1562(q).slice(0, 3).forEach(function (s) { out.push({ type: 'drama', id: s.id, title: s.name, sub: 'Drama · ' + kdAppTag1561(s), icon: 'video' }); });
-  var posts = C.filterFeedWords(res.posts, state.wordFilter || []).visible;
-  posts.slice(0, 4).forEach(function (p) {
-    var isVideo = !!(p.mediaType === 'video' || (p.mediaList || []).some(function (m) { return m.type === 'video'; }));
-    out.push({ type: isVideo ? 'reel' : 'post', id: p.id, title: (p.text || '').slice(0, 60) || (isVideo ? 'Reel' : 'Publicación'), sub: (profileName(p.author) || '') + (isVideo ? ' · Reel' : ''), icon: isVideo ? 'play' : 'filetext' });
-  });
-  if (res.hashtags.length) out.push({ type: 'tag', id: res.hashtags[0], title: '#' + res.hashtags[0], sub: 'Ver publicaciones con esta etiqueta', icon: 'tag' });
-  return out;
-}
-function renderHomeSearch1562() {
-  var inp = $('homeSearchInput1562');
-  var box = $('homeSearchSug1562');
-  var clr = $('homeSearchClear1562');
-  if (!inp || !box) return;
-  if (clr) clr.classList.toggle('hidden', !inp.value);
-  var sug = homeSearchSuggest1562(inp.value || '');
-  if (!sug.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
-  var lastType = '';
-  var html = '';
-  sug.forEach(function (s) {
-    var head = '';
-    if (s.type !== lastType) {
-      var label = s.type === 'person' ? 'Personas' : s.type === 'group' ? 'Grupos' : s.type === 'drama' ? 'Dramas' : s.type === 'reel' ? 'Reels' : s.type === 'tag' ? 'Etiquetas' : 'Publicaciones';
-      head = '<div class="homeSearchHead1562">' + label + '</div>';
-      lastType = s.type;
-    }
-    html += head + '<div class="homeSearchItem1562" data-hs-type="' + s.type + '" data-hs-id="' + esc(s.id) + '" onclick="window.__wrHomeSearchGo1562(\'' + s.type + '\',\'' + esc(String(s.id)).replace(/'/g, '\\\'') + '\')"><span class="homeSearchIc1562">' + ic(s.icon, 18) + '</span><span class="homeSearchTx1562"><b>' + esc(s.title) + '</b><span class="muted">' + esc(s.sub) + '</span></span></div>';
-  });
-  box.innerHTML = html;
-  box.classList.remove('hidden');
-}
-function homeSearchClose1562() {
-  var box = $('homeSearchSug1562');
-  if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
-}
-window.__wrHomeSearchClear1562 = function () {
-  var inp = $('homeSearchInput1562');
-  if (inp) { inp.value = ''; inp.focus(); }
-  renderHomeSearch1562();
-};
 
 
 /* ---------------- ajustes ---------------- */
@@ -10972,11 +10915,6 @@ function initNavInset() {
   } catch (e) {}
 }
 initNavInset();;
-/* v1.5.15: para buscar sin tildes ni mayúsculas ("cámara" encuentra
-   "Camara"). */
-function foldSearch(s) {
-  try { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) { return String(s || '').toLowerCase(); }
-}
 
 /* ---- noticias 1.5.47 ---- */
 var NEWS_CATEGORIES_1547 = [
@@ -13241,7 +13179,7 @@ async function pullFromServer() {
       if (!state.events.some(function (x) { return x.id === e.id; })) state.events.push(e);
     });
     save();
-    if (currentView === 'events') renderEvents();
+    if (currentView === 'profile') renderEvents();
   }
   var r6 = await C.serverFetch(state, '/api/sales-groups', 'GET');
   if (r6.ok && r6.data && Array.isArray(r6.data.salesGroups)) {
@@ -15782,11 +15720,11 @@ function initHomeWidgets1536() {
    simple. Con «Saltar» se cierra y no vuelve a salir solo. */
 var TUTORIAL_STEPS_1533 = [
   { art: 'bienvenida', title: 'Bienvenido a WordRed', text: 'Aquí está tu inicio: las publicaciones de tus amigos y de la cuenta de ejemplo aparecen en un solo lugar.' },
-  { art: 'inicio', title: 'Tu inicio', text: 'Arriba siempre están los reels, luego «¿Qué estás pensando?» y el reloj con el clima a su derecha. Desliza para ver publicaciones, dale Me gusta, comenta y comparte. Entre las publicaciones verás los Reels grandes y la cartelera de estrenos. La etiqueta de Dramas nombra sus aplicaciones y llegan más dramas cada 2 semanas. Y arriba, bajo la barra, hay un buscador: escribe y toca una sugerencia para ir ahí. Las barras se ocultan solas al bajar y vuelven al subir; Mercado está en el centro de la barra de abajo.' },
+  { art: 'inicio', title: 'Tu inicio', text: 'Arriba siempre están los reels, luego «¿Qué estás pensando?» y el reloj con el clima a su derecha. Desliza para ver publicaciones, dale Me gusta, comenta y comparte. Entre las publicaciones verás los Reels grandes y la cartelera de estrenos. La etiqueta de Dramas nombra sus aplicaciones y llegan más dramas cada 2 semanas. Las barras se ocultan solas al bajar y vuelven al subir; Mercado está en el centro de la barra de abajo.' }, /* Web 1.2: el buscador del Inicio se quitó. */
   { art: 'publicar', title: 'Publica algo', text: 'Toca «Publicar» y comparte una foto, un video o lo que piensas. La vista previa sale al instante y la subida sigue en segundo plano: si la conexión se corta, continúa donde se quedó y nada se publica roto.' },
   { art: 'shorts', title: 'Shorts e historias', text: 'Mira videos cortos en Shorts y crea historias que duran 24 horas. Arriba en el inicio están los reels: toca tu foto con el + para publicar uno. Las historias se crean desde tu perfil y se ven en Shorts. Entre los Shorts aparecen tarjetas de dramas: al tocarlas se abre el drama en su primer capítulo.' },
   { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. Los grupos tienen sus propios administradores y reglas.' },
-  { art: 'perfil', title: 'Tu perfil', text: 'En tu perfil está tu foto, tu biografía y tus publicaciones, con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos. Toca el engrane para ir a Ajustes.' }
+  { art: 'perfil', title: 'Tu perfil', text: 'En tu perfil está tu foto, tu biografía y tus publicaciones, con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos. Los eventos están en tu perfil, donde estaba el navegador. Toca el engrane para ir a Ajustes.' } /* Web 1.2: los Eventos están en el perfil. */
 ];
 /* Ilustración estática de cada paso: un teléfono con la pantalla de la
    app dibujada con rectángulos y círculos (sin fotos, sin animales, sin
@@ -18672,7 +18610,6 @@ window.__wordredTest = {
   hideOverlay: hideOverlay,
   toast: toast,
   esc: esc,
-  foldSearch: foldSearch,
   pickCatalogSong: pickCatalogSong,
   toggleSong: function (id) { return window.__wrToggleSong(id); },
   toggleSongPreview: toggleSongPreview,
@@ -18959,9 +18896,6 @@ window.__wordredTest = {
   kdInterleaveDramas1562: kdInterleaveDramas1562,
   /* 1.5.63: portada vertical del drama (fotograma real del video). */
   kdPoster1563: kdPoster1563,
-  kdSearchDramas1562: kdSearchDramas1562,
-  homeSearchSuggest1562: homeSearchSuggest1562,
-  renderHomeSearch1562: renderHomeSearch1562,
   renderStories: renderStories,
   loadShortsItems: loadShortsItems,
   publishDueScheduled1526: publishDueScheduled1526,
@@ -19042,8 +18976,6 @@ document.querySelectorAll('#storyEditTools .chip:not(#storyEditVideoBtn1547)').f
 var storyEditVideoBtn1547 = $('storyEditVideoBtn1547');
 if (storyEditVideoBtn1547) storyEditVideoBtn1547.addEventListener('click', function () { if (storyEdit.media) openVideoEditor('story', -1, storyEdit.media.src, null); });
 $('storyEditPublish').addEventListener('click', publishStoryEdited);
-$('feedEventsBtn').addEventListener('click', function () { go('events'); });
-$('feedPagesBtn').addEventListener('click', function () { go('pages'); });
 /* 1.5.44: el arranque decide primero con la sesión guardada, sin
    parpadear la pantalla de cuentas (v2.1: el invitado sigue disponible
    con su botón en la pantalla de cuentas/registro). */

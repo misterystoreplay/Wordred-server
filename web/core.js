@@ -2632,48 +2632,9 @@ function searchAll(state, phone, query) {
   if (isTag) out.hashtags = [tag];
   return out;
 }
-/* 1.5.62: pliegue sin tildes ni mayúsculas (para el buscador del
-   inicio). La vista «Buscar» sigue usando searchAll sin cambios. */
-function foldSearchText1562(s) {
-  try { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) { return String(s || '').toLowerCase(); }
-}
-/* 1.5.62: la misma búsqueda que searchAll (mismo índice y mismas
-   reglas: ejemplos ocultos, bloqueados, lo que se puede ver, #etiqueta),
-   pero sin tildes ni mayúsculas: el pliegue se aplica a la consulta y
-   a los campos. La usa el buscador del inicio. */
-function searchAllFolded1562(state, phone, query) {
-  phone = normPhone(phone);
-  var q = foldSearchText1562(String(query || '').trim());
-  var hideExamples = shouldHideExamples(state);
-  var out = { people: [], posts: [], groups: [], hashtags: [] };
-  if (!q) return out;
-  var isTag = q.charAt(0) === '#';
-  var tag = isTag ? q.slice(1) : q;
-  Object.keys(state.profiles).forEach(function (p) {
-    var prof = state.profiles[p];
-    if (hideExamples && prof.isDemo) return;
-    if (isBlockedBetween(state, phone, p)) return;
-    if (foldSearchText1562(prof.name || '').indexOf(q) >= 0 || p.indexOf(q.replace(/\D/g, '')) >= 0) {
-      out.people.push(prof);
-    }
-  });
-  state.posts.forEach(function (post) {
-    if (hideExamples && post.isDemo) return;
-    if (!canSeePost(state, phone, post)) return;
-    var hay = foldSearchText1562((post.text || '') + ' ' + (post.link ? (post.link.title || '') + ' ' + (post.link.desc || '') + ' ' + (post.link.host || '') + ' ' + (post.link.url || '') : ''));
-    if (isTag) {
-      if (extractHashtags(post.text).map(foldSearchText1562).indexOf(tag) >= 0) out.posts.push(post);
-    } else if (hay.indexOf(q) >= 0) {
-      out.posts.push(post);
-    }
-  });
-  state.groups.forEach(function (g) {
-    if (foldSearchText1562(g.name || '').indexOf(q) >= 0 || foldSearchText1562(g.desc || '').indexOf(q) >= 0) out.groups.push(g);
-  });
-  if (isTag) out.hashtags = [tag];
-  return out;
-}
-
+/* Web 1.2: el buscador del Inicio se quitó, así que foldSearchText1562
+   y searchAllFolded1562 (1.5.62) ya no se usan; la vista «Buscar» sigue
+   con searchAll sin cambios. */
 /* ---------------- personalización de perfil (v1.1) ---------------- */
 var FRAMES = [
   { id: 'none', name: 'Sin marco' },
@@ -4310,7 +4271,7 @@ var api = {
   markGroupChatRead: markGroupChatRead, mergeGroupChats: mergeGroupChats, findGroupChat: findGroupChat,
   userActivity: userActivity,
   notify: notify, unreadNotifications: unreadNotifications, markNotificationsRead: markNotificationsRead, isDemoNotif: isDemoNotif,
-  feedFor: feedFor, searchAll: searchAll, searchAllFolded1562: searchAllFolded1562, seedDemo: seedDemo,
+  feedFor: feedFor, searchAll: searchAll, seedDemo: seedDemo,
   demoAvatarSvg: demoAvatarSvg, demoCoverSvg: demoCoverSvg, demoPhotoSvg: demoPhotoSvg,
   APP_COLOR_DEFAULT: APP_COLOR_DEFAULT, APP_COLOR_PRESETS: APP_COLOR_PRESETS,
   LIKE_COLOR_DEFAULT: LIKE_COLOR_DEFAULT, likeColorFor: likeColorFor,
