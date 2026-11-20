@@ -1,5 +1,5 @@
 'use strict';
-/* Pruebas del servidor WordRed 4.9 — los datos quedan PARA SIEMPRE en
+/* Pruebas del servidor WordRed 5.0 — los datos quedan PARA SIEMPRE en
    MongoDB (y el respaldo JSON sigue funcionando sin MONGODB_URI).
    Se arranca el servidor de verdad como proceso hijo (node server.js)
    contra un MongoDB en memoria (mongodb-memory-server) y se comprueba
@@ -9,6 +9,7 @@
    Salida: "N PASS, 0 FAIL" y código 0 si todo va bien. */
 const { spawn } = require('child_process');
 const http = require('http');
+const net = require('net');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -17,6 +18,33 @@ const { MongoClient } = require('mongodb');
 const WebSocket = require('ws');
 
 const SERVER_DIR = path.join(__dirname, '..');
+/* Limpieza en caso de crash: los hijos que arranca la suite (servidores
+   node server.js y el mongod en memoria) se registran aquí para que el
+   .catch final los pare antes de salir. Sin esto, un crash dejaba el
+   servidor huérfano en el puerto (el run siguiente leía sus datos) y el
+   directorio mongo-mem-* en /tmp (505 MB acumulados llegaron a llenar
+   el tmpfs de 512 MB y tumbaron el mongod del run 3). */
+var _testProcs = [];
+var _testMongod = null;
+async function _stopAllTestChildren() {
+  for (const p of _testProcs) { try { if (p && p.exitCode === null) { p.kill('SIGKILL'); } } catch (e) {} }
+  if (_testMongod) { try { await _testMongod.stop(); } catch (e) {} }
+  await sleep(300);
+}
+/* Un crash fuera de la promesa principal (p. ej. un 'error' de WebSocket
+   sin handler) también debe limpiar antes de salir: sin esto, el run
+   siguiente encontraba el puerto ocupado y leía los datos del run
+   anterior. */
+process.on('uncaughtException', async (e) => {
+  console.error('EXCEPCIÓN NO CAPTURADA: ' + (e && e.stack ? e.stack : e));
+  await _stopAllTestChildren();
+  process.exit(1);
+});
+process.on('unhandledRejection', async (e) => {
+  console.error('PROMESA RECHAZADA SIN CAPTURAR: ' + (e && e.stack ? e.stack : e));
+  await _stopAllTestChildren();
+  process.exit(1);
+});
 let pass = 0, fail = 0;
 const failures = [];
 function check(name, ok, extra) {
@@ -64,9 +92,13 @@ function downloadApk(port, p) {
     }).on('error', () => resolve({ status: 0, contentType: '', bytes: 0 }));
   });
 }
-async function waitHealth(port, timeoutMs) {
+async function waitHealth(port, timeoutMs, proc) {
   const end = Date.now() + (timeoutMs || 60000);
   while (Date.now() < end) {
+    /* Si el hijo ya murió (p. ej. EADDRINUSE porque un servidor huérfano
+       de un run anterior sigue en el puerto), NO hablar con el huérfano:
+       fallar rápido para que el run no lea datos de otro run. */
+    if (proc && proc.exitCode !== null) return null;
     const r = await api(port, 'GET', '/api/health');
     if (r.status === 200 && r.json && r.json.ok) return r.json;
     await sleep(250);
@@ -79,6 +111,7 @@ function startServer(port, envExtra) {
   delete env.TWILIO_SID; delete env.TWILIO_TOKEN; delete env.TWILIO_FROM;
   delete env.SMTP_HOST; delete env.SMTP_USER; delete env.SMTP_PASS;
   const proc = spawn('node', ['server.js'], { cwd: SERVER_DIR, env });
+  _testProcs.push(proc);
   let out = '';
   proc.stdout.on('data', d => { out += d; });
   proc.stderr.on('data', d => { out += d; });
@@ -93,6 +126,7 @@ function startServerDir(port, dir, envExtra) {
   delete env.TWILIO_SID; delete env.TWILIO_TOKEN; delete env.TWILIO_FROM;
   delete env.SMTP_HOST; delete env.SMTP_USER; delete env.SMTP_PASS;
   const proc = spawn('node', ['server.js'], { cwd: dir, env });
+  _testProcs.push(proc);
   let out = '';
   proc.stdout.on('data', d => { out += d; });
   proc.stderr.on('data', d => { out += d; });
@@ -131,7 +165,26 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
 }
 
 (async () => {
+  /* Antes de arrancar nada: los puertos de prueba deben estar LIBRES.
+     Si un run anterior dejó un servidor huérfano (crash sin limpieza),
+     el health check le hablaría a ÉL y el run leería sus datos viejos
+     (eso tumbó los runs 2 y 4: fantore 3.5/2 del run anterior). Fallar
+     aquí, en voz alta, es mejor que un run contaminado. */
+  const TEST_PORTS = [34531, 34532, 34533, 34534, 34535];
+  for (const p of TEST_PORTS) {
+    const busy = await new Promise((resolve) => {
+      const s = net.connect(p, '127.0.0.1');
+      s.on('connect', () => { s.end(); resolve(true); });
+      s.on('error', () => resolve(false));
+      setTimeout(() => { try { s.destroy(); } catch (e) {} resolve(false); }, 2000);
+    });
+    if (busy) {
+      console.error('PUERTO OCUPADO: 127.0.0.1:' + p + ' ya responde. Hay un servidor huérfano de un run anterior: mátalo antes de correr las pruebas (ps -eo pid,args | grep server.js).');
+      process.exit(1);
+    }
+  }
   const mongod = await MongoMemoryServer.create();
+  _testMongod = mongod;
   const uri = mongod.getUri();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wordred-test31-'));
   const PORT = 34531;
@@ -141,8 +194,8 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
 
   /* ---- modo MongoDB ---- */
   let proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
-  let health = await waitHealth(PORT);
-  check('4.4 MongoDB: /api/health dice version 4.9', !!(health && health.version === '4.9'), health);
+  let health = await waitHealth(PORT, undefined, proc);
+  check('4.4 MongoDB: /api/health dice version 5.0', !!(health && health.version === '5.0'), health);
   check('3.6 MongoDB: /api/health dice storage mongodb y mongo true', !!(health && health.storage === 'mongodb' && health.mongo === true), health);
 
   /* ---- actualización de la app (v3.5): GET /api/app/latest y
@@ -545,7 +598,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const verMissingB = (verStatusB.json && verStatusB.json.missing || []).map(m => m.key);
   check('3.8 MongoDB: el estado de verificación de B dice que NO está verificado y qué le falta (perfil, antigüedad, publicaciones; no teléfono)', !!(verStatusB.json && verStatusB.json.ok && verStatusB.json.verified === false && verMissingB.includes('perfil') && verMissingB.includes('antiguedad') && verMissingB.includes('publicaciones') && !verMissingB.includes('telefono')), verStatusB.json);
   const verReqB = await api(PORT, 'POST', '/api/verification/request', {}, regB.token);
-  check('3.8 MongoDB: pedir la verificación sin cumplir devuelve ok:false con lo que falta (no finge la concesión)', !!(verReqB.json && verReqB.json.ok === false && verReqB.json.verified === false && Array.isArray(verReqB.json.missing) && verReqB.json.missing.length === 3), verReqB.json);
+  check('3.8 MongoDB: pedir la verificación sin cumplir devuelve ok:true + pendiente con lo que falta (Web 1.5: ya no se concede sola, la revisa el dueño)', !!(verReqB.json && verReqB.json.ok === true && verReqB.json.pending === true && verReqB.json.verified === false && Array.isArray(verReqB.json.missing) && verReqB.json.missing.length === 3), verReqB.json);
   const verNoAuth = await api(PORT, 'GET', '/api/verification/status', null, null);
   check('3.8 MongoDB: el estado de verificación sin sesión da 401', verNoAuth.status === 401, verNoAuth);
 
@@ -709,7 +762,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const notifA1 = await api(PORT, 'GET', '/api/notifications?phone=' + PHONE_A);
   check('3.8 MongoDB: con B silenciado, a A NO le llega el aviso del comentario (misma cantidad)', !!((notifA1.json && notifA1.json.notifications || []).length === notifA0Count), (notifA1.json && notifA1.json.notifications || []).length);
   const feedMuted = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_A);
-  check('3.8 MongoDB: silenciar NO oculta las publicaciones de B en el inicio (siguen viéndose)', !!(feedMuted.json && feedMuted.json.ok && feedMuted.json.posts.some(p => p.author === PHONE_B)), feedMuted.json && feedMuted.json.posts.length);
+  check('3.8 MongoDB: silenciar SÍ oculta las publicaciones de B en el inicio (Web 1.5, función 38: el silencio ahora oculta, no solo apaga avisos)', !!(feedMuted.json && feedMuted.json.ok && !feedMuted.json.posts.some(p => p.author === PHONE_B)), feedMuted.json && feedMuted.json.posts.length);
   const mutDel = await api(PORT, 'DELETE', '/api/muted/' + PHONE_B, null, regA.token);
   check('3.8 MongoDB: A quita el silencio a B', !!(mutDel.json && mutDel.json.ok && !mutDel.json.muted.some(m => m.phone === PHONE_B)), mutDel.json);
   const cmtUnmuted = await api(PORT, 'POST', '/api/posts/' + postId + '/comment', { text: 'Comentario con B ya sin silencio' }, regB.token);
@@ -1040,8 +1093,8 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.3 MongoDB: la publicación para la prueba de fallo está en MongoDB', !!failPostInMongo);
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir, WORDRED_TEST_FAIL_WRITES: '1' });
-  health = await waitHealth(PORT);
-  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 4.9', !!(health && health.version === '4.9' && health.storage === 'mongodb'), health);
+  health = await waitHealth(PORT, undefined, proc);
+  check('3.8 MongoDB: con las escrituras rotas, el servidor arranca y /api/health sigue diciendo 5.0', !!(health && health.version === '5.0' && health.storage === 'mongodb'), health);
   const delFail = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con MongoDB roto, DELETE devuelve 500 (no un éxito falso)', delFail.status === 500 && !!(delFail.json && delFail.json.ok === false), delFail);
   check('3.3 MongoDB: con MongoDB roto, DELETE explica el error real', !!(delFail.json && delFail.json.error && delFail.json.error.indexOf('No se pudo guardar el borrado') >= 0), delFail.json && delFail.json.error);
@@ -1051,8 +1104,8 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   check('3.3 MongoDB: con MongoDB roto, la publicación SIGUE en la colección posts de MongoDB', !!failPostStillMongo);
   await stopServer(proc);
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
-  health = await waitHealth(PORT);
-  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '4.9'), health);
+  health = await waitHealth(PORT, undefined, proc);
+  check('3.3 MongoDB: con las escrituras sanas de nuevo, el servidor arranca', !!(health && health.version === '5.0'), health);
   const delFailOk = await api(PORT, 'DELETE', '/api/posts/' + failPostId, null, regA.token);
   check('3.3 MongoDB: con las escrituras sanas, el borrado sí funciona (DELETE ok)', !!(delFailOk.json && delFailOk.json.ok), delFailOk);
   const feedFailOk = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
@@ -1079,8 +1132,8 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   await mcBack.close();
   check('3.8 MongoDB: la antigüedad de A se atrasó 8 días en MongoDB (para probar la verificación)', backRes.matchedCount === 1 && backRes.modifiedCount === 1, { matchedCount: backRes.matchedCount, modifiedCount: backRes.modifiedCount });
   proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
-  health = await waitHealth(PORT);
-  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 4.9 y storage mongodb', !!(health && health.version === '4.9' && health.storage === 'mongodb'), health);
+  health = await waitHealth(PORT, undefined, proc);
+  check('3.3 MongoDB: tras reiniciar, /api/health sigue diciendo version 5.0 y storage mongodb', !!(health && health.version === '5.0' && health.storage === 'mongodb'), health);
 
   const feedB2 = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   check('3.3 MongoDB: tras reiniciar, la publicación de A sigue ahí y B la sigue viendo', !!(feedB2.json && feedB2.json.ok && feedB2.json.posts.some(p => p.id === postId)), feedB2.json && feedB2.json.posts.length);
@@ -1121,14 +1174,14 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const verStatusA = await api(PORT, 'GET', '/api/verification/status', null, regA.token);
   check('3.8 MongoDB: A (foto, biografía, 8 días, 5 publicaciones) cumple TODOS los criterios', !!(verStatusA.json && verStatusA.json.ok && verStatusA.json.verified === false && verStatusA.json.missing.length === 0), verStatusA.json);
   const verReqA = await api(PORT, 'POST', '/api/verification/request', {}, regA.token);
-  check('3.8 MongoDB: A pide la verificación y el servidor la CONCEDE (criterios reales)', !!(verReqA.json && verReqA.json.ok === true && verReqA.json.verified === true), verReqA.json);
+  check('3.8 MongoDB: A pide la verificación y queda PENDIENTE para el dueño (Web 1.5: ya no se concede sola)', !!(verReqA.json && verReqA.json.ok === true && verReqA.json.pending === true && verReqA.json.verified === false), verReqA.json);
   const profAVer = await api(PORT, 'GET', '/api/profile/' + PHONE_A);
-  check('3.8 MongoDB: el perfil de A ya lleva verified true', !!(profAVer.json && profAVer.json.ok && profAVer.json.profile.verified === true), profAVer.json && profAVer.json.profile);
+  check('3.8 MongoDB: el perfil de A sigue sin verificar hasta que el dueño conceda', !!(profAVer.json && profAVer.json.ok && profAVer.json.profile.verified === false), profAVer.json && profAVer.json.profile);
   const verReqA2 = await api(PORT, 'POST', '/api/verification/request', {}, regA.token);
-  check('3.8 MongoDB: pedirla otra vez no la duplica (already true)', !!(verReqA2.json && verReqA2.json.ok === true && verReqA2.json.verified === true && verReqA2.json.already === true), verReqA2.json);
+  check('3.8 MongoDB: pedirla otra vez sigue pendiente (no se duplica la solicitud)', !!(verReqA2.json && verReqA2.json.ok === true && verReqA2.json.pending === true && verReqA2.json.verified === false), verReqA2.json);
   const feedVer = await api(PORT, 'GET', '/api/feed?phone=' + PHONE_B);
   const profAInFeed = feedVer.json && feedVer.json.profiles.find(p => p.phone === PHONE_A);
-  check('3.8 MongoDB: la insignia viaja con el perfil en el inicio (verified true)', !!(profAInFeed && profAInFeed.verified === true), profAInFeed);
+  check('3.8 MongoDB: la insignia NO viaja con el perfil hasta que el dueño la conceda (verified false)', !!(profAInFeed && profAInFeed.verified === false), profAInFeed);
 
 
   /* ---- 4.4: aprobación de promociones por cuenta principal (sin app
@@ -1161,7 +1214,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT3 = 34533;
   const proc3 = startServer(PORT3, { MONGODB_URI: uri, DATA_DIR: dataDir44, OWNER_EMAIL: OWNER_EMAIL_44 });
   const health3 = await waitHealth(PORT3);
-  check('4.4 dueño: el servidor con OWNER_EMAIL arranca (health 4.9)', !!(health3 && health3.version === '4.9'), health3);
+  check('4.4 dueño: el servidor con OWNER_EMAIL arranca (health 5.0)', !!(health3 && health3.version === '5.0'), health3);
   const reg44D = await register(PORT3, '526666666666');
   const reg44E = await register(PORT3, '527777777777');
   check('4.4 promociones: dos teléfonos se registran en el servidor del dueño', reg44D.ok && reg44E.ok, { reg44D, reg44E });
@@ -1251,7 +1304,7 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const PORT2 = 34532;
   const proc2 = startServer(PORT2, { DATA_DIR: jsonDir });
   const health2 = await waitHealth(PORT2);
-  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 4.9, storage json y mongo false', !!(health2 && health2.version === '4.9' && health2.storage === 'json' && health2.mongo === false), health2);
+  check('3.7 JSON: sin MONGODB_URI, /api/health dice version 5.0, storage json y mongo false', !!(health2 && health2.version === '5.0' && health2.storage === 'json' && health2.mongo === false), health2);
   const regJ = await register(PORT2, '524444444444');
   check('3.3 JSON: el registro sigue funcionando sin MongoDB', regJ.ok, regJ);
   const postJ = await api(PORT2, 'POST', '/api/posts', { text: 'Publicación en modo JSON' }, regJ.token);
@@ -1291,14 +1344,263 @@ async function waitMongoValue(uri, coll, pred, timeoutMs) {
   const proc4 = startServerDir(PORT4, origDir, { DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'wordred-test46-origdata-')) });
   const health4 = await waitHealth(PORT4);
   const kdOrig = await api(PORT4, 'GET', '/api/kdramas');
-  check('4.6 dramas: con un kdramas.json de dramas originales, GET /api/kdramas lo sirve (forma antigua aceptada)', !!(health4 && health4.version === '4.9' && kdOrig.json && kdOrig.json.ok && kdOrig.json.kdramas.length === 1 && kdOrig.json.kdramas[0].chapters && kdOrig.json.kdramas[0].chapters[0].text && kdOrig.json.kdramas[0].chapters[0].text.length > 100), kdOrig.json);
+  check('4.6 dramas: con un kdramas.json de dramas originales, GET /api/kdramas lo sirve (forma antigua aceptada)', !!(health4 && health4.version === '5.0' && kdOrig.json && kdOrig.json.ok && kdOrig.json.kdramas.length === 1 && kdOrig.json.kdramas[0].chapters && kdOrig.json.kdramas[0].chapters[0].text && kdOrig.json.kdramas[0].chapters[0].text.length > 100), kdOrig.json);
   await stopServer(proc4);
+
+  /* ===== 5.0 Web 1.5: push, dramas seguidos, estadísticas, verificación
+     por el dueño, reacciones, archivado, presencia, No molestar,
+     historias programadas/archivadas, exportación, nombre único,
+     mensajes autodestructivos, borrar para todos, eventos de grupo y
+     menciones en publicaciones. ===== */
+  const U1 = '528111111111', U2 = '529222222222', U3 = '520333333333';
+  /* El servidor principal se detuvo en la sección 4.4: se vuelve a
+     arrancar para la sección 5.0. */
+  proc = startServer(PORT, { MONGODB_URI: uri, DATA_DIR: dataDir });
+  await waitHealth(PORT, undefined, proc);
+  const regU1 = await register(PORT, U1);
+  const regU2 = await register(PORT, U2);
+  const regU3 = await register(PORT, U3);
+  check('5.0: tres teléfonos nuevos se registran', regU1.ok && regU2.ok && regU3.ok, { regU1, regU2, regU3 });
+  const health50 = await api(PORT, 'GET', '/api/health');
+  check('5.0: /api/health dice version 5.0', !!(health50.json && health50.json.version === '5.0'), health50.json);
+  check('5.0 push: sin claves VAPID el servidor arranca con push desactivado', health50.json && health50.json.push === false, health50.json);
+  const vapidKey = await api(PORT, 'GET', '/api/push/vapid-public-key');
+  check('5.0 push: sin claves, la clave pública responde enabled false', !!(vapidKey.json && vapidKey.json.ok && vapidKey.json.enabled === false && vapidKey.json.publicKey === ''), vapidKey.json);
+  const fakeSub = { endpoint: 'https://push.test/endpoint-5-0', keys: { p256dh: 'p256dh-prueba', auth: 'auth-prueba' } };
+  const subOk = await api(PORT, 'POST', '/api/push/subscribe', { subscription: fakeSub }, regU1.token);
+  check('5.0 push: suscribirse guarda la suscripción (aunque el push esté apagado)', !!(subOk.json && subOk.json.ok && subOk.json.enabled === false), subOk.json);
+  const subBad = await api(PORT, 'POST', '/api/push/subscribe', { subscription: { endpoint: '' } }, regU1.token);
+  check('5.0 push: suscripción sin endpoint responde 400', subBad.status === 400, subBad.json);
+  const unsubOk = await api(PORT, 'POST', '/api/push/unsubscribe', { endpoint: fakeSub.endpoint }, regU1.token);
+  check('5.0 push: desuscribirse responde ok', !!(unsubOk.json && unsubOk.json.ok), unsubOk.json);
+  const kd50 = await api(PORT, 'GET', '/api/kdramas');
+  const series50 = kd50.json && kd50.json.kdramas && kd50.json.kdramas[0];
+  check('5.0 dramas: el catálogo sigue sirviendo series', !!series50, kd50.json && kd50.json.kdramas && kd50.json.kdramas.length);
+  const folOk = await api(PORT, 'POST', '/api/dramas/' + series50.id + '/follow', null, regU1.token);
+  check('5.0 dramas: seguir una serie responde ok', !!(folOk.json && folOk.json.ok && folOk.json.follows.includes(series50.id)), folOk.json);
+  const folList = await api(PORT, 'GET', '/api/dramas/follows', null, regU1.token);
+  check('5.0 dramas: la lista de seguidos trae la serie', !!(folList.json && folList.json.ok && folList.json.follows.includes(series50.id)), folList.json);
+  const folBad = await api(PORT, 'POST', '/api/dramas/no-existe/follow', null, regU1.token);
+  check('5.0 dramas: seguir una serie que no existe responde 404', folBad.status === 404, folBad.json);
+  const unfolOk = await api(PORT, 'POST', '/api/dramas/' + series50.id + '/unfollow', null, regU1.token);
+  check('5.0 dramas: dejar de seguir responde ok y la quita', !!(unfolOk.json && unfolOk.json.ok && !unfolOk.json.follows.includes(series50.id)), unfolOk.json);
+  const visOk = await api(PORT, 'POST', '/api/stats/visit', {});
+  check('5.0 stats: una visita se cuenta', !!(visOk.json && visOk.json.ok), visOk.json);
+  const dvOk = await api(PORT, 'POST', '/api/stats/drama-view', { seriesId: series50.id });
+  check('5.0 stats: una vista de drama se cuenta', !!(dvOk.json && dvOk.json.ok && dvOk.json.views >= 1), dvOk.json);
+  const statsNoOwner = await api(PORT, 'GET', '/api/stats', null, regU1.token);
+  check('5.0 stats: sin OWNER_EMAIL en el servidor, las estadísticas responden 503', statsNoOwner.status === 503, statsNoOwner);
+  /* Servidor con dueño (para verificación, estadísticas y reportes). */
+  const OWNER_EMAIL_50 = 'dueno-50@wordred.test';
+  const OWNER_TOKEN_50 = 'tok-dueno-50-prueba';
+  {
+    const seedClient = new MongoClient(uri);
+    await seedClient.connect();
+    const authDoc = await seedClient.db('wordred').collection('auth').findOne({ _id: 'data' });
+    const authMap = (authDoc && authDoc.value && typeof authDoc.value === 'object') ? authDoc.value : {};
+    authMap[OWNER_EMAIL_50] = { token: OWNER_TOKEN_50, tokenAt: Date.now(), verified: true, codeHash: '' };
+    await seedClient.db('wordred').collection('auth').updateOne({ _id: 'data' }, { $set: { value: authMap } }, { upsert: true });
+    await seedClient.close();
+  }
+  const PORT5 = 34535;
+  const dataDir50 = fs.mkdtempSync(path.join(os.tmpdir(), 'wordred-test50-'));
+  /* Historia caducada sembrada en Mongo ANTES de arrancar el servidor
+     del dueño (el servidor carga las historias al arrancar). */
+  {
+    const seedClient = new MongoClient(uri);
+    await seedClient.connect();
+    const stDoc = await seedClient.db('wordred').collection('stories').findOne({ _id: 'data' });
+    const stArr = (stDoc && Array.isArray(stDoc.value)) ? stDoc.value : [];
+    stArr.unshift({ id: 'story-caducada-5-0', author: U1, text: 'Historia caducada 5.0', media: '', mediaType: '', createdAt: Date.now() - 25 * 60 * 60 * 1000, views: [], likes: {}, comments: [], shares: [], status: 'live' });
+    await seedClient.db('wordred').collection('stories').updateOne({ _id: 'data' }, { $set: { value: stArr } }, { upsert: true });
+    await seedClient.close();
+  }
+  const proc5 = startServer(PORT5, { MONGODB_URI: uri, DATA_DIR: dataDir50, OWNER_EMAIL: OWNER_EMAIL_50 });
+  const health5 = await waitHealth(PORT5, undefined, proc5);
+  check('5.0 dueño: el servidor con OWNER_EMAIL arranca (health 5.0)', !!(health5 && health5.version === '5.0'), health5);
+  const statsOk = await api(PORT5, 'GET', '/api/stats', null, OWNER_TOKEN_50);
+  check('5.0 stats: el dueño ve las estadísticas (visitas y dramas)', !!(statsOk.json && statsOk.json.ok && statsOk.json.visitsTotal >= 1 && Array.isArray(statsOk.json.topDramas) && statsOk.json.topDramas.some(function (d) { return d.seriesId === series50.id; })), statsOk.json);
+  const statsOther = await api(PORT5, 'GET', '/api/stats', null, regU1.token);
+  check('5.0 stats: una cuenta que no es el dueño responde 403', statsOther.status === 403, statsOther);
+  /* Verificación: la solicitud ya NO se concede sola; solo el dueño. */
+  const profU1 = await api(PORT5, 'POST', '/api/profile', { name: 'Prueba Uno 5.0', bio: 'Biografía de prueba para verificar.' }, regU1.token);
+  check('5.0 perfil: U1 crea su perfil', !!(profU1.json && profU1.json.ok), profU1.json);
+  const verReq = await api(PORT5, 'POST', '/api/verification/request', {}, regU1.token);
+  check('5.0 verificación: la solicitud queda pendiente (no se concede sola)', !!(verReq.json && verReq.json.ok && verReq.json.pending === true && verReq.json.verified === false), verReq.json);
+  const verList = await api(PORT5, 'GET', '/api/verification/requests', null, OWNER_TOKEN_50);
+  check('5.0 verificación: el dueño ve la solicitud pendiente', !!(verList.json && verList.json.ok && verList.json.requests.some(function (r) { return r.phone === U1; })), verList.json);
+  const verReq2 = await api(PORT5, 'POST', '/api/verification/request', {}, regU1.token);
+  const verList2 = await api(PORT5, 'GET', '/api/verification/requests', null, OWNER_TOKEN_50);
+  check('5.0 verificación: pedirla otra vez no duplica la solicitud', !!(verReq2.json && verReq2.json.ok && verReq2.json.pending === true && verList2.json && verList2.json.requests.filter(function (r) { return r.phone === U1; }).length === 1), verList2.json);
+  const verOther = await api(PORT5, 'POST', '/api/verify/' + U1, null, regU2.token);
+  check('5.0 verificación: conceder con otra cuenta responde 403', verOther.status === 403, verOther);
+  const verOk = await api(PORT5, 'POST', '/api/verify/' + U1, null, OWNER_TOKEN_50);
+  check('5.0 verificación: el dueño concede la insignia', !!(verOk.json && verOk.json.ok && verOk.json.verified === true), verOk.json);
+  const feed50 = await api(PORT5, 'GET', '/api/feed?phone=' + U1);
+  check('5.0 verificación: el perfil servido trae verified true', !!(feed50.json && feed50.json.ok && feed50.json.profiles.some(function (p) { return p.phone === U1 && p.verified === true; })), feed50.json && feed50.json.profiles && feed50.json.profiles.length);
+  const unverOk = await api(PORT5, 'POST', '/api/unverify/' + U1, null, OWNER_TOKEN_50);
+  check('5.0 verificación: el dueño quita la insignia', !!(unverOk.json && unverOk.json.ok && unverOk.json.verified === false), unverOk.json);
+  /* Nombre único. */
+  const profU2 = await api(PORT5, 'POST', '/api/profile', { name: 'Nombre Unico 5.0' }, regU2.token);
+  check('5.0 perfil: U2 crea su perfil con nombre único', !!(profU2.json && profU2.json.ok), profU2.json);
+  const profDup = await api(PORT5, 'POST', '/api/profile', { name: 'nombre unico 5.0' }, regU3.token);
+  check('5.0 perfil: otro nombre igual (sin importar mayúsculas) responde 409', profDup.status === 409, profDup.json);
+  const profU3 = await api(PORT5, 'POST', '/api/profile', { name: 'Prueba Tres 5.0' }, regU3.token);
+  check('5.0 perfil: U3 crea su perfil', !!(profU3.json && profU3.json.ok), profU3.json);
+  /* Amistad U1-U2 para las menciones (solo amigos se pueden mencionar). */
+  const frReq = await api(PORT5, 'POST', '/api/friends/request', { to: U2 }, regU1.token);
+  check('5.0 amigos: U1 pide amistad a U2', !!(frReq.json && frReq.json.ok && frReq.json.request && frReq.json.request.id), frReq.json);
+  const frResp = await api(PORT5, 'POST', '/api/friends/respond', { requestId: frReq.json.request.id, accept: true }, regU2.token);
+  check('5.0 amigos: U2 acepta', !!(frResp.json && frResp.json.ok), frResp.json);
+  /* Publicación con mención, reacciones, comentario con reacción, fijar y editar. */
+  const post50 = await api(PORT5, 'POST', '/api/posts', { text: 'Publicación 5.0 con mención', mentions: [{ phone: U2 }] }, regU1.token);
+  const post50Id = post50.json && post50.json.post && post50.json.post.id;
+  check('5.0 menciones: la publicación guarda la mención', !!(post50.json && post50.json.ok && post50Id && post50.json.post.mentions && post50.json.post.mentions.some(function (m) { return m.phone === U2; })), post50.json);
+  const notifU2 = await api(PORT5, 'GET', '/api/notifications?phone=' + U2, null, regU2.token);
+  check('5.0 menciones: el mencionado recibe el aviso en la campana', !!(notifU2.json && notifU2.json.ok && (notifU2.json.notifications || []).some(function (n) { return n.type === 'mention' && n.refId === post50Id; })), notifU2.json && notifU2.json.notifications && notifU2.json.notifications.length);
+  const react50Bad = await api(PORT5, 'POST', '/api/posts/' + post50Id + '/react', { emoji: '🤖' }, regU2.token);
+  check('5.0 reacciones: un emoji fuera del conjunto responde 400', react50Bad.status === 400, react50Bad.json);
+  const reactOk = await api(PORT5, 'POST', '/api/posts/' + post50Id + '/react', { emoji: '❤️' }, regU2.token);
+  check('5.0 reacciones: reaccionar a la publicación cuenta el emoji', !!(reactOk.json && reactOk.json.ok && reactOk.json.counts && reactOk.json.counts['❤️'] === 1), reactOk.json);
+  const reactChg = await api(PORT5, 'POST', '/api/posts/' + post50Id + '/react', { emoji: '😂' }, regU2.token);
+  check('5.0 reacciones: cambiar la reacción mueve el conteo', !!(reactChg.json && reactChg.json.ok && reactChg.json.counts['😂'] === 1 && !reactChg.json.counts['❤️']), reactChg.json);
+  const reactDel = await api(PORT5, 'POST', '/api/posts/' + post50Id + '/react', { emoji: '' }, regU2.token);
+  check('5.0 reacciones: quitar la reacción deja el conteo en cero', !!(reactDel.json && reactDel.json.ok && Object.keys(reactDel.json.counts).length === 0), reactDel.json);
+  const cmt50 = await api(PORT5, 'POST', '/api/posts/' + post50Id + '/comment', { text: 'Comentario 5.0 para reaccionar' }, regU2.token);
+  const cmt50Id = cmt50.json && cmt50.json.comment && cmt50.json.comment.id;
+  check('5.0 comentarios: U2 comenta la publicación', !!(cmt50.json && cmt50.json.ok && cmt50Id), cmt50.json);
+  const cReact = await api(PORT5, 'POST', '/api/posts/' + post50Id + '/comment/' + cmt50Id + '/react', { emoji: '👍' }, regU1.token);
+  check('5.0 comentarios: reaccionar a un comentario cuenta el emoji', !!(cReact.json && cReact.json.ok && cReact.json.counts['👍'] === 1), cReact.json);
+  const pinOther = await api(PORT5, 'POST', '/api/posts/' + post50Id + '/comment/' + cmt50Id + '/pin', null, regU2.token);
+  check('5.0 comentarios: fijar con otra cuenta (no autora) responde 403', pinOther.status === 403, pinOther);
+  const pinOk = await api(PORT5, 'POST', '/api/posts/' + post50Id + '/comment/' + cmt50Id + '/pin', null, regU1.token);
+  check('5.0 comentarios: la autora fija el comentario', !!(pinOk.json && pinOk.json.ok && pinOk.json.pinnedComment === cmt50Id), pinOk.json);
+  const pinOff = await api(PORT5, 'POST', '/api/posts/' + post50Id + '/comment/' + cmt50Id + '/pin', null, regU1.token);
+  check('5.0 comentarios: fijar de nuevo lo quita', !!(pinOff.json && pinOff.json.ok && pinOff.json.pinnedComment === null), pinOff.json);
+  const editOther = await api(PORT5, 'PUT', '/api/posts/' + post50Id + '/comment/' + cmt50Id, { text: 'Editado por otro' }, regU1.token);
+  check('5.0 comentarios: editar el comentario de otro responde 403', editOther.status === 403, editOther);
+  const editOk = await api(PORT5, 'PUT', '/api/posts/' + post50Id + '/comment/' + cmt50Id, { text: 'Comentario 5.0 editado' }, regU2.token);
+  check('5.0 comentarios: el autor edita su comentario y queda marcado editado', !!(editOk.json && editOk.json.ok && editOk.json.comment.text === 'Comentario 5.0 editado' && editOk.json.comment.edited === true), editOk.json);
+  const reply50 = await api(PORT5, 'POST', '/api/posts/' + post50Id + '/comment', { text: 'Respuesta al comentario', parentId: cmt50Id }, regU1.token);
+  check('5.0 comentarios: responder a un comentario crea el hilo', !!(reply50.json && reply50.json.ok && reply50.json.comment && reply50.json.comment.id), reply50.json);
+  /* Archivar. */
+  const archOk = await api(PORT5, 'POST', '/api/posts/' + post50Id + '/archive', null, regU1.token);
+  check('5.0 archivar: la autora archiva su publicación', !!(archOk.json && archOk.json.ok && archOk.json.archived === true), archOk.json);
+  const feedArch = await api(PORT5, 'GET', '/api/feed?phone=' + U1);
+  check('5.0 archivar: la archivada no sale en el inicio', !!(feedArch.json && feedArch.json.ok && !feedArch.json.posts.some(function (p) { return p.id === post50Id; })), feedArch.json && feedArch.json.posts && feedArch.json.posts.length);
+  const archList = await api(PORT5, 'GET', '/api/posts/archived', null, regU1.token);
+  check('5.0 archivar: la lista de archivadas la trae', !!(archList.json && archList.json.ok && archList.json.posts.some(function (p) { return p.id === post50Id; })), archList.json);
+  const unarchOk = await api(PORT5, 'POST', '/api/posts/' + post50Id + '/unarchive', null, regU1.token);
+  check('5.0 archivar: restaurar la devuelve al inicio', !!(unarchOk.json && unarchOk.json.ok && unarchOk.json.archived === false), unarchOk.json);
+  /* Una publicación por id (flujo de entrada: enlace compartido). */
+  const onePost = await api(PORT5, 'GET', '/api/posts/' + post50Id);
+  check('5.0 enlace: GET /api/posts/:id trae la publicación sin sesión', !!(onePost.json && onePost.json.ok && onePost.json.post && onePost.json.post.id === post50Id), onePost.json);
+  const onePost404 = await api(PORT5, 'GET', '/api/posts/no-existe-50');
+  check('5.0 enlace: GET /api/posts/:id con id inexistente responde 404', onePost404.status === 404, onePost404);
+  const archAgain = await api(PORT5, 'POST', '/api/posts/' + post50Id + '/archive', null, regU1.token);
+  check('5.0 enlace: archivar de nuevo para la prueba responde ok', !!(archAgain.json && archAgain.json.ok), archAgain.json);
+  const onePostArch = await api(PORT5, 'GET', '/api/posts/' + post50Id);
+  check('5.0 enlace: la archivada responde 404 por id (no se filtra)', onePostArch.status === 404, onePostArch);
+  await api(PORT5, 'POST', '/api/posts/' + post50Id + '/unarchive', null, regU1.token);
+  /* Reportes para el dueño. */
+  const repOk = await api(PORT5, 'POST', '/api/reports', { reported: U3, reason: 'spam', desc: 'Prueba 5.0', postId: post50Id }, regU1.token);
+  check('5.0 reportes: reportar con publicación responde ok', !!(repOk.json && repOk.json.ok && repOk.json.report && repOk.json.report.postId === post50Id), repOk.json);
+  const repAllOther = await api(PORT5, 'GET', '/api/reports/all', null, regU1.token);
+  check('5.0 reportes: la lista del dueño con otra cuenta responde 403', repAllOther.status === 403, repAllOther);
+  const repAll = await api(PORT5, 'GET', '/api/reports/all', null, OWNER_TOKEN_50);
+  check('5.0 reportes: el dueño ve todos los reportes con nombres', !!(repAll.json && repAll.json.ok && repAll.json.reports.some(function (r) { return r.reported === U3 && r.reporterName; })), repAll.json);
+  /* Presencia en línea. */
+  const wsU1 = new WebSocket('ws://127.0.0.1:' + PORT5 + '/ws?phone=' + U1);
+  const wsU2 = new WebSocket('ws://127.0.0.1:' + PORT5 + '/ws?phone=' + U2);
+  await new Promise(function (resolve) {
+    let n = 0;
+    const done = function () { n++; if (n >= 2) resolve(); };
+    wsU1.on('open', done); wsU2.on('open', done);
+    wsU1.on('error', done); wsU2.on('error', done);
+    setTimeout(resolve, 5000);
+  });
+  await sleep(300);
+  const presOk = await api(PORT5, 'POST', '/api/presence', { phones: [U1, U2, U3] }, regU1.token);
+  check('5.0 presencia: los conectados salen en línea y el desconectado no', !!(presOk.json && presOk.json.ok && presOk.json.online[U1] === true && presOk.json.online[U2] === true && presOk.json.online[U3] === false), presOk.json);
+  const hideOk = await api(PORT5, 'POST', '/api/profile', { name: 'Nombre Unico 5.0', showOnline: false }, regU2.token);
+  check('5.0 presencia: U2 oculta su estado', !!(hideOk.json && hideOk.json.ok), hideOk.json);
+  const presHide = await api(PORT5, 'POST', '/api/presence', { phones: [U2] }, regU1.token);
+  check('5.0 presencia: con el estado oculto ya no sale en línea', !!(presHide.json && presHide.json.ok && presHide.json.online[U2] === false), presHide.json);
+  try { wsU1.close(); } catch (e) {}
+  try { wsU2.close(); } catch (e) {}
+  /* No molestar: silencia la campana (y el push) mientras está activo. */
+  const postU2 = await api(PORT5, 'POST', '/api/posts', { text: 'Publicación de U2 para probar No molestar' }, regU2.token);
+  const postU2Id = postU2.json && postU2.json.post && postU2.json.post.id;
+  check('5.0 no molestar: U2 tiene una publicación para recibir el like', !!(postU2.json && postU2.json.ok && postU2Id), postU2.json);
+  const dndOk = await api(PORT5, 'POST', '/api/dnd', { preset: '1h' }, regU2.token);
+  check('5.0 no molestar: activar 1 hora responde ok con hora', !!(dndOk.json && dndOk.json.ok && dndOk.json.until > Date.now()), dndOk.json);
+  const dndGet = await api(PORT5, 'GET', '/api/dnd', null, regU2.token);
+  check('5.0 no molestar: está activo', !!(dndGet.json && dndGet.json.ok && dndGet.json.active === true), dndGet.json);
+  const likeDnd = await api(PORT5, 'POST', '/api/posts/' + postU2Id + '/like', {}, regU1.token);
+  check('5.0 no molestar: U1 le da like a la publicación de U2', !!(likeDnd.json && likeDnd.json.ok), likeDnd.json);
+  const notifDnd = await api(PORT5, 'GET', '/api/notifications?phone=' + U2, null, regU2.token);
+  check('5.0 no molestar: mientras está activo no se crea aviso de like', !!(notifDnd.json && notifDnd.json.ok && !(notifDnd.json.notifications || []).some(function (n) { return n.type === 'like' && n.refId === postU2Id; })), notifDnd.json && notifDnd.json.notifications && notifDnd.json.notifications.length);
+  const dndOff = await api(PORT5, 'DELETE', '/api/dnd', null, regU2.token);
+  check('5.0 no molestar: apagar responde ok', !!(dndOff.json && dndOff.json.ok), dndOff.json);
+  /* Mensajes autodestructivos y borrar para todos. */
+  const sdBad = await api(PORT5, 'POST', '/api/messages', { to: U2, text: 'Tiempo malo', disappearingMs: 123 }, regU1.token);
+  check('5.0 autodestrucción: un tiempo no válido responde 400', sdBad.status === 400, sdBad.json);
+  const sdOk = await api(PORT5, 'POST', '/api/messages', { to: U2, text: 'Se borra en 1 minuto', disappearingMs: 60000 }, regU1.token);
+  const sdId = sdOk.json && sdOk.json.message && sdOk.json.message.id;
+  check('5.0 autodestrucción: el mensaje guarda su caducidad', !!(sdOk.json && sdOk.json.ok && sdId && sdOk.json.message.expiresAt > Date.now()), sdOk.json);
+  const del50Other = await api(PORT5, 'DELETE', '/api/messages/' + sdId, null, regU2.token);
+  check('5.0 borrar: borrar el mensaje de otro responde 403', del50Other.status === 403, del50Other);
+  const del50Ok = await api(PORT5, 'DELETE', '/api/messages/' + sdId, null, regU1.token);
+  check('5.0 borrar: borrar para todos deja la marca «Mensaje eliminado»', !!(del50Ok.json && del50Ok.json.ok && del50Ok.json.message && del50Ok.json.message.deletedForAll === true && del50Ok.json.message.text === 'Mensaje eliminado'), del50Ok.json);
+  /* Web 1.5 (54): sticker propio — URL http(s) subida por la ruta de medios. */
+  const stBad = await api(PORT5, 'POST', '/api/messages', { to: U2, message: { stickerCustom: 'data:image/png;base64,AAAA' } }, regU1.token);
+  check('5.0 sticker propio: un data: no se acepta como sticker', stBad.status === 400, stBad.json);
+  const stOk = await api(PORT5, 'POST', '/api/messages', { to: U2, message: { stickerCustom: 'https://res.cloudinary.com/x/image/upload/sticker-1.png' } }, regU1.token);
+  check('5.0 sticker propio: solo el sticker se envía y se guarda', !!(stOk.json && stOk.json.ok && stOk.json.message && stOk.json.message.stickerCustom === 'https://res.cloudinary.com/x/image/upload/sticker-1.png'), stOk.json);
+  /* Historias: programada (no se ve hasta su hora) y archivo (caducada). */
+  const storySch = await api(PORT5, 'POST', '/api/stories', { story: { text: 'Historia programada 5.0', publishAt: Date.now() + 3600000 } }, regU1.token);
+  check('5.0 historias: programar una historia responde ok con estado programada', !!(storySch.json && storySch.json.ok && storySch.json.story && storySch.json.story.status === 'scheduled'), storySch.json);
+  const schList = await api(PORT5, 'GET', '/api/stories/scheduled', null, regU1.token);
+  check('5.0 historias: la lista de programadas la trae', !!(schList.json && schList.json.ok && schList.json.stories.some(function (s) { return s.id === storySch.json.story.id; })), schList.json);
+  const liveList = await api(PORT5, 'GET', '/api/stories', null, regU1.token);
+  check('5.0 historias: la programada no sale en las historias vivas', !!(liveList.json && liveList.json.ok && !liveList.json.stories.some(function (s) { return s.id === storySch.json.story.id; })), liveList.json);
+  const storyBad = await api(PORT5, 'POST', '/api/stories', { story: { text: 'Fecha pasada', publishAt: Date.now() - 1000 } }, regU1.token);
+  check('5.0 historias: programar en el pasado responde 400', storyBad.status === 400, storyBad.json);
+  await api(PORT5, 'GET', '/api/stories', null, regU1.token);
+  const archStory = await api(PORT5, 'GET', '/api/stories/archive', null, regU1.token);
+  check('5.0 historias: la caducada pasa al archivo privado', !!(archStory.json && archStory.json.ok && archStory.json.stories.some(function (s) { return s.id === 'story-caducada-5-0'; })), archStory.json);
+  const reshareOk = await api(PORT5, 'POST', '/api/stories/archive/story-caducada-5-0/reshare', null, regU1.token);
+  check('5.0 historias: volver a compartir una archivada crea una historia viva', !!(reshareOk.json && reshareOk.json.ok && reshareOk.json.story && reshareOk.json.story.status === 'live'), reshareOk.json);
+  /* Grupo 5.0 (lo usan también los eventos de grupo). */
+  const grp50 = await api(PORT5, 'POST', '/api/groups', { name: 'Grupo 5.0' }, regU1.token);
+  const grp50Id = grp50.json && grp50.json.group && grp50.json.group.id;
+  check('5.0 grupos: crear grupo responde ok', !!(grp50.json && grp50.json.ok && grp50Id), grp50.json);
+  const join50 = await api(PORT5, 'POST', '/api/groups/' + grp50Id + '/join', null, regU2.token);
+  check('5.0 grupos: U2 se une al grupo', !!(join50.json && join50.json.ok), join50.json);
+  /* Evento de grupo. */
+  const evtGrp = await api(PORT5, 'POST', '/api/events', { name: 'Evento del grupo 5.0', date: '2026-12-25', time: '18:00', groupId: grp50Id }, regU1.token);
+  check('5.0 eventos: crear un evento dentro del grupo responde ok', !!(evtGrp.json && evtGrp.json.ok && evtGrp.json.event && evtGrp.json.event.groupId === grp50Id), evtGrp.json);
+  const evtGrpList = await api(PORT5, 'GET', '/api/events?groupId=' + grp50Id);
+  check('5.0 eventos: el grupo lista su evento', !!(evtGrpList.json && evtGrpList.json.ok && evtGrpList.json.events.some(function (e) { return e.id === evtGrp.json.event.id; })), evtGrpList.json);
+  const evtNoMember = await api(PORT5, 'POST', '/api/events', { name: 'Evento ajeno', date: '2026-12-25', groupId: grp50Id }, regU3.token);
+  check('5.0 eventos: crear un evento en un grupo del que no soy miembro responde 403', evtNoMember.status === 403, evtNoMember.json);
+  /* Exportar mis datos. */
+  const expOk = await api(PORT5, 'GET', '/api/export', null, regU1.token);
+  check('5.0 exportar: mis datos traen mi perfil y mis publicaciones, no las de otros', !!(expOk.json && expOk.json.ok && expOk.json.data && expOk.json.data.profile && expOk.json.data.profile.phone === U1 && expOk.json.data.posts.every(function (p) { return p.author === U1; })), expOk.json && expOk.json.data && expOk.json.data.posts && expOk.json.data.posts.length);
+  const expNoTok = await api(PORT5, 'GET', '/api/export');
+  check('5.0 exportar: sin sesión responde 401', expNoTok.status === 401, expNoTok);
+  await stopServer(proc5);
 
   await mongod.stop();
   console.log('\n==============================');
-  console.log('Servidor WordRed 4.9 — ' + pass + ' PASS, ' + fail + ' FAIL');
+  console.log('Servidor WordRed 5.0 — ' + pass + ' PASS, ' + fail + ' FAIL');
   if (fail) { console.log('Fallos: ' + failures.join(' | ')); process.exit(1); }
-})().catch((e) => {
+  /* Salir siempre explícito: algún cliente ws/Mongo puede retener el
+     loop y el proceso quedaba colgado tras el resumen (run 5: 494/0
+     pero sin salir). */
+  process.exit(0);
+})().catch(async (e) => {
   console.error('ERROR en las pruebas: ' + (e && e.stack ? e.stack : e));
+  await _stopAllTestChildren();
   process.exit(1);
 });
