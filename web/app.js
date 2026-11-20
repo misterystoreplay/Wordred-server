@@ -8,7 +8,7 @@ var C = window.WordRedCore;
    última versión del servidor (GET /api/app/latest). Tiene que ser
    igual que versionCode/versionName del AndroidManifest.xml. */
 var APP_VERSION_CODE = 79;
-var APP_VERSION_NAME = 'Web 1.3'; /* Web 1.3: contenido de Android 1.5.64. */
+var APP_VERSION_NAME = 'Web 1.4'; /* Web 1.4: contenido de Android 1.5.64. */
 var LS_KEY = 'wordred_state_v1';
 var state = loadState();
 ensure1526State(); /* 1.5.26: rellenar los campos nuevos en estados guardados de la 1.5.25. */
@@ -3308,6 +3308,7 @@ var FAQ = [
   { q: '¿Qué hay de nuevo en la Web 1.1?', a: 'Las barras de arriba y de abajo ahora son transparentes y se ocultan solas al bajar, y vuelven al subir. Mercado está en el centro de la barra de abajo, Inicio está en rojo, y se quitaron el cajón de aplicaciones, las actualizaciones y las opciones que solo funcionan en el teléfono.' },
   { q: '¿Qué hay de nuevo en la Web 1.2?', a: 'Los 5 iconos de la barra de abajo ahora miden lo mismo y quedan equidistantes y centrados. Los Eventos se mudaron al perfil, donde estaba el navegador; la fila de Eventos y Páginas salió del Inicio, y el buscador del Inicio se quitó: para buscar, toca la lupa de la barra de arriba.' },
   { q: '¿Qué hay de nuevo en la Web 1.3?', a: 'Los Eventos del perfil ahora están abajo de «¿Qué estás pensando?», en vez de estar arriba, justo después de la cabecera. Todo lo demás sigue igual.' }, /* Web 1.3: los Eventos bajan debajo de «¿Qué estás pensando?». */
+  { q: '¿Qué hay de nuevo en la Web 1.4?', a: 'En los dramas, el botón «Saltar anuncio» de YouTube ya se puede presionar: antes la barra de abajo del visor lo tapaba. Ahora el video termina arriba de la barra y la esquina donde sale el botón queda libre. Los anuncios los pone YouTube y no se pueden quitar.' }, /* Web 1.4: el botón de saltar anuncios ya se puede presionar. */
 
 ];
 function renderFaq() {
@@ -5141,6 +5142,8 @@ function kdYtLoad1558(videoId) {
   kdYtPlaying1558 = false;
   kdYtTime1558 = 0;
   kdYtHideErr1558();
+  var stage = $('kdStage1549');
+  if (stage) stage.classList.add('kdYtOn1558'); /* Web 1.4: con el video de YouTube la barra de información va en flujo debajo del reproductor, para que «Saltar anuncio» (abajo a la derecha del reproductor) quede libre y se pueda presionar. */
   var wrap = $('kdYtWrap1558');
   if (wrap) wrap.classList.remove('hidden');
   var f = $('kdYtFrame1558');
@@ -5162,6 +5165,8 @@ function kdYtStop1558() {
   var wrap = $('kdYtWrap1558');
   if (wrap) wrap.classList.add('hidden');
   kdYtHideErr1558();
+  var stage = $('kdStage1549');
+  if (stage) stage.classList.remove('kdYtOn1558'); /* Web 1.4: al parar el video de YouTube la barra de información vuelve a tapar el reproductor como antes. */
 }
 window.__wrKdYtRetry1558 = function () { if (kdYtVideo1558) kdYtLoad1558(kdYtVideo1558); };
 /* eventos del reproductor de YouTube (API JS por postMessage). */

@@ -874,6 +874,12 @@ button:active,.chip:active{transform:scale(.95)}
 #kdramaOverlay1549 .kdSheetMember1558{font-size:13px;font-weight:700;color:#ffb3c0;white-space:nowrap}
 #kdramaOverlay1549 .kdEp1549{font-size:15px;font-weight:700;line-height:1.35;margin-bottom:10px}
 #kdramaOverlay1549 .kdInfo1549{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:14px 14px 20px;background:linear-gradient(0deg,rgba(0,0,0,.75),transparent);color:#fff}
+/* Web 1.4: con el video de YouTube, la barra de información va en flujo
+   debajo del reproductor en vez de taparlo: YouTube pone «Saltar
+   anuncio» abajo a la derecha del reproductor y la barra (107 px) lo
+   cubría y no se podía presionar. Al parar el video, la barra vuelve a
+   tapar el reproductor como antes (la clase la quita kdYtStop1558). */
+#kdramaOverlay1549 .kdStage1549.kdYtOn1558 .kdInfo1549{position:static;flex:none}
 #kdramaOverlay1549 .kdChaptersBtn1549{display:block;width:100%;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;font-size:15px;font-weight:700;cursor:pointer}
 /* 1.5.60: botón CC y menú de idiomas de los subtítulos de dramas. */
 #kdramaOverlay1549 .kdCcBtn1560{display:inline-block;margin:0 0 10px;padding:7px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;font-size:14px;font-weight:700;cursor:pointer}
@@ -2033,7 +2039,7 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
       <button type="button" class="wOptRound1542 mt" id="supportCopyBtn" aria-label="Copiar número de cuenta" title="Copiar número de cuenta"><span class="ic"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span></button>
     </div>
     <h3 class="sectitle">Acerca de</h3>
-    <p class="muted">WordRed Web 1.3 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
+    <p class="muted">WordRed Web 1.4 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
   </div>
 </div>
 

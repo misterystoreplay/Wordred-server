@@ -1,4 +1,4 @@
-# WordRed Web 1.3 — NOTAS
+# WordRed Web 1.4 — NOTAS
 
 Versión web de WordRed: se abre con un enlace en el navegador, sin
 descargar ni instalar nada. Las actualizaciones llegan solas al abrir
@@ -26,6 +26,14 @@ creación). Como invitado no hay caja «¿Qué estás pensando?», así
 que ahí los Eventos se quedan donde estaban. Todo lo demás de la
 1.2 queda igual.
 
+La Web 1.4 arregla el botón «Saltar anuncio» de los dramas: con el
+video de YouTube, la barra de información del drama (título del
+capítulo + «Ver otros capítulos») ya no tapa la esquina inferior
+derecha del reproductor — va en flujo debajo de él, y el botón de
+YouTube queda libre y se puede presionar. Los anuncios los pone
+YouTube y no se pueden quitar ni saltar por código. Todo lo demás
+de la 1.3 queda igual.
+
 ## Qué hay aquí
 
 - `index.html`, `app.js`, `core.js`, `games.js`, `ytplayer.html`,
@@ -35,9 +43,9 @@ que ahí los Eventos se quedan donde estaban. Todo lo demás de la
 - `games.js`, `ytplayer.html`, `qrcode.js`, `jsqr.js`: byte-idénticos
   a los de Android 1.5.64.
 - `app.js`, `index.html`: copias ADAPTADAS con cambios documentados,
-  cada uno marcado «Web 1.3» (la 1.2 marcó los suyos «Web 1.2», la
-  1.1 los suyos «Web 1.1» y la 1.0 los suyos «Web 1.0»). En la 1.3
-  el diff contra Android es:
+  cada uno marcado «Web 1.4» (la 1.3 marcó los suyos «Web 1.3», la
+  1.2 los suyos «Web 1.2», la 1.1 los suyos «Web 1.1» y la 1.0 los
+  suyos «Web 1.0»). En la 1.4 el diff contra Android es:
   `app.js` pierde ~1.950 líneas y `index.html` ~326; la prueba Node
   comprueba que lo quitado es solo código de cajón/actualizaciones/
   teléfono/buscador del inicio y que lo añadido lleva la marca
@@ -234,6 +242,47 @@ y que el navegador no restaure el desplazamiento al cargar).
    entradas. La versión visible queda en «Acerca de»: «WordRed
    Web 1.2 · contenido de Android 1.5.64».
 
+## Qué cambió en la Web 1.4 (todo marcado «Web 1.4»)
+
+1. **El botón «Saltar anuncio» de los dramas ya se puede presionar.**
+   Causa real, medida en el DOM: YouTube pone «Saltar anuncio»
+   abajo a la derecha del reproductor (encima de su barra de
+   controles, ~55–100 px sobre el borde inferior del iframe), y
+   la barra de información propia del visor (`.kdInfo1549`:
+   título del capítulo + botón «Ver otros capítulos», z-index 3
+   sobre el iframe z-index 1) cubría exactamente esos ~107 px
+   inferiores del escenario. El botón se veía atenuado a través
+   del degradado, pero los toques caían sobre `kdEpTitle1549` /
+   `kdChaptersBtn1549` y nunca llegaban al iframe. Medido antes
+   del arreglo a 390 px: el iframe mide 375×816 y la barra cubre
+   de y=709 a y=816; la zona de saltar (200×110 abajo a la
+   derecha) quedaba cubierta al 100%.
+2. **El arreglo, de verdad:** con el video de YouTube, la barra
+   de información deja de ser un overlay y va en flujo debajo del
+   reproductor: al cargar el video, `kdYtLoad1558` pone la clase
+   `kdYtOn1558` en el escenario (`#kdStage1549`) y el CSS
+   (`#kdramaOverlay1549 .kdStage1549.kdYtOn1558 .kdInfo1549`)
+   la deja en `position:static;flex:none`, así el reproductor
+   (`flex:1`) se encoge y el iframe termina exactamente donde
+   empieza la barra. La esquina inferior derecha del reproductor
+   queda libre y el botón de YouTube se puede presionar. Al parar
+   el video, `kdYtStop1558` quita la clase y la barra vuelve a
+   tapar el reproductor como antes (capítulos de imagen, de
+   miembros y videos originales con el reproductor propio, cuya
+   barra ya estaba a 112 px para no taparse con la información).
+   La guía de gestos, la barra de arriba y los gestos no cambian.
+3. **Los anuncios no se pueden quitar.** Los pone YouTube, no
+   WordRed: los dramas se reproducen desde los canales oficiales
+   de ReelShort/ShortMax y no hay API de YouTube para saltar
+   anuncios ni para quitarlos; tampoco se intentó ningún truco
+   para bloquearlos. Lo que se arregla es que el botón de saltar
+   quede donde se pueda presionar.
+4. **Tutorial y FAQ.** El tutorial no cambia (no hay gesto ni
+   flujo nuevo). La FAQ tiene una entrada nueva («¿Qué hay de
+   nuevo en la Web 1.4?») y quedó en 30 entradas. La versión
+   visible queda en «Acerca de»: «WordRed Web 1.4 · contenido
+   de Android 1.5.64».
+
 ## Qué se conservó y por qué (sí funciona en la web)
 
 - **Llamadas dentro de WordRed** (botón de llamada en el chat,
@@ -418,15 +467,17 @@ Por qué Pages y no las otras opciones:
 
 ## Pruebas
 
-- `node tests/test-web.js`: **268 PASS, 0 FAIL** (archivos, diffs
-  «Web 1.3» contra Android 1.5.64, sintaxis, sin referencias a lo
+- `node tests/test-web.js`: **273 PASS, 0 FAIL** (archivos, diffs
+  «Web 1.4» contra Android 1.5.64, sintaxis, sin referencias a lo
   quitado en la 1.1 ni en la 1.2, barras que se ocultan, Mercado en
   el centro, Inicio en rojo, barra simétrica, Eventos en el perfil
   abajo de «¿Qué estás pensando?», sin buscador del Inicio, regla
-  de Inicio y desplazamiento, FAQ 29,
+  de Inicio y desplazamiento, FAQ 30, botón «Saltar anuncio» libre
+  (clase kdYtOn1558 al cargar el video de YouTube y quitada al
+  pararlo),
   servidor 4.9 en vivo).
 - `tests/test-web-dom.js` (Electron + xvfb, con servidor HTTP
-  local): **24 PASS, 0 FAIL** (arranque, versión Web 1.3, pantalla
+  local): **28 PASS, 0 FAIL** (arranque, versión Web 1.4, pantalla
   de inicio, tarjetas de actualización y Windows NO EXISTEN, barra
   sin Aplicaciones ni cajón con Mercado en el centro e Inicio en
   rojo y más pequeña, barra simétrica medida en el DOM a 430, 360
@@ -439,7 +490,10 @@ Por qué Pages y no las otras opciones:
   cada run, feed dibujado, barras que se ocultan al bajar y vuelven
   al subir, regla de Inicio y desplazamiento —doble toque a arriba,
   un toque restaura la posición, cargar arriba—, drama
-  reproduciéndose y sin errores de consola). La cuenta de prueba se borra del servidor al final
+  reproduciéndose con el botón «Saltar anuncio» libre (medido en el
+  DOM a 430, 360 y 1280 px: el iframe termina donde empieza la barra
+  y nada tapa su esquina inferior derecha; al cerrar se quita la
+  clase) y sin errores de consola). La cuenta de prueba se borra del servidor al final
   de cada run (desde el proceso principal, con DELETE directo). La
   prueba usa un teléfono nuevo en cada run porque el servidor solo
   deja pedir 3 códigos por hora y por número: con un número fijo la
