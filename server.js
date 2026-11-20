@@ -444,6 +444,17 @@ let conversationSettings = loadJson('conversation-settings.json', {}); // v3.8: 
 let coupons = loadJson('coupons.json', []); // v3.8: [{code, seller, discountPct, listingId|null, expiresAt, createdAt}]
 let promoRequests = loadJson('promotion-requests.json', []); // v4.3: [{id, postId, userPhone, tier, goal, status:'pending'|'approved'|'rejected', createdAt, decidedAt}]
 let creatorConfig = loadJson('creator-config.json', null); // v4.3: {order:[ids de apartados], sizes:{id:'s'|'m'|'l'}, updatedAt} o null = predeterminado de la app
+/* Web 1.5 (servidor 5.0): suscripciones push por cuenta, dramas
+   seguidos + foto del catálogo para avisar, estadísticas de la web,
+   solicitudes de verificación, archivo de historias y recordatorios
+   de eventos ya enviados. */
+let pushSubs = loadJson('push-subscriptions.json', {}); // phone -> [{endpoint, keys:{p256dh, auth}, createdAt}]
+let dramaFollows = loadJson('drama-follows.json', { follows: {}, snapshot: {} }); // follows: phone -> [seriesId]; snapshot: seriesId -> eps
+let webStats = loadJson('web-stats.json', { visitsTotal: 0, visitsByDay: {}, dramaViews: {}, dramaViewsByDay: {} });
+let verifyRequests = loadJson('verification-requests.json', []); // [{phone, at, status:'pendiente'|'aprobada'|'rechazada'}]
+let storyArchive = loadJson('story-archive.json', {}); // phone -> [historias caducadas, solo las ve su dueño]
+let eventReminders = loadJson('event-reminders.json', {}); // eventId -> [phones ya avisados]
+let dnd = loadJson('dnd.json', {}); // Web 1.5 (5.0): phone -> {until} (no molestar hasta esa hora)
 /* (v3.1: al arrancar, los lives que quedaron abiertos se marcan como
    terminados dentro de initStore, después de cargar los datos.) */
 const codeHits = {};                                // phone -> [timestamps]
@@ -454,6 +465,24 @@ const emailCodeHits = {};                           // email -> [timestamps] (v2
    Cloudinary), se le devuelve el registro ya guardado en vez de 404. Se limpia a las 24 h. */
 const pendingUploads = {};
 const finishedUploads = {};
+
+/* Web 1.5 (servidor 5.0): notificaciones push con web-push (VAPID).
+   Las claves viven SOLO en variables de entorno de Render
+   (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY, VAPID_SUBJECT opcional):
+   sin ellas el servidor arranca igual y el push queda apagado en
+   silencio — sin crash y sin spam de errores. La clave privada NUNCA
+   va en ningún archivo del repo. */
+let webpush = null;
+let pushEnabled = false;
+try {
+  const vapidPublic = String(process.env.VAPID_PUBLIC_KEY || '').trim();
+  const vapidPrivate = String(process.env.VAPID_PRIVATE_KEY || '').trim();
+  if (vapidPublic && vapidPrivate) {
+    webpush = require('web-push');
+    webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:misterystoreplay@gmail.com', vapidPublic, vapidPrivate);
+    pushEnabled = true;
+  }
+} catch (e) { console.error('[push] web-push no disponible:', e.message); }
 
 function saveAll() {
   saveJson('profiles.json', profiles);
@@ -487,6 +516,13 @@ function saveAll() {
   saveJson('wishlists.json', wishlists);
   saveJson('post-votes.json', postVotes);
   saveJson('muted.json', muted);
+  saveJson('push-subscriptions.json', pushSubs);
+  saveJson('drama-follows.json', dramaFollows);
+  saveJson('web-stats.json', webStats);
+  saveJson('verification-requests.json', verifyRequests);
+  saveJson('story-archive.json', storyArchive);
+  saveJson('event-reminders.json', eventReminders);
+  saveJson('dnd.json', dnd);
   saveJson('conversation-settings.json', conversationSettings);
   saveJson('coupons.json', coupons);
   saveJson('promotion-requests.json', promoRequests);
@@ -543,7 +579,11 @@ const FILE_TO_COLL = {
   'wishlists.json': 'wishlists', 'post-votes.json': 'postVotes',
   'muted.json': 'muted', 'conversation-settings.json': 'conversationSettings',
   'coupons.json': 'coupons', 'promotion-requests.json': 'promotion_requests',
-  'creator-config.json': 'creator_config'
+  'creator-config.json': 'creator_config',
+  'push-subscriptions.json': 'push_subscriptions', 'drama-follows.json': 'drama_follows',
+  'web-stats.json': 'web_stats', 'verification-requests.json': 'verification_requests',
+  'story-archive.json': 'story_archive',
+  'event-reminders.json': 'event_reminders', 'dnd.json': 'dnd'
 };
 const DATASETS = [
   { file: 'profiles.json', get: () => profiles, set: v => { profiles = v; }, fallback: {} },
@@ -582,7 +622,14 @@ const DATASETS = [
   { file: 'conversation-settings.json', get: () => conversationSettings, set: v => { conversationSettings = v; }, fallback: {} },
   { file: 'coupons.json', get: () => coupons, set: v => { coupons = v; }, fallback: [] },
   { file: 'promotion-requests.json', get: () => promoRequests, set: v => { promoRequests = v; }, fallback: [] },
-  { file: 'creator-config.json', get: () => creatorConfig, set: v => { creatorConfig = v; }, fallback: null }
+  { file: 'creator-config.json', get: () => creatorConfig, set: v => { creatorConfig = v; }, fallback: null },
+  { file: 'push-subscriptions.json', get: () => pushSubs, set: v => { pushSubs = v; }, fallback: {} },
+  { file: 'drama-follows.json', get: () => dramaFollows, set: v => { dramaFollows = v; }, fallback: { follows: {}, snapshot: {} } },
+  { file: 'web-stats.json', get: () => webStats, set: v => { webStats = v; }, fallback: { visitsTotal: 0, visitsByDay: {}, dramaViews: {}, dramaViewsByDay: {} } },
+  { file: 'verification-requests.json', get: () => verifyRequests, set: v => { verifyRequests = v; }, fallback: [] },
+  { file: 'story-archive.json', get: () => storyArchive, set: v => { storyArchive = v; }, fallback: {} },
+  { file: 'event-reminders.json', get: () => eventReminders, set: v => { eventReminders = v; }, fallback: {} },
+  { file: 'dnd.json', get: () => dnd, set: v => { dnd = v; }, fallback: {} }
 ];
 /* Espera a que terminen las escrituras pendientes a MongoDB (con tope,
    para no dejar una petición colgada si MongoDB va lento). Nunca
@@ -816,7 +863,39 @@ function validateStoryEdits(edits) {
 }
 function liveStories() {
   const t = Date.now();
-  return stories.filter(s => t - s.createdAt <= STORY_TTL_MS);
+  /* Web 1.5 (5.0): las programadas no son vivas hasta su hora. */
+  return stories.filter(s => s.status !== 'scheduled' && t - s.createdAt <= STORY_TTL_MS);
+}
+/* Web 1.5 (5.0): publica las historias programadas cuya hora llegó
+   (la historia vive 24 h desde su hora programada) y archiva las
+   caducadas en el archivo privado de su dueño. Se llama al leer
+   historias y en el latido del servidor. */
+function publishDueStories1550() {
+  const now = Date.now();
+  let changed = false;
+  stories.forEach(function (s) {
+    if (s.status === 'scheduled' && s.publishAt && s.publishAt <= now) {
+      s.status = 'live'; s.createdAt = s.publishAt; delete s.publishAt; changed = true;
+    }
+  });
+  if (changed) saveJson('stories.json', stories);
+  return changed;
+}
+function archiveExpiredStories1550() {
+  const now = Date.now();
+  const expired = stories.filter(function (s) { return s.status !== 'scheduled' && now - s.createdAt > STORY_TTL_MS; });
+  if (!expired.length) return false;
+  expired.forEach(function (s) {
+    if (!storyArchive[s.author]) storyArchive[s.author] = [];
+    if (!storyArchive[s.author].some(function (x) { return x.id === s.id; })) {
+      storyArchive[s.author].unshift(Object.assign({}, s, { archivedAt: now }));
+      if (storyArchive[s.author].length > 100) storyArchive[s.author].length = 100;
+    }
+  });
+  stories = stories.filter(function (s) { return !(s.status !== 'scheduled' && now - s.createdAt > STORY_TTL_MS); });
+  saveJson('stories.json', stories);
+  saveJson('story-archive.json', storyArchive);
+  return true;
 }
 /* v3.8: una historia viva (existe y no caducó). Las de 24 h ya no
    aceptan visitas, votos ni reacciones, aunque sigan en el arreglo. */
@@ -837,7 +916,7 @@ function canSeeStory(story, phone) {
 }
 function profilePublic(phone) {
   const p = profiles[phone];
-  return { phone, name: (p && p.name) || phone, avatar: (p && p.photo) || '' };
+  return { phone, name: (p && p.name) || phone, avatar: (p && p.photo) || '', verified: !!(p && p.verified) };
 }
 /* v3.8: valida la encuesta de una historia: pregunta + 2 opciones. */
 function validateStoryPoll(poll) {
@@ -1035,12 +1114,17 @@ function conversationKey(a, b) {
 function pruneDisappearingMessages(a, b) {
   const key = conversationKey(a, b);
   const hours = (conversationSettings[key] && conversationSettings[key].disappearingHours) || 0;
-  if (!hours) return false;
-  const limit = Date.now() - hours * 60 * 60 * 1000;
+  const limit = hours ? Date.now() - hours * 60 * 60 * 1000 : 0;
+  const now = Date.now();
   const before = messages.length;
   messages = messages.filter(function (m) {
     if (!((m.from === a && m.to === b) || (m.from === b && m.to === a))) return true;
-    return m.createdAt > limit;
+    /* Web 1.5 (5.0): un mensaje con caducidad propia (1 min / 1 h /
+       1 día) se borra de verdad al vencer, aunque la conversación no
+       tenga mensajes temporales. */
+    if (m.expiresAt && m.expiresAt <= now) return false;
+    if (limit && m.createdAt <= limit) return false;
+    return true;
   });
   return messages.length !== before;
 }
@@ -1050,11 +1134,46 @@ function notify(type, from, to, text, refId) {
      SOLO apaga avisos: las publicaciones y los mensajes se siguen
      viendo normales. */
   if (to && from && (muted[to] || []).includes(from)) return null;
+  /* Web 1.5 (5.0): No molestar — mientras esté activo no se crea el
+     aviso en la campana ni se manda el push. El mensaje o la
+     publicación siguen existiendo; solo se silencia el aviso. */
+  if (to && dnd[to] && dnd[to].until && Date.now() < dnd[to].until) return null;
   const n = { id: uid('notif'), type, from, to, text, refId: refId || '', createdAt: Date.now(), read: false };
   notifications.unshift(n);
   if (notifications.length > 500) notifications.length = 500;
   saveJson('notifications.json', notifications);
+  /* Web 1.5 (5.0): push real para likes, comentarios y dramas
+     seguidos. Nunca bloquea la campana ni la respuesta: si el push
+     no está configurado, no pasa nada. */
+  if (type === 'like' || type === 'comment' || type === 'drama' || type === 'mention' || type === 'event' || type === 'post') {
+    try { sendPushTo(to, 'WordRed', pushBodyFor1550(type, from, text), { type: type, refId: refId || '' }); } catch (e) {}
+  }
   return n;
+}
+/* Web 1.5 (5.0): texto del push — con el nombre de quien actúa cuando
+   se conoce; para avisos del sistema (drama/evento) el texto ya lo trae. */
+function pushBodyFor1550(type, from, text) {
+  if (!from) return text || 'Tienes un aviso nuevo en WordRed.';
+  const name = (profiles[from] && profiles[from].name) || from;
+  return name + ' ' + (text || '');
+}
+/* Web 1.5 (5.0): manda el push a todas las suscripciones de una
+   cuenta. Las suscripciones muertas (410/404) se podan solas. */
+function sendPushTo(phone, title, body, data) {
+  if (!pushEnabled || !webpush) return Promise.resolve(0);
+  const subs = (pushSubs[phone] || []).slice();
+  if (!subs.length) return Promise.resolve(0);
+  const payload = JSON.stringify({ title: title, body: body, data: data || {} });
+  const jobs = subs.map(function (sub) {
+    return webpush.sendNotification(sub, payload).catch(function (err) {
+      if (err && (err.statusCode === 410 || err.statusCode === 404)) {
+        pushSubs[phone] = (pushSubs[phone] || []).filter(function (s) { return s.endpoint !== sub.endpoint; });
+        saveJson('push-subscriptions.json', pushSubs);
+      }
+      return null;
+    });
+  });
+  return Promise.all(jobs);
 }
 /* Bloqueos (v1.2, ola 7): si uno bloqueó al otro, no se ven. */
 function isBlockedSrv(a, b) {
@@ -1111,7 +1230,7 @@ app.use((req, res, next) => { res.header('Access-Control-Allow-Origin', '*'); re
    listo (con MongoDB, la carga inicial es asíncrona). */
 app.use(async (req, res, next) => { try { await storeReady; } catch (e) {} next(); });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '4.9', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'WordRed', version: '5.0', storage: mongoReady ? 'mongodb' : 'json', mongo: mongoReady, sms: SMS_ENABLED, google: GOOGLE_ENABLED, email: EMAIL_ENABLED, push: pushEnabled }));
 
 /* v3.5: actualización de la aplicación. La última versión vive en
    app-version.json junto al APK (WordRed.apk) en el repo: al publicar
@@ -1319,8 +1438,37 @@ function readKdramas() {
 app.get('/api/kdramas', (req, res) => {
   var kdramas = readKdramas();
   if (!kdramas) return res.status(404).json({ ok: false, error: 'Sin dramas por ahora.' });
+  checkDramaFollows1550(kdramas); /* Web 1.5: avisa a quienes siguen una serie con capítulo nuevo */
   return res.json({ ok: true, kdramas: kdramas });
 });
+/* Web 1.5 (5.0): compara el catálogo con la foto anterior; si una
+   serie ganó capítulos, avisa (campana + push) a quienes la siguen.
+   La primera vez solo guarda la foto, sin avisar a nadie. */
+function checkDramaFollows1550(list) {
+  if (!dramaFollows) dramaFollows = { follows: {}, snapshot: {} };
+  if (!dramaFollows.follows) dramaFollows.follows = {};
+  if (!dramaFollows.snapshot) dramaFollows.snapshot = {};
+  const snap = dramaFollows.snapshot;
+  const firstRun = Object.keys(snap).length === 0;
+  let changed = false;
+  (list || []).forEach(function (s) {
+    const n = Array.isArray(s.eps) ? s.eps.length : 0;
+    if (snap[s.id] === undefined) { snap[s.id] = n; changed = true; return; }
+    if (n > snap[s.id]) {
+      const added = n - snap[s.id];
+      snap[s.id] = n; changed = true;
+      if (!firstRun) notifyDramaFollowers1550(s, added);
+    } else if (n !== snap[s.id]) { snap[s.id] = n; changed = true; }
+  });
+  if (changed) saveJson('drama-follows.json', dramaFollows);
+}
+function notifyDramaFollowers1550(series, added) {
+  Object.keys(dramaFollows.follows || {}).forEach(function (phone) {
+    const list = dramaFollows.follows[phone] || [];
+    if (!list.includes(series.id)) return;
+    notify('drama', '', phone, 'Nuevo capítulo de ' + series.name + ' (' + added + (added === 1 ? ' nuevo' : ' nuevos') + ')', series.id);
+  });
+}
 
 /* v1.5.8 (servidor 3.0): página de inicio con Google en el navegador
    (como en YouTube). La app abre esta página; Google muestra su propia
@@ -1451,6 +1599,13 @@ app.post('/api/profile', async (req, res) => {
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
   const name = String((req.body && req.body.name) || '').trim();
   if (name.length < 2) return res.status(400).json({ ok: false, error: 'Escribe tu nombre.' });
+  /* Web 1.5 (5.0): el nombre de pantalla es único (sin distinguir
+     mayúsculas). Cambiarlo nunca rompe el inicio de sesión: la
+     identidad sigue siendo el teléfono (o el correo). */
+  const nameTaken = Object.values(profiles).some(function (p) {
+    return p && p.phone !== phone && String(p.name || '').trim().toLowerCase() === name.toLowerCase();
+  });
+  if (nameTaken) return res.status(409).json({ ok: false, error: 'Ese nombre ya lo usa otra persona. Elige otro.' });
   const p = profiles[phone] || { phone, createdAt: Date.now(), isDemo: false };
   /* v3.8: la insignia de verificación nace en false; solo el endpoint
      de verificación la pone en true (criterios reales, nada manual). */
@@ -1474,6 +1629,19 @@ app.post('/api/profile', async (req, res) => {
   if (req.body && req.body.city !== undefined) p.city = String(req.body.city || '').slice(0, 80);
   if (req.body && req.body.relationship !== undefined) p.relationship = String(req.body.relationship || '');
   if (req.body && req.body.birthday !== undefined) p.birthday = String(req.body.birthday || '');
+  /* Web 1.5 (5.0): mostrar el año de nacimiento (por defecto NO) y
+     mostrar «en línea» (por defecto sí; se oculta en Ajustes). */
+  if (req.body && req.body.showBirthYear !== undefined) p.showBirthYear = req.body.showBirthYear === true;
+  if (req.body && req.body.showOnline !== undefined) p.showOnline = req.body.showOnline !== false;
+  /* Web 1.5 (5.0): negocio en el perfil — nombre, qué vende y
+     WhatsApp de contacto. El Marketplace no cambia. */
+  if (req.body && req.body.businessName !== undefined) p.businessName = String(req.body.businessName || '').slice(0, 100);
+  if (req.body && req.body.businessDesc !== undefined) p.businessDesc = String(req.body.businessDesc || '').slice(0, 300);
+  if (req.body && req.body.businessWhatsapp !== undefined) {
+    const bw = String(req.body.businessWhatsapp || '').replace(/\D/g, '');
+    if (bw && (bw.length < 8 || bw.length > 15)) return res.status(400).json({ ok: false, error: 'WhatsApp del negocio inválido.' });
+    p.businessWhatsapp = bw;
+  }
   if (req.body && req.body.website !== undefined) p.website = String(req.body.website || '');
   if (req.body && req.body.pinnedPosts !== undefined && Array.isArray(req.body.pinnedPosts)) p.pinnedPosts = req.body.pinnedPosts.slice(0, 3);
   /* v3.8: nota en el perfil (máx. 60 caracteres, vacía por defecto);
@@ -1725,7 +1893,10 @@ function canSee(viewer, post) {
 }
 app.get('/api/feed', (req, res) => {
   const phone = normPhone(req.query.phone);
-  const visible = posts.filter(p => canSee(phone, p)).sort((a, b) => b.createdAt - a.createdAt).slice(0, 100);
+  /* Web 1.5 (5.0): archivadas nunca salen en el inicio; silenciadas
+     tampoco (el silencio ahora oculta, no solo apaga avisos). */
+  const mutedList = (phone && muted[phone]) || [];
+  const visible = posts.filter(p => canSee(phone, p) && !p.archived && !mutedList.includes(p.author)).sort((a, b) => b.createdAt - a.createdAt).slice(0, 100);
   /* v3.8: las publicaciones con encuesta con foto llevan los conteos
      reales y el voto de quien pide. */
   return res.json({ ok: true, posts: visible.map(function (p) { return enrichPostForViewer(p, phone); }), profiles: Object.values(profiles) });
@@ -1838,6 +2009,20 @@ app.post('/api/posts', async (req, res) => {
      queda con promoted:false; un valor no booleano se rechaza. */
   const promoted = validatePromotedSrv(body.promoted);
   if (promoted === null) return res.status(400).json({ ok: false, error: 'Promoción no válida.' });
+  /* Web 1.5 (5.0): menciones con @ en la publicación — mismas reglas
+     que en los comentarios (amigos, máx. 10, sin duplicados). */
+  const postMentions = [];
+  if (Array.isArray(body.mentions)) {
+    body.mentions.slice(0, 10).forEach(function (m) {
+      const mp = normPhone(String((m && m.phone) || m || ''));
+      if (!mp || mp === phone) return;
+      if (!profiles[mp]) return;
+      if (!(friends[phone] || []).includes(mp)) return;
+      if (postMentions.some(function (x) { return x.phone === mp; })) return;
+      const pub = profilePublic(mp);
+      postMentions.push({ phone: mp, name: pub.name, avatar: pub.avatar });
+    });
+  }
   const post = {
     id: body.id || uid('post'), author: phone, text: text.slice(0, 2000),
     media: body.media || '', mediaType: body.mediaType || '',
@@ -1857,7 +2042,10 @@ app.post('/api/posts', async (req, res) => {
     liveRecDurationMs: parseInt(body.liveRecDurationMs, 10) || 0,
     createdAt: body.createdAt || Date.now(), likes: {}, comments: [], shares: [], savedBy: [], isDemo: false,
     promoted: promoted === true, // v4.1: true = publicación promocionada (insignia + primer lugar en todos los teléfonos)
-    editCount: 0, editedAt: null, edited: false
+    editCount: 0, editedAt: null, edited: false,
+    /* Web 1.5 (5.0): archivado, reacciones con emoji, comentario
+       fijado y menciones. */
+    archived: false, reactions: {}, pinnedComment: null, mentions: postMentions
   };
   if (posts.some(p => p.id === post.id)) return res.json({ ok: true, post });
   posts.unshift(post);
@@ -1882,6 +2070,10 @@ app.post('/api/posts', async (req, res) => {
       if (f !== phone && !isBlockedSrv(phone, f)) notify('post', phone, f, authorName + ' publicó algo nuevo.', post.id);
     });
   }
+  /* Web 1.5 (5.0): avisar a los mencionados (campana + push). */
+  postMentions.forEach(function (m) {
+    if (!isBlockedSrv(phone, m.phone)) notify('mention', phone, m.phone, 'te mencionó en una publicación', post.id);
+  });
   await flushPendingWrites();
   return res.json({ ok: true, post });
 });
@@ -2423,7 +2615,11 @@ app.delete('/api/listings/:id', (req, res) => {
 });
 
 /* ---- eventos (v1.1) ---- */
-app.get('/api/events', (req, res) => res.json({ ok: true, events }));
+app.get('/api/events', (req, res) => {
+  let list = events;
+  if (req.query.groupId) list = list.filter(function (e) { return e.groupId === req.query.groupId; });
+  return res.json({ ok: true, events: list });
+});
 app.post('/api/events', (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
@@ -2431,13 +2627,22 @@ app.post('/api/events', (req, res) => {
   const name = String((body && body.name) || '').trim();
   if (name.length < 3) return res.status(400).json({ ok: false, error: 'Nombre muy corto.' });
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String((body && body.date) || ''))) return res.status(400).json({ ok: false, error: 'Fecha inválida.' });
+  /* Web 1.5 (5.0): evento dentro de un grupo — solo lo crea un
+     miembro y solo lo ven los miembros. */
+  let groupId = (body && body.groupId) || null;
+  if (groupId) {
+    const g = groups.find(function (x) { return x.id === groupId; });
+    if (!g) return res.status(404).json({ ok: false, error: 'Grupo no encontrado.' });
+    if (!g.members.includes(phone)) return res.status(403).json({ ok: false, error: 'No eres miembro de ese grupo.' });
+  }
   const ev = {
     id: (body && body.id) || uid('evt'), creator: phone, name: name.slice(0, 100),
     desc: String((body && body.desc) || '').slice(0, 500),
     date: body.date, time: String((body && body.time) || ''),
     place: String((body && body.place) || '').slice(0, 120),
     cover: (body && body.cover) || '', attendees: (body && body.attendees) || {},
-    status: (body && body.status) || 'Activo', createdAt: (body && body.createdAt) || Date.now()
+    status: (body && body.status) || 'Activo', createdAt: (body && body.createdAt) || Date.now(),
+    groupId: groupId
   };
   const existing = events.find(x => x.id === ev.id);
   if (existing) { Object.assign(existing, ev); saveJson('events.json', events); return res.json({ ok: true, event: existing }); }
@@ -2529,9 +2734,14 @@ app.delete('/api/messages/:id', (req, res) => {
   const i = messages.findIndex(m => m.id === req.params.id);
   if (i < 0) return res.status(404).json({ ok: false, error: 'Mensaje no encontrado.' });
   if (messages[i].from !== phone) return res.status(403).json({ ok: false, error: 'Sin permiso.' });
-  messages.splice(i, 1);
+  /* Web 1.5 (5.0): borrar para todos — el mensaje se borra de
+     verdad (texto, foto, audio y archivo) y queda una marca
+     «Mensaje eliminado» en su lugar para que el hilo no se rompa. */
+  const m = messages[i];
+  messages[i] = { id: m.id, from: m.from, to: m.to, text: 'Mensaje eliminado', media: '', mediaType: '', file: null, voice: null, stickerId: null, liveLocation: null, gameInvite: null, reactions: [], listing: null, expiresAt: null, deletedForAll: true, deletedAt: Date.now(), createdAt: m.createdAt, readBy: m.readBy || [], readAt: m.readAt || null };
   saveJson('messages.json', messages);
-  return res.json({ ok: true });
+  sendTo(m.to, { kind: 'messageDeleted', messageId: m.id });
+  return res.json({ ok: true, message: messages[i] });
 });
 app.delete('/api/conversations/:other', (req, res) => {
   const phone = authPhone(req);
@@ -2655,6 +2865,8 @@ app.delete('/api/account', async (req, res) => {
    reacción (myReaction). */
 app.get('/api/stories', (req, res) => {
   const viewer = authPhone(req);
+  publishDueStories1550();
+  archiveExpiredStories1550();
   const list = liveStories().filter(function (s) { return canSeeStory(s, viewer); });
   return res.json({ ok: true, stories: list.map(function (s) { return shapeStory(s, viewer); }) });
 });
@@ -2693,7 +2905,16 @@ app.post('/api/stories', (req, res) => {
     if (!/^#[0-9a-fA-F]{6}$/.test(String(body.backgroundColor).trim())) return res.status(400).json({ ok: false, error: 'Color de fondo inválido.' });
     backgroundColor = String(body.backgroundColor).trim();
   }
-  const s = { id: uid('story'), author: phone, text: text.slice(0, 300), media: (body && body.media) || '', mediaType: (body && body.mediaType) || '', edits: validateStoryEdits(body && body.edits), song: validateSongSrv(body && body.song), videoEdits: validateVideoEditsSrv(body && body.videoEdits), poll, audience, link, backgroundColor, sharedShortId, createdAt: Date.now(), views: [], likes: {}, comments: [], shares: [] };
+  const s = { id: uid('story'), author: phone, text: text.slice(0, 300), media: (body && body.media) || '', mediaType: (body && body.mediaType) || '', edits: validateStoryEdits(body && body.edits), song: validateSongSrv(body && body.song), videoEdits: validateVideoEditsSrv(body && body.videoEdits), poll, audience, link, backgroundColor, sharedShortId, createdAt: Date.now(), views: [], likes: {}, comments: [], shares: [],
+    /* Web 1.5 (5.0): historia programada — se publica sola a su hora
+       (barrido del servidor); hasta entonces nadie la ve. */
+    status: 'live', publishAt: null };
+  const publishAt = Number(body && body.publishAt);
+  if (body && body.publishAt !== undefined && body.publishAt !== null) {
+    if (!isFinite(publishAt) || publishAt <= Date.now()) return res.status(400).json({ ok: false, error: 'La fecha de publicación debe ser futura.' });
+    if (publishAt > Date.now() + 30 * 24 * 60 * 60 * 1000) return res.status(400).json({ ok: false, error: 'La fecha debe ser dentro de los próximos 30 días.' });
+    s.status = 'scheduled'; s.publishAt = publishAt;
+  }
   stories.unshift(s);
   saveJson('stories.json', stories);
   return res.json({ ok: true, story: s });
@@ -3066,16 +3287,17 @@ app.post('/api/verification/request', async (req, res) => {
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
   if (!profiles[phone]) return res.status(404).json({ ok: false, error: 'Perfil no encontrado.' });
   if (profiles[phone].verified) return res.json({ ok: true, verified: true, already: true });
+  /* Web 1.5 (5.0): la insignia SOLO la concede el dueño (misterystoreplay).
+     La solicitud ya NO se concede sola al cumplir los criterios: queda
+     pendiente para revisión del dueño. Los criterios se siguen mostrando
+     como información (qué falta), no como concesión automática. */
   const st = verificationStatus(phone);
-  if (!st.verified) return res.json({ ok: false, verified: false, missing: st.missing });
-  profiles[phone].verified = true;
-  try { await saveJsonStrict('profiles.json', profiles); }
-  catch (e) {
-    profiles[phone].verified = false;
-    return res.status(500).json({ ok: false, error: 'No se pudo guardar la verificación.' });
+  const existing = verifyRequests.find(function (r) { return r.phone === phone && r.status === 'pendiente'; });
+  if (!existing) {
+    verifyRequests.unshift({ phone, at: Date.now(), status: 'pendiente', missing: st.missing || [] });
+    saveJson('verification-requests.json', verifyRequests);
   }
-  broadcast({ kind: 'profile', profile: profiles[phone] });
-  return res.json({ ok: true, verified: true });
+  return res.json({ ok: true, pending: true, verified: false, missing: st.missing });
 });
 
 /* ---- silenciados (v3.8, idea 31) ----
@@ -3351,15 +3573,24 @@ app.post('/api/conversations/:id/disappearing', async (req, res) => {
   const other = normPhone(req.params.id);
   if (!profiles[other]) return res.status(404).json({ ok: false, error: 'Esa cuenta no existe.' });
   const hours = Number(req.body && req.body.hours);
-  if (hours !== 24 && hours !== 0) return res.status(400).json({ ok: false, error: 'Solo 24 horas o apagado (0).' });
+  const minutes = Number(req.body && req.body.minutes);
+  /* Web 1.5 (5.0): además de 24 h, la conversación acepta 1 minuto
+     y 1 hora por mensaje. El valor se guarda en minutos (0 = apagado)
+     para que la app lo muestre tal cual. */
+  let mins = null;
+  if (req.body && req.body.minutes !== undefined && req.body.minutes !== null) {
+    if (![1, 60, 1440].includes(minutes)) return res.status(400).json({ ok: false, error: 'Solo 1 minuto, 1 hora, 1 día o apagado (0).' });
+    mins = minutes;
+  } else if (hours === 24 || hours === 0) mins = hours === 24 ? 1440 : 0;
+  else return res.status(400).json({ ok: false, error: 'Solo 1 minuto, 1 hora, 1 día o apagado (0).' });
   const key = conversationKey(phone, other);
-  if (hours === 0) delete conversationSettings[key];
-  else conversationSettings[key] = { disappearingHours: 24 };
+  if (mins === 0) delete conversationSettings[key];
+  else conversationSettings[key] = { disappearingHours: mins / 60, disappearingMinutes: mins };
   const pruned = pruneDisappearingMessages(phone, other);
   try { await saveJsonStrict('conversation-settings.json', conversationSettings); }
   catch (e) { return res.status(500).json({ ok: false, error: 'No se pudo guardar.' }); }
   if (pruned) saveJson('messages.json', messages);
-  return res.json({ ok: true, disappearingHours: hours });
+  return res.json({ ok: true, disappearingHours: mins / 60, disappearingMinutes: mins });
 });
 
 /* ---- regalos en los en vivos (v3.8, idea 16) ----
@@ -3638,7 +3869,9 @@ app.post('/api/reports', (req, res) => {
   if (!profiles[reported]) return res.status(404).json({ ok: false, error: 'Esa persona no existe.' });
   if (reported === phone) return res.status(400).json({ ok: false, error: 'No puedes reportarte a ti.' });
   if (!REPORT_REASONS_SRV.includes(reason)) return res.status(400).json({ ok: false, error: 'Elige un motivo para el reporte.' });
-  const report = { id: uid('rep'), reporter: phone, reported, reason, desc: String((req.body && req.body.desc) || '').slice(0, 500), createdAt: Date.now(), status: 'pendiente' };
+  const report = { id: uid('rep'), reporter: phone, reported, reason, desc: String((req.body && req.body.desc) || '').slice(0, 500), createdAt: Date.now(), status: 'pendiente',
+    /* Web 1.5 (5.0): reporte de una publicación concreta (opcional). */
+    postId: (req.body && req.body.postId && posts.some(function (p) { return p.id === req.body.postId; })) ? String(req.body.postId) : null };
   reports.unshift(report);
   saveJson('reports.json', reports);
   return res.json({ ok: true, report });
@@ -3647,6 +3880,382 @@ app.get('/api/reports', (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
   return res.json({ ok: true, reports: reports.filter(r => r.reporter === phone) });
+});
+
+/* ================================================================
+   Web 1.5 (servidor 5.0): push, dramas seguidos, estadísticas,
+   verificación por el dueño, reacciones, archivado, presencia,
+   No molestar, archivo e historias programadas y exportación.
+   ================================================================ */
+const COMMENT_REACTIONS_1550 = ['❤️', '😂', '😮', '😢', '😡', '👍'];
+function reactionCounts1550(map) {
+  const counts = {};
+  Object.values(map || {}).forEach(function (e) { counts[e] = (counts[e] || 0) + 1; });
+  return counts;
+}
+function findComment1550(post, commentId) {
+  if (!post || !Array.isArray(post.comments)) return null;
+  for (const c of post.comments) {
+    if (c.id === commentId) return { comment: c, parent: null };
+    if (Array.isArray(c.replies)) {
+      for (const r of c.replies) {
+        if (r.id === commentId) return { comment: r, parent: c };
+      }
+    }
+  }
+  return null;
+}
+
+/* ---- notificaciones push (Web 1.5, función 1) ---- */
+app.get('/api/push/vapid-public-key', (req, res) => {
+  return res.json({ ok: true, enabled: pushEnabled, publicKey: pushEnabled ? String(process.env.VAPID_PUBLIC_KEY || '') : '' });
+});
+app.post('/api/push/subscribe', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const sub = req.body && req.body.subscription;
+  if (!sub || typeof sub.endpoint !== 'string' || !sub.endpoint || !sub.keys || typeof sub.keys.p256dh !== 'string' || typeof sub.keys.auth !== 'string') {
+    return res.status(400).json({ ok: false, error: 'Suscripción no válida.' });
+  }
+  if (!pushSubs[phone]) pushSubs[phone] = [];
+  if (!pushSubs[phone].some(function (s) { return s.endpoint === sub.endpoint; })) {
+    pushSubs[phone].push({ endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth }, createdAt: Date.now() });
+    saveJson('push-subscriptions.json', pushSubs);
+  }
+  return res.json({ ok: true, enabled: pushEnabled });
+});
+app.post('/api/push/unsubscribe', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const endpoint = String((req.body && req.body.endpoint) || '');
+  if (pushSubs[phone]) {
+    pushSubs[phone] = pushSubs[phone].filter(function (s) { return s.endpoint !== endpoint; });
+    saveJson('push-subscriptions.json', pushSubs);
+  }
+  return res.json({ ok: true });
+});
+
+/* ---- seguir un drama (Web 1.5, función 5) ---- */
+app.post('/api/dramas/:id/follow', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const kdramas = readKdramas();
+  if (!kdramas || !kdramas.some(function (s) { return s.id === req.params.id; })) return res.status(404).json({ ok: false, error: 'Drama no encontrado.' });
+  if (!dramaFollows.follows) dramaFollows.follows = {};
+  if (!dramaFollows.follows[phone]) dramaFollows.follows[phone] = [];
+  if (!dramaFollows.follows[phone].includes(req.params.id)) dramaFollows.follows[phone].push(req.params.id);
+  saveJson('drama-follows.json', dramaFollows);
+  return res.json({ ok: true, follows: dramaFollows.follows[phone] });
+});
+app.post('/api/dramas/:id/unfollow', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  if (dramaFollows.follows && dramaFollows.follows[phone]) {
+    dramaFollows.follows[phone] = dramaFollows.follows[phone].filter(function (id) { return id !== req.params.id; });
+    saveJson('drama-follows.json', dramaFollows);
+  }
+  return res.json({ ok: true, follows: (dramaFollows.follows && dramaFollows.follows[phone]) || [] });
+});
+app.get('/api/dramas/follows', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  return res.json({ ok: true, follows: (dramaFollows.follows && dramaFollows.follows[phone]) || [] });
+});
+
+/* ---- estadísticas del dueño (Web 1.5, función 7) ---- */
+function todayKey1550() {
+  const d = new Date();
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+}
+app.post('/api/stats/visit', (req, res) => {
+  webStats.visitsTotal = (webStats.visitsTotal || 0) + 1;
+  const k = todayKey1550();
+  webStats.visitsByDay[k] = (webStats.visitsByDay[k] || 0) + 1;
+  saveJson('web-stats.json', webStats);
+  return res.json({ ok: true });
+});
+app.post('/api/stats/drama-view', (req, res) => {
+  const seriesId = String((req.body && req.body.seriesId) || '');
+  if (!seriesId) return res.status(400).json({ ok: false, error: 'Falta el drama.' });
+  webStats.dramaViews[seriesId] = (webStats.dramaViews[seriesId] || 0) + 1;
+  const k = todayKey1550();
+  if (!webStats.dramaViewsByDay[k]) webStats.dramaViewsByDay[k] = {};
+  webStats.dramaViewsByDay[k][seriesId] = (webStats.dramaViewsByDay[k][seriesId] || 0) + 1;
+  saveJson('web-stats.json', webStats);
+  return res.json({ ok: true, views: webStats.dramaViews[seriesId] });
+});
+app.get('/api/stats', (req, res) => {
+  if (!requireOwner(req, res)) return;
+  const kdramas = readKdramas() || [];
+  const nameOf = {};
+  kdramas.forEach(function (s) { nameOf[s.id] = s.name; });
+  const top = Object.keys(webStats.dramaViews || {}).map(function (id) {
+    return { seriesId: id, name: nameOf[id] || id, views: webStats.dramaViews[id] };
+  }).sort(function (a, b) { return b.views - a.views; }).slice(0, 20);
+  const days = Object.keys(webStats.visitsByDay || {}).sort().slice(-14).map(function (d) {
+    return { date: d, visits: webStats.visitsByDay[d] };
+  });
+  return res.json({ ok: true, visitsTotal: webStats.visitsTotal || 0, topDramas: top, lastDays: days });
+});
+
+/* ---- verificación por el dueño (Web 1.5, función 14) ---- */
+app.post('/api/verify/:phone', async (req, res) => {
+  if (!requireOwner(req, res)) return;
+  const target = normPhone(req.params.phone);
+  if (!profiles[target]) return res.status(404).json({ ok: false, error: 'Esa cuenta no existe.' });
+  profiles[target].verified = true;
+  const vr = verifyRequests.find(function (r) { return r.phone === target && r.status === 'pendiente'; });
+  if (vr) vr.status = 'aprobada';
+  try { await saveJsonStrict('profiles.json', profiles); saveJson('verification-requests.json', verifyRequests); }
+  catch (e) { profiles[target].verified = false; return res.status(500).json({ ok: false, error: 'No se pudo guardar.' }); }
+  broadcast({ kind: 'profile', profile: profiles[target] });
+  return res.json({ ok: true, verified: true });
+});
+app.post('/api/unverify/:phone', async (req, res) => {
+  if (!requireOwner(req, res)) return;
+  const target = normPhone(req.params.phone);
+  if (!profiles[target]) return res.status(404).json({ ok: false, error: 'Esa cuenta no existe.' });
+  profiles[target].verified = false;
+  const vr = verifyRequests.find(function (r) { return r.phone === target && r.status === 'pendiente'; });
+  if (vr) vr.status = 'rechazada';
+  try { await saveJsonStrict('profiles.json', profiles); saveJson('verification-requests.json', verifyRequests); }
+  catch (e) { profiles[target].verified = true; return res.status(500).json({ ok: false, error: 'No se pudo guardar.' }); }
+  broadcast({ kind: 'profile', profile: profiles[target] });
+  return res.json({ ok: true, verified: false });
+});
+app.get('/api/verification/requests', (req, res) => {
+  if (!requireOwner(req, res)) return;
+  const list = verifyRequests.filter(function (r) { return r.status === 'pendiente'; }).map(function (r) {
+    const pub = profilePublic(r.phone);
+    return { phone: r.phone, name: pub.name, avatar: pub.avatar, at: r.at, missing: r.missing || [] };
+  });
+  return res.json({ ok: true, requests: list });
+});
+
+/* ---- reacciones con emoji en comentarios (Web 1.5, función 16) ---- */
+app.post('/api/posts/:id/comment/:commentId/react', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const post = posts.find(p => p.id === req.params.id);
+  if (!post) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
+  const found = findComment1550(post, req.params.commentId);
+  if (!found) return res.status(404).json({ ok: false, error: 'Comentario no encontrado.' });
+  const emoji = String((req.body && req.body.emoji) || '');
+  if (emoji !== '' && !COMMENT_REACTIONS_1550.includes(emoji)) return res.status(400).json({ ok: false, error: 'Emoji no válido.' });
+  const c = found.comment;
+  if (!c.reactions) c.reactions = {};
+  if (emoji === '') delete c.reactions[phone];
+  else c.reactions[phone] = emoji;
+  saveJson('posts.json', posts);
+  return res.json({ ok: true, myReaction: c.reactions[phone] || null, counts: reactionCounts1550(c.reactions) });
+});
+
+/* ---- fijar un comentario (Web 1.5, función 37) ---- */
+app.post('/api/posts/:id/comment/:commentId/pin', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const post = posts.find(p => p.id === req.params.id);
+  if (!post) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
+  if (post.author !== phone) return res.status(403).json({ ok: false, error: 'Solo quien publicó puede fijar un comentario.' });
+  const found = findComment1550(post, req.params.commentId);
+  if (!found) return res.status(404).json({ ok: false, error: 'Comentario no encontrado.' });
+  if (found.parent) return res.status(400).json({ ok: false, error: 'Solo se puede fijar un comentario principal, no una respuesta.' });
+  post.pinnedComment = post.pinnedComment === found.comment.id ? null : found.comment.id;
+  saveJson('posts.json', posts);
+  return res.json({ ok: true, pinnedComment: post.pinnedComment });
+});
+
+/* ---- editar un comentario (Web 1.5, función 57) ---- */
+app.put('/api/posts/:id/comment/:commentId', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const post = posts.find(p => p.id === req.params.id);
+  if (!post) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
+  const found = findComment1550(post, req.params.commentId);
+  if (!found) return res.status(404).json({ ok: false, error: 'Comentario no encontrado.' });
+  if (found.comment.author !== phone) return res.status(403).json({ ok: false, error: 'Solo quien comentó puede editarlo.' });
+  const text = String((req.body && req.body.text) || '').trim();
+  if (!text || text.length > 1000) return res.status(400).json({ ok: false, error: 'Comentario inválido.' });
+  found.comment.text = text;
+  found.comment.edited = true;
+  found.comment.editedAt = Date.now();
+  saveJson('posts.json', posts);
+  return res.json({ ok: true, comment: found.comment });
+});
+
+/* ---- reacciones con emoji en publicaciones (Web 1.5, función 36) ---- */
+app.post('/api/posts/:id/react', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const post = posts.find(p => p.id === req.params.id);
+  if (!post) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
+  const emoji = String((req.body && req.body.emoji) || '');
+  if (emoji !== '' && !COMMENT_REACTIONS_1550.includes(emoji)) return res.status(400).json({ ok: false, error: 'Emoji no válido.' });
+  if (!post.reactions) post.reactions = {};
+  if (emoji === '') delete post.reactions[phone];
+  else post.reactions[phone] = emoji;
+  saveJson('posts.json', posts);
+  return res.json({ ok: true, myReaction: post.reactions[phone] || null, counts: reactionCounts1550(post.reactions) });
+});
+
+/* ---- archivar publicaciones (Web 1.5, función 22) ---- */
+app.post('/api/posts/:id/archive', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const post = posts.find(p => p.id === req.params.id);
+  if (!post) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
+  if (post.author !== phone) return res.status(403).json({ ok: false, error: 'Solo quien publicó puede archivarla.' });
+  post.archived = true;
+  saveJson('posts.json', posts);
+  return res.json({ ok: true, archived: true });
+});
+app.post('/api/posts/:id/unarchive', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const post = posts.find(p => p.id === req.params.id);
+  if (!post) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
+  if (post.author !== phone) return res.status(403).json({ ok: false, error: 'Solo quien publicó puede restaurarla.' });
+  post.archived = false;
+  saveJson('posts.json', posts);
+  return res.json({ ok: true, archived: false });
+});
+app.get('/api/posts/archived', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const mine = posts.filter(function (p) { return p.author === phone && p.archived; }).sort(function (a, b) { return b.createdAt - a.createdAt; });
+  return res.json({ ok: true, posts: mine.map(function (p) { return enrichPostForViewer(p, phone); }) });
+});
+
+/* ---- una publicación por id (Web 1.5, flujo de entrada) ----
+   La lee cualquiera (también invitados sin sesión, como el inicio):
+   un enlace compartido ?post= debe abrir ESA publicación aunque el
+   navegador nunca haya sincronizado el inicio. Misma visibilidad
+   que el inicio (canSee); archivadas y no visibles devuelven 404
+   sin distinguir el motivo. Va DESPUÉS de /api/posts/archived para
+   no tragarse esa ruta (:id='archived'). */
+app.get('/api/posts/:id', (req, res) => {
+  const phone = normPhone(req.query.phone) || null;
+  const post = posts.find(function (p) { return p.id === req.params.id; });
+  if (!post || post.archived || !canSee(phone, post)) return res.status(404).json({ ok: false, error: 'Publicación no encontrada.' });
+  return res.json({ ok: true, post: enrichPostForViewer(post, phone) });
+});
+
+/* ---- reportes para el dueño (Web 1.5, función 26) ---- */
+app.get('/api/reports/all', (req, res) => {
+  if (!requireOwner(req, res)) return;
+  const list = reports.slice().sort(function (a, b) { return b.createdAt - a.createdAt; }).map(function (r) {
+    const rep = profilePublic(r.reporter);
+    const tgt = profilePublic(r.reported);
+    return { id: r.id, reporter: r.reporter, reporterName: rep.name, reported: r.reported, reportedName: tgt.name, reason: r.reason, desc: r.desc || '', postId: r.postId || null, createdAt: r.createdAt, status: r.status || 'pendiente' };
+  });
+  return res.json({ ok: true, reports: list });
+});
+
+/* ---- presencia «en línea» (Web 1.5, función 29) ---- */
+app.post('/api/presence', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const list = Array.isArray(req.body && req.body.phones) ? req.body.phones.slice(0, 100) : [];
+  const online = {};
+  list.forEach(function (p) {
+    const pp = normPhone(String(p || ''));
+    if (!pp) return;
+    const prof = profiles[pp];
+    online[pp] = !!(sockets && sockets.has(pp) && prof && prof.showOnline !== false);
+  });
+  return res.json({ ok: true, online });
+});
+
+/* ---- No molestar (Web 1.5, función 60) ---- */
+app.post('/api/dnd', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  let until = Number(req.body && req.body.until);
+  const preset = String((req.body && req.body.preset) || '');
+  if (preset === '1h') until = Date.now() + 60 * 60 * 1000;
+  else if (preset === '8h') until = Date.now() + 8 * 60 * 60 * 1000;
+  else if (preset === 'tomorrow') {
+    const now = new Date();
+    const t = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+    until = t.getTime();
+  }
+  if (!isFinite(until) || until <= Date.now() || until > Date.now() + 48 * 60 * 60 * 1000) {
+    return res.status(400).json({ ok: false, error: 'Tiempo no válido (1 hora, 8 horas o hasta mañana).' });
+  }
+  dnd[phone] = { until: until };
+  saveJson('dnd.json', dnd);
+  return res.json({ ok: true, until: until });
+});
+app.delete('/api/dnd', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  delete dnd[phone];
+  saveJson('dnd.json', dnd);
+  return res.json({ ok: true });
+});
+app.get('/api/dnd', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const rec = dnd[phone];
+  if (rec && rec.until && Date.now() < rec.until) return res.json({ ok: true, active: true, until: rec.until });
+  return res.json({ ok: true, active: false, until: null });
+});
+
+/* ---- archivo e historias programadas (Web 1.5, funciones 50 y 61) ---- */
+app.get('/api/stories/archive', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  return res.json({ ok: true, stories: storyArchive[phone] || [] });
+});
+app.post('/api/stories/archive/:id/reshare', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const list = storyArchive[phone] || [];
+  const old = list.find(function (s) { return s.id === req.params.id; });
+  if (!old) return res.status(404).json({ ok: false, error: 'Historia no encontrada en el archivo.' });
+  const s = Object.assign({}, old, { id: uid('story'), createdAt: Date.now(), status: 'live', publishAt: null, views: [], likes: {}, comments: [], shares: [] });
+  delete s.archivedAt;
+  stories.unshift(s);
+  saveJson('stories.json', stories);
+  return res.json({ ok: true, story: s });
+});
+app.delete('/api/stories/archive/:id', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const list = storyArchive[phone] || [];
+  storyArchive[phone] = list.filter(function (s) { return s.id !== req.params.id; });
+  saveJson('story-archive.json', storyArchive);
+  return res.json({ ok: true });
+});
+app.get('/api/stories/scheduled', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  publishDueStories1550();
+  const mine = stories.filter(function (s) { return s.author === phone && s.status === 'scheduled'; }).sort(function (a, b) { return a.publishAt - b.publishAt; });
+  return res.json({ ok: true, stories: mine });
+});
+
+/* ---- exportar mis datos (Web 1.5, función 68) ---- */
+app.get('/api/export', (req, res) => {
+  const phone = authPhone(req);
+  if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  const myPosts = posts.filter(function (p) { return p.author === phone; }).slice(0, 1000);
+  const myStories = stories.filter(function (s) { return s.author === phone; }).slice(0, 500);
+  const myMessages = messages.filter(function (m) { return m.from === phone || m.to === phone; }).slice(0, 5000);
+  const myGroupChats = groupChats.filter(function (gc) { return (gc.participants || []).includes(phone); }).map(function (gc) {
+    return { id: gc.id, name: gc.name, participants: gc.participants, messages: (gc.messages || []).slice(-1000) };
+  });
+  const data = {
+    exportedAt: new Date().toISOString(), account: phone,
+    profile: profiles[phone] || null,
+    posts: myPosts, stories: myStories, messages: myMessages,
+    groupChats: myGroupChats,
+    friends: friends[phone] || [],
+    groups: groups.filter(function (g) { return (g.members || []).includes(phone); }).map(function (g) { return { id: g.id, name: g.name }; }),
+    events: events.filter(function (e) { return e.creator === phone || (e.attendees && e.attendees[phone]); }),
+    notifications: notifications.filter(function (n) { return n.to === phone; }).slice(0, 500)
+  };
+  return res.json({ ok: true, data: data });
 });
 
 /* ---- anuncios de empresas (v1.2, ola 8) ---- */
@@ -4199,6 +4808,14 @@ function validateStickerId(v) {
   if (!s) return '';
   return STICKER_IDS.includes(s) ? s : null;
 }
+/* Web 1.5 (5.0): sticker propio — solo una URL http(s) ya subida por la
+   ruta de medios (nunca data: ni texto libre). */
+function stickerCustomSrv(body) {
+  const u = body && body.stickerCustom;
+  if (typeof u !== 'string') return null;
+  if (!/^https?:\/\//.test(u) || u.length > 500) return null;
+  return u;
+}
 app.post('/api/messages', async (req, res) => {
   const from = authPhone(req);
   if (!from) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
@@ -4226,14 +4843,27 @@ app.post('/api/messages', async (req, res) => {
     if (!gi || !TOURNAMENT_GAMES.some(function (g) { return g.id === gi.gameId; })) return res.status(400).json({ ok: false, error: 'Juego inválido.' });
     gameInvite = { gameId: gi.gameId, roomId: String(gi.roomId || '').slice(0, 100) };
   }
-  if (!text && !(body && body.media) && !(body && body.file) && !(body && body.voice) && !stickerId && !liveLocation && !gameInvite) return res.status(400).json({ ok: false, error: 'Mensaje vacío.' });
+  if (!text && !(body && body.media) && !(body && body.file) && !(body && body.voice) && !stickerId && !stickerCustomSrv(body) && !liveLocation && !gameInvite) return res.status(400).json({ ok: false, error: 'Mensaje vacío.' });
+  /* Web 1.5 (5.0): mensaje autodestructivo por mensaje — 1 minuto,
+     1 hora o 1 día. Se borra de verdad al vencer (poda al leer); el
+     tiempo que queda lo muestra la app. No evita capturas. */
+  const SELF_DESTRUCT_MS = [60 * 1000, 60 * 60 * 1000, 24 * 60 * 60 * 1000];
+  let expiresAt = null;
+  const sd = Number(body && body.disappearingMs);
+  if (body && body.disappearingMs !== undefined && body.disappearingMs !== null) {
+    if (!SELF_DESTRUCT_MS.includes(sd)) return res.status(400).json({ ok: false, error: 'Tiempo no válido (1 minuto, 1 hora o 1 día).' });
+    expiresAt = Date.now() + sd;
+  }
   const msg = {
     id: (body && body.id) || uid('msg'), from, to, text: text.slice(0, 2000),
     media: (body && body.media) || '', mediaType: (body && body.mediaType) || '',
     file: (body && body.file) || null, voice: (body && body.voice) || null,
     stickerId: stickerId, liveLocation: liveLocation, gameInvite: gameInvite, reactions: [],
+    /* Web 1.5 (5.0): sticker propio — URL subida por la ruta de medios. */
+    stickerCustom: stickerCustomSrv(body),
     /* v1.5: pregunta por un anuncio de Marketplace (id y título). */
     listing: (body && body.listing) || null,
+    expiresAt: expiresAt,
     createdAt: (body && body.createdAt) || Date.now(), readBy: [from], readAt: null
   };
   if (messages.some(m => m.id === msg.id)) return res.json({ ok: true, message: msg });
@@ -4263,6 +4893,18 @@ app.get('/api/messages', (req, res) => {
     const parts = key.split('|');
     if (!parts.includes(phone)) return;
     if (pruneDisappearingMessages(parts[0], parts[1])) prunedAny = true;
+  });
+  /* Web 1.5 (5.0): también se podan los mensajes con caducidad propia
+     aunque la conversación no tenga mensajes temporales activados. */
+  const myPairs = {};
+  messages.forEach(function (m) {
+    if (m.from !== phone && m.to !== phone) return;
+    const k = [m.from, m.to].sort().join('|');
+    if (!myPairs[k]) {
+      myPairs[k] = true;
+      const parts = k.split('|');
+      if (pruneDisappearingMessages(parts[0], parts[1])) prunedAny = true;
+    }
   });
   if (prunedAny) saveJson('messages.json', messages);
   const mine = messages.filter(m => m.from === phone || m.to === phone).sort((a, b) => a.createdAt - b.createdAt);
@@ -4394,6 +5036,17 @@ app.post('/api/group-chats', async (req, res) => {
 });
 app.get('/api/group-chats', (req, res) => {
   const phone = normPhone(req.query.phone);
+  /* Web 1.5 (5.0): al leer, se podan de verdad los mensajes
+     autodestructivos vencidos de los grupos. */
+  const now = Date.now();
+  let prunedAny = false;
+  groupChats.forEach(function (g) {
+    if (!(g.participants || []).includes(phone)) return;
+    const before = (g.messages || []).length;
+    g.messages = (g.messages || []).filter(function (m) { return !(m.expiresAt && m.expiresAt <= now); });
+    if (g.messages.length !== before) prunedAny = true;
+  });
+  if (prunedAny) saveJson('group-chats.json', groupChats);
   /* v3.8: cada mensaje lleva sus reacciones con nombre. */
   const list = groupChats.filter(g => groupChatVisible(g, phone)).map(function (g) {
     const out = Object.assign({}, g);
@@ -4429,12 +5082,22 @@ app.post('/api/group-chats/:id/messages', async (req, res) => {
     if (!gi || !TOURNAMENT_GAMES.some(function (g) { return g.id === gi.gameId; })) return res.status(400).json({ ok: false, error: 'Juego inválido.' });
     gameInvite = { gameId: gi.gameId, roomId: String(gi.roomId || '').slice(0, 100) };
   }
-  if (!text && !(body && body.media) && !stickerId && !liveLocation && !gameInvite) return res.status(400).json({ ok: false, error: 'Mensaje vacío.' });
+  if (!text && !(body && body.media) && !stickerId && !stickerCustomSrv(body) && !liveLocation && !gameInvite) return res.status(400).json({ ok: false, error: 'Mensaje vacío.' });
+  /* Web 1.5 (5.0): mensaje autodestructivo también en el grupo. */
+  const SELF_DESTRUCT_MS = [60 * 1000, 60 * 60 * 1000, 24 * 60 * 60 * 1000];
+  let expiresAt = null;
+  const sd = Number(body && body.disappearingMs);
+  if (body && body.disappearingMs !== undefined && body.disappearingMs !== null) {
+    if (!SELF_DESTRUCT_MS.includes(sd)) return res.status(400).json({ ok: false, error: 'Tiempo no válido (1 minuto, 1 hora o 1 día).' });
+    expiresAt = Date.now() + sd;
+  }
   const msg = {
     id: (body && body.id) || uid('msg'), from: me, text: text.slice(0, 2000),
     media: (body && body.media) || '', mediaType: (body && body.mediaType) || '',
     file: (body && body.file) || null, voice: (body && body.voice) || null,
     stickerId: stickerId, liveLocation: liveLocation, gameInvite: gameInvite, reactions: [],
+    stickerCustom: stickerCustomSrv(body), /* Web 1.5 (5.0): sticker propio */
+    expiresAt: expiresAt,
     createdAt: (body && body.createdAt) || Date.now(), readBy: [me], readAt: null
   };
   if (g.messages.some(m => m.id === msg.id)) return res.json({ ok: true, message: msg });
@@ -4584,12 +5247,40 @@ const sockets = new Map(); // phone -> Set<ws>
    línea" y la oferta de llamada se enviaba al vacío: el que llamaba se
    quedaba en "Llamando" para siempre. */
 const HEARTBEAT_MS = parseInt(process.env.WORDRED_HEARTBEAT_MS || '30000', 10) || 30000;
+/* Web 1.5 (5.0): recordatorios de eventos — 1 hora antes del evento,
+   a quienes confirmaron asistencia; una sola vez por evento y cuenta. */
+let lastEventReminderRun1550 = 0;
+function checkEventReminders1550() {
+  const now = Date.now();
+  if (now - lastEventReminderRun1550 < 10 * 60 * 1000) return;
+  lastEventReminderRun1550 = now;
+  let changed = false;
+  events.forEach(function (ev) {
+    if (ev.status !== 'Activo' || !ev.date) return;
+    const start = new Date(ev.date + 'T' + (ev.time || '00:00') + ':00').getTime();
+    if (!isFinite(start)) return;
+    if (start - now > 60 * 60 * 1000 || start <= now) return;
+    if (!eventReminders[ev.id]) eventReminders[ev.id] = [];
+    Object.keys(ev.attendees || {}).forEach(function (phone) {
+      if (ev.attendees[phone] !== 'asiste') return;
+      if (eventReminders[ev.id].includes(phone)) return;
+      eventReminders[ev.id].push(phone);
+      changed = true;
+      notify('event', '', phone, 'Tu evento «' + ev.name + '» empieza en menos de 1 hora.', ev.id);
+    });
+  });
+  if (changed) saveJson('event-reminders.json', eventReminders);
+}
 const heartbeat = setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.isAlive === false) { try { ws.terminate(); } catch (e) {} return; }
     ws.isAlive = false;
     try { ws.ping(); } catch (e) {}
   });
+  /* Web 1.5 (5.0): barrido cada latido (30 s): historias programadas
+     cuya hora llegó, historias caducadas al archivo y recordatorios
+     de eventos de la próxima hora. */
+  try { publishDueStories1550(); archiveExpiredStories1550(); checkEventReminders1550(); } catch (e) {}
 }, HEARTBEAT_MS);
 if (typeof heartbeat.unref === 'function') heartbeat.unref();
 wss.on('connection', (ws, req) => {
@@ -4618,6 +5309,18 @@ wss.on('connection', (ws, req) => {
           } else if (data.type === 'move' && typeof data.index === 'number') {
             gameNotifyRoom(room, { kind: 'game', type: 'move', roomId: room.id, index: data.index, from: phone }, phone);
           }
+        }
+      }
+      /* Web 1.5 (5.0): escuchar juntos (66) y ver juntos (67) — el
+         servidor solo retransmite la orden al resto del grupo (cada
+         teléfono reproduce su propia copia; la sincronía es lo mejor
+         posible, no perfecta). */
+      if (data && (data.kind === 'listen' || data.kind === 'watch') && data.groupId) {
+        const g = groupChats.find(function (x) { return x.id === data.groupId; });
+        if (g && (g.participants || []).includes(phone)) {
+          (g.participants || []).forEach(function (m) {
+            if (m !== phone) sendTo(m, Object.assign({}, data, { from: phone }));
+          });
         }
       }
     } catch (e) {}
@@ -4664,4 +5367,4 @@ if (require.main === module) {
     server.listen(PORT, () => console.log('WordRed server en el puerto ' + PORT + (mongoReady ? ' (MongoDB: datos para siempre)' : ' (JSON en disco)') + (SMS_ENABLED ? ' (SMS por Twilio)' : ' (sin Twilio: códigos por [DEV])')));
   });
 }
-module.exports = { app, server, _internals: { get profiles() { return profiles; }, get posts() { return posts; }, get auth() { return auth; }, get listings() { return listings; }, get events() { return events; }, get pages() { return pages; }, get salesGroups() { return salesGroups; }, get ratings() { return ratings; }, get stories() { return stories; }, get blocked() { return blocked; }, get reports() { return reports; }, get messages() { return messages; }, get media() { return media; }, get gameStats() { return gameStats; }, get gameRatings() { return gameRatings; }, get gameRooms() { return gameRooms; }, get promoRequests() { return promoRequests; }, get creatorConfig() { return creatorConfig; }, cloudinaryConfig, saveAll, storeReady, flushPendingWrites, get storage() { return mongoReady ? 'mongodb' : 'json'; }, get mongoReady() { return mongoReady; } } };
+module.exports = { app, server, _internals: { get profiles() { return profiles; }, get posts() { return posts; }, get auth() { return auth; }, get listings() { return listings; }, get events() { return events; }, get pages() { return pages; }, get salesGroups() { return salesGroups; }, get ratings() { return ratings; }, get stories() { return stories; }, get blocked() { return blocked; }, get reports() { return reports; }, get messages() { return messages; }, get media() { return media; }, get gameStats() { return gameStats; }, get gameRatings() { return gameRatings; }, get gameRooms() { return gameRooms; }, get promoRequests() { return promoRequests; }, get creatorConfig() { return creatorConfig; }, get pushSubs() { return pushSubs; }, get dramaFollows() { return dramaFollows; }, get webStats() { return webStats; }, get verifyRequests() { return verifyRequests; }, get storyArchive() { return storyArchive; }, get eventReminders() { return eventReminders; }, get dnd() { return dnd; }, get groupChats() { return groupChats; }, get groups() { return groups; }, get muted() { return muted; }, get pushEnabled() { return pushEnabled; }, cloudinaryConfig, saveAll, storeReady, flushPendingWrites, get storage() { return mongoReady ? 'mongodb' : 'json'; }, get mongoReady() { return mongoReady; } } };
