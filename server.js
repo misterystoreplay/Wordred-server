@@ -1642,6 +1642,17 @@ app.post('/api/profile', async (req, res) => {
   if (req.body && req.body.city !== undefined) p.city = String(req.body.city || '').slice(0, 80);
   if (req.body && req.body.relationship !== undefined) p.relationship = String(req.body.relationship || '');
   if (req.body && req.body.birthday !== undefined) p.birthday = String(req.body.birthday || '');
+  /* Web 1.13: país e idioma (Ajustes y alta de cuenta nueva) y si la
+     persona es creadora de contenido. El idioma solo acepta los tres
+     que la web sabe mostrar (es/en/pt); el país es texto libre y el
+     creador es un sí/no. La insignia de creador verificado NO se toca
+     aquí: solo la otorga el dueño con /api/verify. */
+  if (req.body && req.body.language !== undefined) {
+    var lang113 = String(req.body.language || '').toLowerCase();
+    if (['es', 'en', 'pt'].indexOf(lang113) >= 0) p.language = lang113;
+  }
+  if (req.body && req.body.country !== undefined) p.country = String(req.body.country || '').slice(0, 80);
+  if (req.body && req.body.creator !== undefined) p.creator = req.body.creator === true;
   /* Web 1.5 (5.0): mostrar el año de nacimiento (por defecto NO) y
      mostrar «en línea» (por defecto sí; se oculta en Ajustes). */
   if (req.body && req.body.showBirthYear !== undefined) p.showBirthYear = req.body.showBirthYear === true;
