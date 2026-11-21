@@ -8,7 +8,7 @@ var C = window.WordRedCore;
    última versión del servidor (GET /api/app/latest). Tiene que ser
    igual que versionCode/versionName del AndroidManifest.xml. */
 var APP_VERSION_CODE = 79;
-var APP_VERSION_NAME = 'Web 1.8'; /* Web 1.8: contenido de Android 1.5.64. */
+var APP_VERSION_NAME = 'Web 1.9'; /* Web 1.9: contenido de Android 1.5.64. */
 var LS_KEY = 'wordred_state_v1';
 var state = loadState();
 ensure1526State(); /* 1.5.26: rellenar los campos nuevos en estados guardados de la 1.5.25. */
@@ -1096,7 +1096,7 @@ function postMetaHtml(post) {
   /* v2.1: la publicación de un live grabado muestra su duración. */
   if (post.isLiveRecording && post.liveRecDurationMs) bits.push('<span>' + ic('videocam', 14) + ' Live grabado · ' + C.formatDuration(post.liveRecDurationMs) + '</span>');
   if (!bits.length) return '';
-  return '<div class="tiny" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0">' + bits.join('') + '</div>';
+  return '<div class="tiny postMeta1550" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0">' + bits.join('') + '</div>'; /* Web 1.9: clase propia para que el modo lectura la oculte. */
 }
 
 /* ---------------- utilidades de pantalla ---------------- */
@@ -3467,6 +3467,7 @@ var FAQ = [
   { q: '¿Qué hay de nuevo en la Web 1.6?', a: 'Ya no hay sección de Dramas en el Inicio: los dramas salen mezclados al azar entre los Shorts, y al tocar uno se abre el drama como siempre. Además, en la fila de arriba los Reels ya no se ven más largos que el primer tile: todas las tarjetas miden lo mismo. En Ajustes, cerrar sesión y cambiar de cuenta son botones de solo símbolo junto al «?», y las secciones están ordenadas de la forma más intuitiva.' }, /* Web 1.6: sin sección Dramas (dramas al azar entre los Shorts); fila de arriba simétrica; logout y cambiar de cuenta como símbolos; Ajustes rediseñado. */
   { q: '¿Qué hay de nuevo en la Web 1.7?', a: 'Los dramas entre los Shorts ya se reproducen solos al llegar, como los Shorts: no hay que tocar la portada ni el botón, y no aparece el tutorial (la guía de gestos). Si cierras el drama, se queda cerrado en esa tarjeta hasta que pases a otro Short y vuelvas. Además, en la fila de Reels de arriba ya no hay texto debajo de las fotos (ni «Agregar reel» ni el nombre de quien lo publicó). Todo lo demás sigue igual.' }, /* Web 1.7: los dramas entre los Shorts se reproducen solos al llegar, sin que aparezca el tutorial; y sin texto debajo de los Reels de arriba. */
   { q: '¿Qué hay de nuevo en la Web 1.8?', a: 'Los emojis del chat ya funcionan: la carita abre un panel con Emojis y Stickers; tocar un emoji lo mete en el mensaje, y la carita de un mensaje deja reaccionar con ❤️ 😂 😮 😢 😡 👍 y se ve al instante. La barra para escribir ahora es grande y va arriba, con los botones abajo. Nada se quitó.' }, /* Web 1.8: emojis en el chat (panel de emojis + reacciones que se ven al instante) y compositor de dos filas con la barra grande arriba. */
+  { q: '¿Qué hay de nuevo en la Web 1.9?', a: 'Los Eventos salieron del perfil: ya no hay sección de Eventos ni botón «Crear un evento» ahí; la moneda, Compartir y Editar quedan igual. Y el modo Lectura ya funciona de verdad: en una publicación larga, tocar «Lectura» agranda el texto y esconde los botones para leer tranquilo, y tocarlo otra vez lo apaga.' }, /* Web 1.9: Eventos fuera del perfil y modo lectura arreglado (su CSS apuntaba a clases que ya no existen). */
 
 ];
 function renderFaq() {
@@ -7340,7 +7341,7 @@ function postCardHtml(post) {
   } else if (post.link) {
     postTextHtml += postLinkCardsHtml([], post.link);
   }
-  return '<article class="glass post' + animCls + '" data-post="' + post.id + '">' +
+  return '<article class="glass post' + animCls + (readingPosts1550[post.id] ? ' reading1550' : '') + '" data-post="' + post.id + '">' + /* Web 1.9: el modo lectura sobrevive a repintar el muro. */
     '<div class="head" onclick="' + headClick + '">' + headAvatar +
     '<div class="who"><b>' + headName + adBadge + promoBadge + liveRecBadge + '</b>' +
     '<span>' + C.timeAgo(post.createdAt) + ' · ' + C.formatDateTime(post.createdAt) + (post.edited ? ' · Editado ' + C.formatDateTime(post.editedAt) : '') + ' · ' + (page ? 'Página' : post.groupId ? 'Grupo' : post.privacy) + (shared ? ' · Compartió' : '') + '</span></div>' +
@@ -8912,22 +8913,11 @@ window.__wrShareOwnProfile = function () {
   if (navigator.share) { navigator.share({ text: text }).catch(function () {}); return; }
   toast('Para compartir fuera necesitas la app instalada en el teléfono.');
 };
-/* Web 1.2: los Eventos viven en el perfil, en el lugar que deja el
-   botón del Navegador: la sección se pinta con el perfil y su lista
-   la llena renderEvents(), que también se llama al pintar el perfil.
-   Web 1.3: la sección ya no va tras la cabecera: va ABAJO de la caja
-   «¿Qué estás pensando?» (se pinta justo después de thinkBoxHtml1559
-   en renderOwnProfile). El botón «Crear» abre el diálogo con
-   onclick (se recrea al pintar el perfil, así que el listener del
-   inicio de la app ya no existe). */
-function profileEventsHtml1560() {
-  return '<section id="profileEvents1560"><h3 class="sectitle">Eventos</h3>' +
-    '<button class="btn" id="eventCreateBtn" style="width:100%" onclick="window.__wrShowEventCreate()">＋ Crear un evento</button>' +
-    '<div id="eventsList" class="mt"></div>' +
-    '<div class="empty hidden" id="eventsEmpty"><div class="big"><span class="eic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span></div><p>Sin eventos próximos.</p><p class="tiny">Crea el primero y invita a tus amigos.</p></div>' +
-    '</section>';
-}
-window.__wrShowEventCreate = function () { showOverlay('eventCreateOverlay'); };
+/* Web 1.9: la sección de Eventos salió del perfil (a petición de Christian):
+   profileEventsHtml1560 y su botón «Crear un evento» se quitan de las
+   dos ramas (propio e invitado). La moneda, Compartir y Editar no se
+   tocan. El diálogo de crear evento y el motor de eventos siguen en el
+   código y en el servidor (5.0), solo que ya no se abren desde el perfil. */
 function renderOwnProfile() {
   var p = myProfile();
   var el = $('ownProfile');
@@ -8937,10 +8927,8 @@ function renderOwnProfile() {
     el.innerHTML =
       '<div class="glass" style="padding:16px;margin-bottom:12px"><h2>Estás explorando como invitado</h2>' +
       '<p class="muted">Sin registro puedes ver el inicio, los perfiles, las ventas y los juegos. Para publicar, reaccionar, comentar o ver lives, verifica tu número de teléfono.</p>' +
-      '<button class="btn" onclick="window.__wrOpenVerify()">Verificar mi número</button></div>' +
-      profileEventsHtml1560(); /* Web 1.2: los Eventos también se ven como invitado, en el perfil. */
+      '<button class="btn" onclick="window.__wrOpenVerify()">Verificar mi número</button></div>'; /* Web 1.9: la sección de Eventos salió del perfil también como invitado. */
     renderGames();
-    renderEvents();
     return;
   }
   var friends = (state.friends[state.me] || []).length;
@@ -9008,8 +8996,7 @@ function renderOwnProfile() {
     memoriesProfileHtml1526() +
     '<div class="profileShortcuts1539"><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenSavedShorts()">Shorts guardados</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenScheduled()">Programadas</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenDrafts()">Borradores</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenSavedLinks()">Enlaces guardados</button></div>' +
     ownExtras1550() + /* Web 1.5: Guardados, Archivados, Me gusta, QR, nota, negocio, archivo de historias y, solo para el dueño, estadísticas/verificaciones/reportes. */
-    thinkBoxHtml1559() + /* 1.5.60: «¿Qué estás pensando?» va ARRIBA de las secciones destacadas (corrección a la 1.5.59, que lo dejó abajo) */
-    profileEventsHtml1560() + /* Web 1.3: los Eventos van ABAJO de «¿Qué estás pensando?» en el perfil. */
+    thinkBoxHtml1559() + /* 1.5.60: «¿Qué estás pensando?» va ARRIBA de las secciones destacadas (corrección a la 1.5.59, que lo dejó abajo) */ /* Web 1.9: la sección de Eventos salió del perfil. */
     (pinned.length ? pinnedCoverHtml1526() + '<h3 class="sectitle">' + ic('bookmark', 14) + ' Destacadas</h3>' + pinned.map(postCardHtml).join('') : '') + /* 1.5.26 (36) */
     featuredGameProfileHtml1559() + /* 1.5.59: Gamer Premium se queda abajo de las destacadas, antes de «Mis publicaciones» */
     '<h3 class="sectitle">Mis publicaciones</h3>' +
@@ -9019,8 +9006,7 @@ function renderOwnProfile() {
     (saved.length ? savedShown.map(postCardHtml).join('') + (saved.length > 3 && !showAllSaved ? '<div style="text-align:center;margin-top:8px"><button class="btn ghost" id="savedMoreBtn" aria-label="Ver más guardadas" onclick="window.__wrShowAllSaved()">…</button></div>' : '') : '<div class="empty">Sin publicaciones guardadas.</div>') +
     '</div>';
   renderGames();
-  renderLiveRecordings();
-  renderEvents(); /* Web 1.2: la lista de Eventos vive en el perfil y se llena al pintarlo. */
+  renderLiveRecordings(); /* Web 1.9: la lista de Eventos ya no se pinta en el perfil. */
   /* 1.5.39: "Tu tiempo hoy" se pinta en su propio hueco, justo antes de
      "Tienda de juegos" (ownScreenTime1539, en index.html entre las
      grabaciones de lives y la tienda); mismo contenido y mismo conteo. */
@@ -13549,8 +13535,7 @@ async function pullFromServer() {
       if (isTestEvent1550(e)) { cancelTestEvent1550(e); return; }
       if (!state.events.some(function (x) { return x.id === e.id; })) state.events.push(e);
     });
-    save();
-    if (currentView === 'profile') renderEvents();
+    save(); /* Web 1.9: la lista de Eventos ya no vive en el perfil, no hay nada que repintar. */
   }
   var r6 = await C.serverFetch(state, '/api/sales-groups', 'GET');
   if (r6.ok && r6.data && Array.isArray(r6.data.salesGroups)) {
@@ -16097,7 +16082,7 @@ var TUTORIAL_STEPS_1533 = [
   { art: 'publicar', title: 'Publica algo', text: 'Toca «Publicar» y comparte una foto, un video o lo que piensas. La vista previa sale al instante y la subida sigue en segundo plano: si la conexión se corta, continúa donde se quedó y nada se publica roto. También puedes hacer una encuesta, grabar una nota de voz, compartir una canción del catálogo o ponerle un filtro a tu foto antes de publicar.' }, /* Web 1.5: encuestas, notas de voz, canciones y filtros. */
   { art: 'shorts', title: 'Shorts e historias', text: 'Mira videos cortos en Shorts y crea historias que duran 24 horas. Arriba en el inicio están los reels: toca tu foto con el + para publicar uno. Las historias se crean desde tu perfil y se ven en Shorts: pueden llevar música, una encuesta o una foto con las dos cámaras. Entre los Shorts aparecen tarjetas de dramas: al llegar a una se reproduce sola en su primer capítulo, sin que aparezca el tutorial.' }, /* Web 1.5: historias con música, encuestas y doble cámara. */ /* Web 1.7: los dramas entre los Shorts se reproducen solos al llegar, sin el tutorial (antes había que tocar la tarjeta). */
   { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. En Amigos verás «Gente que quizá conozcas», con personas reales que quizá conozcas. Los grupos tienen sus propios administradores y reglas, y ahora también eventos y llamadas de voz o video en grupo. En los chats puedes mandar notas de voz, buscar mensajes, fijar un chat y borrar un mensaje para todos. También puedes ponerle emojis a lo que escribes y reaccionar a un mensaje con un emoji; la barra para escribir es grande y está arriba de los botones.' }, /* Web 1.5: sugerencias, eventos en grupos, llamadas grupales. */ /* Web 1.8: emojis en el chat y barra grande arriba. */
-  { art: 'perfil', title: 'Tu perfil', text: 'En tu perfil está tu foto, tu biografía y tus publicaciones, con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos. Los eventos están en tu perfil, donde estaba el navegador, abajo de «¿Qué estás pensando?». También están «Guardados», «Archivados», «Me gusta» y el «Archivo de historias», tu código QR para compartir tu perfil, tu nota y tu negocio si lo agregas. Toca el engrane para ir a Ajustes: ahí están las notificaciones push, el modo No molestar, el texto grande, el ahorro de datos y exportar tus datos.' } /* Web 1.2: los Eventos están en el perfil. */ /* Web 1.3: los Eventos van abajo de «¿Qué estás pensando?». */ /* Web 1.5: Guardados, Archivados, QR, nota, negocio, Ajustes nuevos. */
+  { art: 'perfil', title: 'Tu perfil', text: 'En tu perfil está tu foto, tu biografía y tus publicaciones, con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos. También están «Guardados», «Archivados», «Me gusta» y el «Archivo de historias», tu código QR para compartir tu perfil, tu nota y tu negocio si lo agregas. Toca el engrane para ir a Ajustes: ahí están las notificaciones push, el modo No molestar, el texto grande, el ahorro de datos y exportar tus datos.' } /* Web 1.9: los Eventos salieron del perfil. */ /* Web 1.5: Guardados, Archivados, QR, nota, negocio, Ajustes nuevos. */
 ];
 /* Ilustración estática de cada paso: un teléfono con la pantalla de la
    app dibujada con rectángulos y círculos (sin fotos, sin animales, sin
@@ -20238,11 +20223,18 @@ window.__wrSaveName1550 = async function () {
   toast('Nombre cambiado. Las menciones viejas siguen funcionando: apuntan a tu teléfono, así que ahora muestran tu nombre nuevo.');
 };
 /* ---- Modo lectura (37): vista limpia para publicaciones largas. ---- */
+/* Web 1.9: el estado vive por publicación (no solo en la clase del
+   DOM), así no se pierde si el muro se repinta — al confirmar la
+   publicación en el servidor, al sincronizar — ni si la misma
+   publicación aparece en dos vistas a la vez (Inicio y perfil). */
+var readingPosts1550 = {};
 window.__wrToggleReading1550 = function (postId) {
-  var card = document.querySelector('[data-post="' + postId + '"]');
-  if (!card) return;
-  card.classList.toggle('reading1550');
-  var on = card.classList.contains('reading1550');
+  var on = !readingPosts1550[postId];
+  if (on) readingPosts1550[postId] = true; else delete readingPosts1550[postId];
+  var cards = document.querySelectorAll('[data-post="' + postId + '"]');
+  var i;
+  for (i = 0; i < cards.length; i++) cards[i].classList.toggle('reading1550', on);
+  if (!cards.length) return;
   toast(on ? 'Modo lectura: texto más grande y sin distracciones.' : 'Modo lectura apagado.');
 };
 /* ---- Cumpleaños (23): felicitar abre el mensaje. ---- */

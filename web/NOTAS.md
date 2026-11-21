@@ -1,8 +1,8 @@
-# WordRed Web 1.8 — NOTAS
+# WordRed Web 1.9 — NOTAS
 
 Versión web de WordRed: se abre con un enlace en el navegador, sin
 descargar ni instalar nada. Las actualizaciones llegan solas al abrir
-la página. Contenido de Android 1.5.64, mismo servidor (4.9), mismas
+la página. Contenido de Android 1.5.64, mismo servidor (5.0), mismas
 cuentas y mismas publicaciones.
 
 La Web 1.1 quita el cajón de aplicaciones, quita las actualizaciones
@@ -792,6 +792,43 @@ Web 1.6?», FAQ 32) y el tutorial no cambia.
    respeta los huecos, en el Inicio real las tres secciones
    aparecen entre las publicaciones con separación y la fila de
    Reels fija, y el tráiler y la noticia se abren al tocarlos.
+
+## Qué cambió en la Web 1.9 (todo marcado «Web 1.9»)
+
+Dos cambios, pedidos por Christian (el segundo lo confirmó con «Sí,
+arréglalo en la 1.9»): los Eventos salen del perfil, y el modo Lectura
+por fin funciona. La FAQ crece con su entrada de versión («¿Qué hay de
+nuevo en la Web 1.9?», FAQ 35) y el tutorial se actualiza en el sitio
+(el paso «Tu perfil» ya no dice que los eventos están ahí).
+
+**1) Eventos fuera del perfil.** Se quita la sección «Eventos» del
+perfil propio y del perfil de invitado (`profileEventsHtml1560`: el
+botón «＋ Crear un evento» y la lista, que estaba abajo de «¿Qué estás
+pensando?»), junto con las llamadas a `renderEvents()` al pintar el
+perfil. La moneda (Promociones), Compartir y Editar quedan exactamente
+igual. El diálogo de crear evento, el motor de eventos y el servidor
+(5.0) no se tocan: siguen en el código, solo que ya no se abren desde
+el perfil.
+
+**2) Modo Lectura arreglado (estaba roto desde la 1.5).** La causa
+real, comprobada en el código: `__wrToggleReading1550` sí ponía la
+clase `reading1550` en la tarjeta y el aviso salía, pero el CSS de
+esa clase (index.html:1216-1217) apuntaba a `.postText`,
+`.postActions`, `.postMeta` y `.postStats`, clases que ya no existen
+en las tarjetas de hoy: el texto es `<p class="text">`, las acciones
+son `<div class="actions">` y los datos son el `<div class="tiny">`
+de `postMetaHtml` (ahora con clase propia `postMeta1550`). El botón
+no cambiaba nada visible. Ahora el CSS apunta a las clases reales:
+en una publicación larga, tocar «Lectura» agranda el texto a 19 px
+con interlineado 1.7 y esconde las acciones, las reacciones, los
+botones del encabezado, los datos y la fecha, y tocarlo otra vez lo
+apaga. Además el estado ya no vive solo en la clase del DOM: queda
+guardado por publicación (`readingPosts1550`) y se aplica al pintar
+la tarjeta, así no se pierde si el muro se repinta al confirmar la
+publicación en el servidor o al sincronizar, ni si la misma
+publicación aparece en dos vistas a la vez. Verificado en el DOM
+midiendo el tamaño real del texto y lo que se oculta, no solo que la
+clase se ponga.
 
 ## Qué cambió en la Web 1.8 (todo marcado «Web 1.8»)
 

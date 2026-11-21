@@ -1212,9 +1212,13 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
   .sheet{max-width:1000px}
   .uploadPanel1528{max-width:1000px}
 }
-/* Web 1.5 (37): modo lectura — texto grande, sin distracciones. */
-.reading1550 .postText, .reading1550 .shortsCaption{font-size:19px !important;line-height:1.7 !important}
-.reading1550 .postActions, .reading1550 .postMeta, .reading1550 .postStats{display:none !important}
+/* Web 1.5 (37): modo lectura — texto grande, sin distracciones. Web 1.9:
+   la causa real de que no se notara: esto apuntaba a .postText,
+   .postActions, .postMeta y .postStats, clases que ya no existen en las
+   tarjetas de hoy (el texto es p.text, las acciones div.actions y los
+   datos div.postMeta1550). Ahora apunta a las clases reales. */
+.reading1550 .text, .reading1550 .shortsCaption{font-size:19px !important;line-height:1.7 !important}
+.reading1550 .actions, .reading1550 .reactions, .reading1550 .headActions, .reading1550 .postMeta1550, .reading1550 .head .who span{display:none !important}
 .reading1550{max-width:680px;margin-left:auto;margin-right:auto}
 /* Web 1.5 (20/48): mosaico de video de la llamada de grupo. */
 .callTile1550{position:relative;aspect-ratio:4/3;background:#000;border-radius:12px;overflow:hidden}
@@ -2134,7 +2138,7 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
     </section>
     <section class="setSec1560" id="setSecAcerca1560">
     <h3 class="sectitle">Acerca de</h3>
-    <p class="muted">WordRed Web 1.8 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
+    <p class="muted">WordRed Web 1.9 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
     </section>
   </div>
 </div>
