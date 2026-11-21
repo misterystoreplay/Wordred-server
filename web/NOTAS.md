@@ -1,4 +1,4 @@
-# WordRed Web 1.9 — NOTAS
+# WordRed Web 1.10 — NOTAS
 
 Versión web de WordRed: se abre con un enlace en el navegador, sin
 descargar ni instalar nada. Las actualizaciones llegan solas al abrir
@@ -792,6 +792,153 @@ Web 1.6?», FAQ 32) y el tutorial no cambia.
    respeta los huecos, en el Inicio real las tres secciones
    aparecen entre las publicaciones con separación y la fila de
    Reels fija, y el tráiler y la noticia se abren al tocarlos.
+
+## Qué cambió en la Web 1.10 (todo marcado «Web 1.10»)
+
+Tres arreglos, pedidos por Christian (los tres confirmados con «Sí,
+hazlo así»): el chat funciona sin fallos (mensajes, voz, emojis,
+llamadas y videollamadas), los videos del inicio se paran al entrar a
+los Shorts, y las pastillas del perfil ya no se enciman. La FAQ crece
+con su entrada de versión («¿Qué hay de nuevo en la Web 1.10?», FAQ
+36) y el tutorial se actualiza en el sitio (el paso «Amigos y grupos»
+dice que el chat ya funciona sin fallos y cómo reintentar un mensaje
+no enviado; el paso «Shorts e historias» dice que los videos del
+inicio se paran al entrar).
+
+**Diagnóstico primero (sondeo en vivo, no suposiciones).** Antes de
+tocar nada se probó el servidor 5.0 en vivo con dos cuentas de prueba
+(creadas y borradas en el sondeo): mandar texto con emoji, mandar voz
+y subir la voz por partes, leer los mensajes del otro lado y la
+señalización de llamada (oferta/respuesta/ICE por WebSocket) pasan
+19/20 — el único «fallo» fue del sondeo, no del servidor (pedir una
+oferta al otro justo después de cerrar su WebSocket, cuando el
+servidor aún no había notado el cierre). El servidor NO era el
+problema: los fallos estaban en la web. Las cuentas del sondeo se
+borraron; nunca se tocaron la 5500000156 ni la 5500000157.
+
+**1) Mensajes que no se enviaban (causa real en la web).**
+`C.sendMessage` rechaza el envío si el perfil del destinatario no
+está en la copia local (`state.profiles`), y abrir el chat NUNCA lo
+pedía al servidor: los perfiles solo llegaban con el inicio (quien
+publica) o con la búsqueda. Chatear con alguien real cuyo perfil no
+estaba en caché fallaba siempre con «Esa persona no existe en
+WordRed», aunque existiera. Ahora, al abrir un chat (1 a 1 o grupo)
+se trae el perfil del servidor (`GET /api/profile/:phone`, público)
+si falta, y antes de enviar se vuelve a traer si sigue faltando; si
+el servidor dice 404, se avisa y no se crea el mensaje; si no hay
+conexión, se sigue con un perfil mínimo y el servidor valida al
+enviar. La misma causa valía para la voz (`sendVoiceMessage`) y para
+los grupos (cada integrante).
+
+**1b) Un nombre tomado dejaba la cuenta sin perfil (causa real,
+hallada en las pruebas).** El nombre de pantalla es único en el
+servidor (`POST /api/profile` responde 409 «Ese nombre ya lo usa
+otra persona»), pero al crear la cuenta la app lo guardaba en local,
+entraba a la app y mandaba el perfil en segundo plano sin mirar el
+resultado (`pushProfileToServer` solo marcaba `profileDirty`). La
+cuenta quedaba DENTRO de la app sin existir en el servidor: nadie
+podía escribirle ni llamarle (el servidor responde 404 «Esa persona
+no existe» a quien lo intenta). En la primera corrida de pruebas
+pasó de verdad: la cuenta A usaba el nombre «Prueba Web», que ya
+existía de una corrida anterior, y el servidor rechazó su perfil sin
+que nada lo avisara. Ahora, al crear la cuenta se espera al
+guardado y, si el nombre está tomado (409), se avisa y se queda en
+el paso del perfil para elegir otro; sin conexión se entra igual y
+la cola lo reintenta sola. Verificado en el DOM (W56b): con un
+nombre tomado no se entra; con uno libre, sí. Las pruebas usan
+nombres únicos por corrida para no chocar con cuentas viejas.
+
+**2) El envío al servidor ya no falla en silencio.** `pushMessageToServer`
+no miraba la respuesta: si el servidor rechazaba el mensaje (404, 400,
+500), la copia local quedaba como «✓ Enviado» para siempre. Ahora la
+respuesta se mira: si llega, se quitan las marcas; si no hay conexión,
+el mensaje queda «Enviando…» (la cola lo reintenta sola); si el
+servidor lo rechaza de verdad, se avisa con su error y el mensaje
+queda marcado «⚠ No se envió» con botón «Reintentar»
+(`__wrRetryMessage1562`). Al bajar del servidor, si el mensaje ya
+está ahí, se quitan las marcas y se toman sus URLs públicas. Y si la
+foto, el archivo o la voz siguen siendo un archivo local porque la
+subida falló, el mensaje ya NO se manda con la data: larguísima: se
+encola la subida del medio y el envío detrás de ella, y el otro lo
+recibe con la URL pública (`pushChatMessageToServer1562`; en grupo
+sigue el envío directo de antes).
+
+**3) Llamadas y videollamadas (causa real en la web).** Todos los
+`RTCPeerConnection` usaban UN SOLO STUN de Google y nada más. En
+redes móviles (NAT simétrico, lo común en México) el STUN solo no
+abre el camino: la llamada se quedaba en «en llamada» con el
+temporizador corriendo, sin audio ni video y sin avisar nada. Ahora
+hay dos STUN (Google + Cloudflare) y un TURN gratuito (Open Relay
+Project, servicio público gratuito: `openrelay.metered.ca`, con sus
+credenciales públicas de prueba) que releva el audio/video cuando el
+directo no pasa, en las llamadas 1 a 1, en las de grupo y en los
+lives. Y hay vigilancia de la conexión de medios
+(`oniceconnectionstatechange`): si falla, o se pierde más de 8 s,
+la llamada avisa («No se pudo conectar el audio de la llamada…») y
+cuelga (con `hangup` al otro lado); en grupo solo se saca a ese
+participante. Lo que NO se arregla aquí (falta en el servidor 5.0):
+si el otro no tiene la página abierta, la oferta no le llega ni le
+queda aviso de llamada perdida — la señalización solo viaja por el
+WebSocket en vivo y `/api/call-signal` no manda push ni guarda la
+llamada perdida. Eso pide un cambio de servidor (5.1) y queda
+apuntado como pendiente, no fingido.
+
+**4) Emojis.** El panel de emojis de la 1.8 ya funcionaba (65 emojis,
+sin animales; tocar uno lo mete en el texto; reaccionar se ve al
+instante). Lo que fallaba era mandar el mensaje que lo llevaba: el
+perfil local (punto 1) y el envío silencioso (punto 2). Con eso
+arreglado, el mensaje con emoji llega de verdad al otro teléfono
+(verificado en el DOM con dos cuentas reales: se envía con el emoji,
+el servidor lo guarda y el otro lo recibe en vivo).
+
+**5) Videos del inicio parados al entrar a los Shorts.** La causa
+real: `openShorts` no pausaba nada y el observador del muro
+(`IntersectionObserver`) seguía disparándose porque el muro sigue
+«visible» en el DOM detrás del visor, así que volvía a poner en
+marcha el video más visible. Ahora `openShorts` llama a
+`pauseAllFeedMedia1562` (para todos los videos del inicio y
+cualquier audio fuera del visor, incluido el video de YouTube del
+visor de dramas y la vista previa de canción), `updateFeedVideos`
+no reproduce nada con los Shorts abiertos, y el evento `play` del
+muro para al instante un video del inicio que intente sonar con los
+Shorts abiertos. La pausa NO se marca como «lo pausó a mano»: al
+volver al Inicio, el video más visible se reanuda solo. Verificado
+en el DOM (W54): con un video del inicio sonando, al abrir los
+Shorts queda pausado y sigue pausado 2,5 s después.
+
+**6) Pastillas del perfil sin encimarse.** La causa real, ya medida
+en el código: `.profileShortcuts1539` usaba `flex-wrap:nowrap`
+(index.html:42) con botones `flex:1 1 auto` + `min-width:0` +
+`white-space:nowrap` (index.html:43): la fila de 9 botones
+(Guardados, Archivados, Me gusta, Mi QR, Archivo de historias,
+Programadas, Estadísticas, Verificaciones, Reportes) se apretaba en
+una sola fila a ~390 px y el texto se salía de cada pastilla sobre
+la vecina. Ahora la fila se parte (`flex-wrap:wrap`) y las pastillas
+no se encogen por debajo de su texto (sin `min-width:0`): las que no
+caben bajan a otra fila con su hueco de 6 px. Verificado en el DOM
+(W55) midiendo los rectángulos: ninguna pastilla se cruza con otra
+a 390 px ni a 360 px, en las dos filas.
+
+**Pruebas.** Node y DOM hasta 0 fallos (ver los conteos en el
+informe de entrega). En el DOM, nuevo: W54 (Shorts paran los videos
+del inicio), W55 (pastillas sin encimarse a 390 y 360 px), W56 (chat
+real con dos cuentas: envío con emoji + recepción en vivo,
+verificado contra el servidor), W56b (un nombre tomado no deja
+entrar a la app), W57 (nota de voz real con dispositivos falsos de
+Electron: se graba, se sube y llega con URL), W58 (videollamada
+entre dos ventanas: oferta → entrante → aceptar → ambas en llamada;
+al fallar los medios, aviso y cuelgue en los dos lados), W59 (el
+aviso de fallo de medios cuelga la llamada en vez de dejarla muda).
+Límites honestos: no probado en un teléfono real (Electron en la
+VM); el audio/video de la llamada entre dos teléfonos NO se pudo
+probar aquí: dos `RTCPeerConnection` en la misma página, solo con
+candidatos locales y sin STUN/TURN, quedan en «disconnected» (el UDP
+no sostiene la conexión en esta VM; el Chromium de la VM tampoco
+resuelve los nombres STUN/TURN). Lo verificado es la señalización
+completa (oferta/respuesta/ICE por WebSocket), la configuración TURN
+y el camino de fallo; el audio/video real solo lo confirman dos
+teléfonos. El aviso de llamada perdida con la página cerrada sigue
+pendiente del servidor.
 
 ## Qué cambió en la Web 1.9 (todo marcado «Web 1.9»)
 

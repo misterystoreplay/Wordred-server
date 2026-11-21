@@ -39,8 +39,8 @@ img,video{max-width:100%;display:block}
 /* 1.5.39: los 4 atajos del perfil propio (Shorts guardados, Programadas,
    Borradores, Enlaces guardados) en una sola fila: sin envoltura, fuente
    más chica y menos relleno para que quepan en el teléfono. */
-.profileShortcuts1539{display:flex;flex-wrap:nowrap;gap:6px;margin:8px 0}
-.btn.profileShortcutBtn1539{flex:1 1 auto;min-width:0;padding:7px 6px;font-size:10.5px;white-space:nowrap}
+.profileShortcuts1539{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0} /* Web 1.10: las pastillas del perfil SÍ se parten en varias filas (antes nowrap: 9 botones apretados en una fila a ~390 px y el texto se salía de cada pastilla y se encimaba con la vecina). */
+.btn.profileShortcutBtn1539{flex:1 1 auto;padding:7px 6px;font-size:10.5px;white-space:nowrap} /* Web 1.10: sin min-width:0 (con él, la pastilla se encogía por debajo de su texto y el texto se salía); con wrap, cada pastilla mide al menos su texto y las que no caben bajan a otra fila con su hueco. */
 .btn.danger{background:rgba(224,20,48,.18);color:#ff8ba0;border:1px solid rgba(224,20,48,.4)}
 .muted{color:var(--mut);font-size:13px}
 .tiny{color:var(--mut2);font-size:12px}
@@ -2138,7 +2138,7 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
     </section>
     <section class="setSec1560" id="setSecAcerca1560">
     <h3 class="sectitle">Acerca de</h3>
-    <p class="muted">WordRed Web 1.9 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
+    <p class="muted">WordRed Web 1.10 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
     </section>
   </div>
 </div>

@@ -8,7 +8,7 @@ var C = window.WordRedCore;
    última versión del servidor (GET /api/app/latest). Tiene que ser
    igual que versionCode/versionName del AndroidManifest.xml. */
 var APP_VERSION_CODE = 79;
-var APP_VERSION_NAME = 'Web 1.9'; /* Web 1.9: contenido de Android 1.5.64. */
+var APP_VERSION_NAME = 'Web 1.10'; /* Web 1.10: contenido de Android 1.5.64. */
 var LS_KEY = 'wordred_state_v1';
 var state = loadState();
 ensure1526State(); /* 1.5.26: rellenar los campos nuevos en estados guardados de la 1.5.25. */
@@ -55,7 +55,7 @@ var justLikedPostId = null;      // el me gusta recién dado hace pop (v1.2)
 var justSentMessageId = null;    // el mensaje recién enviado se desliza (v1.2)
 var editCoverType = 'image';     // 'image' | 'video' (v1.2)
 var voiceRec = { active: false, startTime: 0, timer: null, mediaRecorder: null, chunks: [], stream: null, native: false, sendOnStop: false };
-var call = { state: 'idle', peer: null, withVideo: false, pc: null, localStream: null, remoteStream: null, offer: null, muted: false, speaker: false, videoOn: true, timer: null, startedAt: 0 };
+var call = { state: 'idle', peer: null, withVideo: false, pc: null, localStream: null, remoteStream: null, offer: null, muted: false, speaker: false, videoOn: true, timer: null, startedAt: 0, iceFailTimer1562: null };
 /* Sonidos de llamada (v1.5): tono de marcado (ringback) y tono de
    llamada entrante, con el audio del sistema (puente nativo) o con
    WebAudio si no hay puente. */
@@ -2091,22 +2091,29 @@ $('authPhotoInput').addEventListener('change', function () {
     $('authAvatarPrev').innerHTML = '<img src="' + dataUrl + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="Foto">';
   });
 });
-$('authFinish').addEventListener('click', function () {
+$('authFinish').addEventListener('click', async function () {
   var name = $('authName').value.trim();
   var r = C.completeProfile(state, authPhone, { name: name, bio: $('authBio').value.trim(), photo: authPhotoData });
   if (!r.ok) { toast(r.error); return; }
   C.seedDemo(state);
   save();
+  /* Web 1.10: el nombre es único en el servidor. Si ya lo usa otra
+     persona, el perfil NO se crea y el servidor responde 404 «Esa
+     persona no existe» a quien le escriba o le llame. Antes se entraba
+     a la app igual y el fallo quedaba en silencio (pushProfileToServer
+     solo marcaba profileDirty), así que la cuenta quedaba rota sin
+     avisar. Ahora se espera al guardado y, si el nombre está tomado,
+     se avisa y se queda en este paso para elegir otro. Si no hay
+     conexión, se entra igual y la cola lo reintenta sola. */
+  state.settings.profileDirty = true;
+  save();
+  var pr = await pushProfileToServer();
+  if (pr && !pr.ok && pr.status === 409) { toast(pr.error || 'Ese nombre ya lo usa otra persona. Elige otro.'); return; }
   enterApp();
   /* Web 1.5 (flujo de entrada): si se llegó por un enlace
      compartido, después de crear la cuenta se abre esa publicación
      (o drama/perfil), no el inicio genérico. */
   openPendingDeepLink1550();
-  /* v1.4: la foto de perfil se sube al servidor para que a todos les
-     aparezca en vivo; sin conexión queda en la cola. */
-  state.settings.profileDirty = true;
-  save();
-  pushProfileToServer();
   toast('¡Bienvenido a WordRed, ' + name + '!');
 });
 $('authPhone').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('authSendCode').click(); });
@@ -3468,6 +3475,7 @@ var FAQ = [
   { q: '¿Qué hay de nuevo en la Web 1.7?', a: 'Los dramas entre los Shorts ya se reproducen solos al llegar, como los Shorts: no hay que tocar la portada ni el botón, y no aparece el tutorial (la guía de gestos). Si cierras el drama, se queda cerrado en esa tarjeta hasta que pases a otro Short y vuelvas. Además, en la fila de Reels de arriba ya no hay texto debajo de las fotos (ni «Agregar reel» ni el nombre de quien lo publicó). Todo lo demás sigue igual.' }, /* Web 1.7: los dramas entre los Shorts se reproducen solos al llegar, sin que aparezca el tutorial; y sin texto debajo de los Reels de arriba. */
   { q: '¿Qué hay de nuevo en la Web 1.8?', a: 'Los emojis del chat ya funcionan: la carita abre un panel con Emojis y Stickers; tocar un emoji lo mete en el mensaje, y la carita de un mensaje deja reaccionar con ❤️ 😂 😮 😢 😡 👍 y se ve al instante. La barra para escribir ahora es grande y va arriba, con los botones abajo. Nada se quitó.' }, /* Web 1.8: emojis en el chat (panel de emojis + reacciones que se ven al instante) y compositor de dos filas con la barra grande arriba. */
   { q: '¿Qué hay de nuevo en la Web 1.9?', a: 'Los Eventos salieron del perfil: ya no hay sección de Eventos ni botón «Crear un evento» ahí; la moneda, Compartir y Editar quedan igual. Y el modo Lectura ya funciona de verdad: en una publicación larga, tocar «Lectura» agranda el texto y esconde los botones para leer tranquilo, y tocarlo otra vez lo apaga.' }, /* Web 1.9: Eventos fuera del perfil y modo lectura arreglado (su CSS apuntaba a clases que ya no existen). */
+  { q: '¿Qué hay de nuevo en la Web 1.10?', a: 'El chat ya funciona sin fallos: mandar mensajes, notas de voz, emojis, llamadas y videollamadas. Antes, chatear con alguien cuyo perfil no estaba guardado en el teléfono fallaba con «Esa persona no existe» aunque existiera, y un mensaje que el servidor rechazaba quedaba como «Enviado» sin llegar nunca: ahora el perfil se trae del servidor al abrir el chat, y si un mensaje no se envía avisa y se puede reintentar tocándolo. También se arregló que un nombre ya usado por otra persona dejaba entrar a la app sin perfil en el servidor (y nadie podía escribirle): ahora avisa y pide otro nombre. Las llamadas ahora usan también un servidor TURN para conectar el audio y el video en redes móviles, y si la conexión de medios falla, avisan y cuelgan en vez de quedarse mudas. Además, al entrar a los Shorts, todos los videos del inicio se paran, y las pastillas del perfil (Guardados, Archivados, Me gusta, Mi QR…) ya no se enciman: van en varias filas con su espacio.' }, /* Web 1.10: chat sin fallos (perfil al abrir el chat, envío con aviso y reintento, TURN + aviso de fallo de medios), videos del Inicio parados al entrar a los Shorts, pastillas del perfil sin encimarse. */
 
 ];
 function renderFaq() {
@@ -3783,7 +3791,28 @@ window.__wrOpenDrama1562 = function (seriesId) {
   if (idx < 0) return;
   kdOpen1549(idx, 0);
 };
+/* Web 1.10: al entrar a los Shorts se paran TODOS los videos del Inicio
+   (y cualquier audio): antes seguían sonando detrás del visor porque
+   openShorts no pausaba nada y el observador del muro los volvía a
+   poner en marcha al seguir «viéndose» (el visor los tapa, pero en el
+   DOM siguen dentro de la ventana). Se quita primero feedVideoActive
+   para que la pausa NO se marque como «lo pausó a mano»: al volver al
+   Inicio, el video más visible se reanuda solo. */
+function pauseAllFeedMedia1562() {
+  if (typeof feedVideoActive !== 'undefined') feedVideoActive = null;
+  var so = $('shortsOverlay');
+  document.querySelectorAll('audio,video').forEach(function (el) {
+    if (so && so.contains(el)) return; /* el Short que se está abriendo no se toca */
+    try { el.pause(); } catch (e) {}
+  });
+  /* El video de YouTube del visor de dramas (si estuviera abierto) se
+     pausa con su API por mensaje; la vista previa de canción, aparte. */
+  var kd = document.getElementById('kdYtFrame1558');
+  if (kd && kd.contentWindow) { try { kd.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*'); } catch (e) {} }
+  if (typeof songPreviewAudio !== 'undefined' && songPreviewAudio) { try { songPreviewAudio.pause(); } catch (e) {} }
+}
 function openShorts(startId) {
+  pauseAllFeedMedia1562(); /* Web 1.10: los videos del Inicio se paran todos al entrar a los Shorts. */
   shortsItems = loadShortsItems();
   if (!shortsItems.length) { toast('Todavía no hay historias ni videos cortos. ¡Sé la primera persona en publicar uno!'); return; }
   shortsIndex = 0;
@@ -7569,6 +7598,12 @@ function pauseFeedVideo(video) {
   try { video.pause(); } catch (e) {}
 }
 function updateFeedVideos() {
+  /* Web 1.10: con los Shorts abiertos, ningún video del Inicio suena:
+     el observador sigue disparándose (el muro sigue «visible» en el
+     DOM detrás del visor) y sin esta guarda volvía a poner en marcha
+     el video más visible. */
+  var so1562 = $('shortsOverlay');
+  if (so1562 && so1562.classList.contains('on')) { feedVideos().forEach(function (v) { pauseFeedVideo(v); }); feedVideoActive = null; return; }
   var videos = feedVideos();
   if (!videos.length) { feedVideoActive = null; return; }
   var best = null, bestRatio = 0;
@@ -7596,6 +7631,10 @@ function bindFeedVideoEvents() {
   feed.addEventListener('play', function (ev) {
     var v = ev.target;
     if (!v || v.tagName !== 'VIDEO') return;
+    /* Web 1.10: con los Shorts abiertos, un video del Inicio que
+       intente sonar se para al instante. */
+    var so1562 = $('shortsOverlay');
+    if (so1562 && so1562.classList.contains('on')) { try { v.pause(); } catch (e) {} return; }
     v._wrUserPaused = false;
     v._wrAutoplayBlocked = false;
     feedVideoActive = v;
@@ -10580,9 +10619,33 @@ window.__wrDeleteConvo = function (other) {
 };
 /* ---- mensajes grupales (v1.5.14): el hilo usa el mismo overlay del
    chat 1 a 1; openChatGroupId dice que el hilo abierto es un grupo. ---- */
+/* Web 1.10: traer el perfil de alguien del servidor si no está en este
+   teléfono. CAUSA REAL de que «mandar mensajes no funcionaba»: C.sendMessage
+   rechaza el envío si el perfil del destinatario no está en la copia
+   local (state.profiles), y abrir el chat NUNCA lo pedía al servidor:
+   los perfiles solo llegaban con el inicio (quien publica) o con la
+   búsqueda. Chatear con alguien real cuyo perfil no estaba en caché
+   fallaba siempre con «Esa persona no existe en WordRed», aunque
+   existiera en el servidor. Devuelve true (ya estaba o llegó),
+   false (el servidor dice 404: de verdad no existe) o 'offline' (sin
+   conexión: quien llama decide si seguir con un perfil mínimo). */
+async function ensureChatProfile1562(phone) {
+  phone = C.normPhone(phone);
+  if (!phone) return false;
+  if (state.profiles[phone]) return true;
+  var r = null;
+  try { r = await C.serverFetch(state, '/api/profile/' + encodeURIComponent(phone), 'GET'); } catch (e) { r = null; }
+  if (r && r.ok && r.data && r.data.profile) { state.profiles[phone] = r.data.profile; save(); return true; }
+  if (r && r.status === 404) return false;
+  return 'offline';
+}
 window.__wrOpenGroupChat = function (groupId) {
   var g = C.findGroupChat(state, groupId);
   if (!g) { toast('Ese grupo no existe.'); return; }
+  /* Web 1.10: los perfiles de los integrantes también se traen si
+     faltan: sin ellos, mandar un mensaje al grupo falla igual que en
+     el chat 1 a 1 (C.sendGroupMessage pide el perfil local). */
+  (g.participants || []).forEach(function (ph) { ensureChatProfile1562(ph); });
   openChatGroupId = groupId;
   openChatPhone = null;
   hideOverlay('profileOverlay');
@@ -10625,6 +10688,15 @@ window.__wrOpenChat = function (phone) {
   openChatPhone = phone;
   openChatGroupId = null;
   hideOverlay('profileOverlay');
+  /* Web 1.10: si el perfil no está en este teléfono se pide al servidor
+     al abrir el chat (ver ensureChatProfile1562): sin él, enviar falla
+     con «Esa persona no existe». Al llegar se repinta el encabezado. */
+  ensureChatProfile1562(phone).then(function (ok) {
+    if (ok === true && openChatPhone === phone) {
+      var p2 = state.profiles[phone];
+      $('chatHead').innerHTML = avatarHtml(phone) + '<div><b>' + esc(profileName(phone)) + demoBadge(phone) + '</b><div class="tiny">' + esc(p2 && p2.bio ? p2.bio : '') + '</div></div>';
+    }
+  });
   var p = state.profiles[phone];
   $('chatHead').innerHTML = avatarHtml(phone) + '<div><b>' + esc(profileName(phone)) + demoBadge(phone) + '</b><div class="tiny">' + esc(p && p.bio ? p.bio : '') + '</div></div>';
   $('chatCallBtn').style.display = '';
@@ -10658,6 +10730,20 @@ window.__wrOpenChat = function (phone) {
 function isMyChatMsg1559(m) {
   return !!m && !!m.from && C.normPhone(m.from) === C.normPhone(state.me);
 }
+/* Web 1.10: estado de envío de un mensaje mío. «Enviando…» mientras
+   no hay confirmación del servidor (sin conexión: la cola lo reintenta
+   sola); «No se envió» cuando el servidor lo rechazó (con botón para
+   reintentarlo a mano); si no, lo de siempre (Enviado/Visto). */
+function msgSendStatus1562(m, mine) {
+  if (!mine) return '';
+  if (m.sendFailed) return ' · ⚠ No se envió';
+  if (m.pendingSync) return ' · Enviando…';
+  return (m.readBy && m.readBy.length > 1) ? ' · ✓✓ Visto' + (m.readAt ? ' ' + C.formatTime(m.readAt) : '') : ' · ✓ Enviado';
+}
+function msgRetryBtn1562(m, mine) {
+  if (!mine || !m.sendFailed) return '';
+  return ' <button class="tiny" style="opacity:1;color:#ff5c5c" onclick="window.__wrRetryMessage1562(\'' + m.id + '\')">Reintentar</button>';
+}
 function renderChatMsgs() {
   var el = $('chatMsgs');
   applyChatBg1526(); /* 1.5.26 (37): fondo de chats */
@@ -10675,7 +10761,7 @@ function renderChatMsgs() {
       var body = (mine1559 ? '' : '<b style="font-size:12px">' + esc(profileName(m.from)) + '</b><br>') + (m.text ? formatText(m.text) : '');
       body = chatMsgMediaHtml(m, body);
       var newCls = (m.id === justSentMessageId) ? ' new-msg' : '';
-      return '<div class="msg ' + cls + newCls + '">' + body + msgReactionsHtml1526(m) + '<span class="tiny">' + C.timeAgo(m.createdAt) + ' · ' + C.formatDateTime(m.createdAt) + msgExpiresText1550(m) + (mine1559 ? (m.readBy.length > 1 ? ' · ✓✓ Visto' : ' · ✓ Enviado') : '') + '</span> <button class="tiny" style="opacity:.6" onclick="window.__wrOpenMsgReactPicker(\'' + m.id + '\')">' + ic('smile', 13) + '</button></div>'; /* 1.5.26 (56) */
+      return '<div class="msg ' + cls + newCls + '">' + body + msgReactionsHtml1526(m) + '<span class="tiny">' + C.timeAgo(m.createdAt) + ' · ' + C.formatDateTime(m.createdAt) + msgExpiresText1550(m) + msgSendStatus1562(m, mine1559) + '</span>' + msgRetryBtn1562(m, mine1559) + ' <button class="tiny" style="opacity:.6" onclick="window.__wrOpenMsgReactPicker(\'' + m.id + '\')">' + ic('smile', 13) + '</button></div>'; /* 1.5.26 (56) */
     }).join('');
     justSentMessageId = null;
     el.scrollTop = el.scrollHeight;
@@ -10692,7 +10778,7 @@ function renderChatMsgs() {
     var body = m.text ? formatText(m.text) : '';
     body = chatMsgMediaHtml(m, body);
     var newCls = (m.id === justSentMessageId) ? ' new-msg' : '';
-    return '<div class="msg ' + cls + newCls + '">' + body + msgReactionsHtml1526(m) + '<span class="tiny">' + C.timeAgo(m.createdAt) + ' · ' + C.formatDateTime(m.createdAt) + msgExpiresText1550(m) + (mine1559 ? (m.readBy.length > 1 ? ' · ✓✓ Visto' + (m.readAt ? ' ' + C.formatTime(m.readAt) : '') : ' · ✓ Enviado') : '') + '</span> <button class="tiny" style="opacity:.6" onclick="window.__wrOpenMsgReactPicker(\'' + m.id + '\')">' + ic('smile', 13) + '</button>' + (mine1559 ? '<button class="msgdel" onclick="window.__wrDeleteMessageChoice1550(\'' + m.id + '\')">✕</button>' : '') + '</div>'; /* 1.5.26 (56) */
+    return '<div class="msg ' + cls + newCls + '">' + body + msgReactionsHtml1526(m) + '<span class="tiny">' + C.timeAgo(m.createdAt) + ' · ' + C.formatDateTime(m.createdAt) + msgExpiresText1550(m) + msgSendStatus1562(m, mine1559) + '</span>' + msgRetryBtn1562(m, mine1559) + ' <button class="tiny" style="opacity:.6" onclick="window.__wrOpenMsgReactPicker(\'' + m.id + '\')">' + ic('smile', 13) + '</button>' + (mine1559 ? '<button class="msgdel" onclick="window.__wrDeleteMessageChoice1550(\'' + m.id + '\')">✕</button>' : '') + '</div>'; /* 1.5.26 (56) */
   }).join('');
   justSentMessageId = null;
   el.scrollTop = el.scrollHeight;
@@ -10807,6 +10893,33 @@ function renderChatFileChip() {
   box.classList.remove('hidden');
 }
 window.__wrClearChatFile = function () { chatFile = null; renderChatFileChip(); };
+/* Web 1.10: mandar un mensaje de chat al servidor. Si su foto, archivo
+   o voz sigue siendo un archivo LOCAL (la subida falló), NO se manda
+   todavía con esa dirección local: se encola la subida del medio y el
+   envío detrás de ella, para que el otro lo reciba con la URL pública
+   (antes el mensaje se mandaba con la data: larguísima y el otro lo
+   recibía roto o pesadísimo). Si ya tiene URL, se manda directo. El
+   envío diferido solo vale para el chat 1 a 1 (su ruta sí se refresca
+   en la cola); en grupo se manda directo como antes. */
+function pushChatMessageToServer1562(message, toOrGroupId, isGroup) {
+  queueMessageMediaForUpload(message);
+  var hasLocal = (message.media && isLocalMediaSrc(message.media)) ||
+    (message.file && message.file.uri && isLocalMediaSrc(message.file.uri)) ||
+    (message.voice && message.voice.uri && isLocalMediaSrc(message.voice.uri));
+  if (!hasLocal || isGroup) {
+    if (isGroup) pushGroupMessageToServer(toOrGroupId, message);
+    else pushMessageToServer(message, toOrGroupId);
+    return;
+  }
+  message.pendingSync = true;
+  save();
+  C.queuePending(state, { kind: 'http', path: '/api/messages', method: 'POST', body: { from: message.from, to: toOrGroupId, message: message } });
+  save();
+  /* El vaciado procesa en orden: primero la subida del medio (que pone
+     la URL en el mensaje local) y luego el envío, que ya lleva la URL
+     porque refreshPendingBody lo refresca desde el mensaje local. */
+  C.flushPendingQueue(state).then(function () { save(); if (openChatPhone || openChatGroupId) renderChatMsgs(); });
+}
 async function sendChat() {
   var text = $('chatText').value;
   var media = chatMedia;
@@ -10832,6 +10945,14 @@ async function sendChat() {
      integrantes por el mismo botón de enviar. */
   if (openChatGroupId) {
     var rg = C.sendGroupMessage(state, state.me, openChatGroupId, text, chatStickerCustomUrl1550 ? chatStickerCustomUrl1550 : (media ? media.src : ''), chatStickerCustomUrl1550 ? 'image' : (media ? media.type : ''), chatStickerId ? { stickerId: chatStickerId } : null); /* 1.5.26 (47): sticker */
+    /* Web 1.10: si falla porque falta el perfil local de un integrante,
+       se traen los perfiles del servidor y se reintenta UNA vez (sin
+       eso, el mensaje al grupo fallaba igual que el 1 a 1). */
+    if (!rg.ok && (rg.error || '').indexOf('no existe en WordRed') >= 0) {
+      var gg = C.findGroupChat(state, openChatGroupId);
+      await Promise.all((gg && gg.participants || []).map(function (ph) { return ensureChatProfile1562(ph); }));
+      rg = C.sendGroupMessage(state, state.me, openChatGroupId, text, chatStickerCustomUrl1550 ? chatStickerCustomUrl1550 : (media ? media.src : ''), chatStickerCustomUrl1550 ? 'image' : (media ? media.type : ''), chatStickerId ? { stickerId: chatStickerId } : null);
+    }
     if (!rg.ok) { toast(rg.error); return; }
     chatStickerId = '';
     /* Web 1.5 (27/54): autodestrucción y sticker propio van en el
@@ -10847,10 +10968,21 @@ async function sendChat() {
     renderChatFileChip();
     justSentMessageId = rg.message.id;
     renderChatMsgs();
-    queueMessageMediaForUpload(rg.message);
-    pushGroupMessageToServer(openChatGroupId, rg.message);
+    pushChatMessageToServer1562(rg.message, openChatGroupId, true);
     if (currentView === 'messages') renderConvos();
     return;
+  }
+  /* Web 1.10: antes de enviar se trae el perfil del destinatario si no
+     está en este teléfono (ver ensureChatProfile1562): sin él,
+     C.sendMessage rechaza el mensaje con «Esa persona no existe» aunque
+     exista en el servidor. Si el servidor dice que no existe, se avisa
+     y no se crea el mensaje; si no hay conexión, se sigue con un perfil
+     mínimo y el servidor valida al enviar (su rechazo ya no es
+     silencioso: ver pushMessageToServer). */
+  if (openChatPhone && !state.profiles[openChatPhone]) {
+    var ensured1562 = await ensureChatProfile1562(openChatPhone);
+    if (ensured1562 === false) { toast('Esa persona no existe en WordRed.'); return; }
+    if (ensured1562 === 'offline') state.profiles[openChatPhone] = { phone: openChatPhone, name: openChatPhone, createdAt: Date.now() };
   }
   var r = C.sendMessage(state, state.me, openChatPhone, text, chatStickerCustomUrl1550 ? chatStickerCustomUrl1550 : (media ? media.src : ''), chatStickerCustomUrl1550 ? 'image' : (media ? media.type : ''), file, null, chatStickerId ? { stickerId: chatStickerId } : null); /* 1.5.26 (47): sticker */
   if (!r.ok) { toast(r.error); return; }
@@ -10871,9 +11003,10 @@ async function sendChat() {
   renderChatFileChip();
   justSentMessageId = r.message.id;
   renderChatMsgs();
-  /* v1.4: lo que quedó en local se sube solo al reconectar. */
-  queueMessageMediaForUpload(r.message);
-  pushMessageToServer(r.message, openChatPhone);
+  /* v1.4: lo que quedó en local se sube solo al reconectar. Web 1.10:
+     si la foto, el archivo o la voz siguen en local, el envío va
+     detrás de su subida (ver pushChatMessageToServer1562). */
+  pushChatMessageToServer1562(r.message, openChatPhone, false);
 }
 $('chatSend').addEventListener('click', sendChat);
 $('chatText').addEventListener('keydown', function (e) { if (e.key === 'Enter') sendChat(); });
@@ -10954,8 +11087,34 @@ async function pushGroupChatToServer(group) {
   await pushToServer('/api/group-chats', 'POST', { id: group.id, name: group.name, participants: group.participants, createdAt: group.createdAt });
 }
 async function pushGroupMessageToServer(groupId, message) {
-  await pushToServer('/api/group-chats/' + encodeURIComponent(groupId) + '/messages', 'POST', { message: message });
+  var r = await pushToServer('/api/group-chats/' + encodeURIComponent(groupId) + '/messages', 'POST', { message: message });
+  if (r.ok) { markMsgSendState1562(message, false); return r; }
+  if (C.isConnectionError(r)) { message.pendingSync = true; delete message.sendFailed; save(); if (openChatGroupId === groupId) renderChatMsgs(); return r; }
+  markMsgSendState1562(message, true);
+  toast(r.error || 'No se pudo enviar el mensaje al grupo.');
+  return r;
 }
+/* Web 1.10: reintentar a mano un mensaje que el servidor rechazó
+   (marcado «No se envió»). Busca el mensaje en el chat abierto (1 a 1
+   o grupo), le quita la marca de fallo y lo vuelve a enviar. */
+window.__wrRetryMessage1562 = async function (messageId) {
+  var found = null, to = null, groupId = null;
+  if (openChatPhone) {
+    var conv = state.conversations[C.convoKey(state.me, openChatPhone)];
+    (conv && conv.messages || []).forEach(function (m) { if (m.id === messageId) { found = m; to = openChatPhone; } });
+  }
+  if (!found && openChatGroupId) {
+    var g = C.findGroupChat(state, openChatGroupId);
+    (g && g.messages || []).forEach(function (m) { if (m.id === messageId) { found = m; groupId = openChatGroupId; } });
+  }
+  if (!found) return;
+  delete found.sendFailed;
+  found.pendingSync = true;
+  save();
+  renderChatMsgs();
+  if (groupId) await pushGroupMessageToServer(groupId, found);
+  else await pushMessageToServer(found, to);
+};
 async function pushGroupMembersToServer(groupId) {
   var g = C.findGroupChat(state, groupId);
   if (!g) return;
@@ -11068,6 +11227,13 @@ window.__onVoiceRecorded = function (uri, durationMs) {
 };
 async function sendVoiceMessage(uri, durationMs, size, mime) {
   if (!openChatPhone) return;
+  /* Web 1.10: igual que al escribir (ver sendChat): sin el perfil del
+     destinatario en este teléfono el envío se rechaza en local. */
+  if (!state.profiles[openChatPhone]) {
+    var ensuredV1562 = await ensureChatProfile1562(openChatPhone);
+    if (ensuredV1562 === false) { toast('Esa persona no existe en WordRed.'); return; }
+    if (ensuredV1562 === 'offline') state.profiles[openChatPhone] = { phone: openChatPhone, name: openChatPhone, createdAt: Date.now() };
+  }
   /* v1.4: el audio se sube al servidor antes de enviar, para que el
      otro lo escuche en vivo desde la URL. */
   var voiceUri = uri;
@@ -11089,9 +11255,11 @@ async function sendVoiceMessage(uri, durationMs, size, mime) {
   save();
   justSentMessageId = r.message.id;
   renderChatMsgs();
-  /* v1.4: lo que quedó en local se sube solo al reconectar. */
-  queueMessageMediaForUpload(r.message);
-  pushMessageToServer(r.message, openChatPhone);
+  /* v1.4: lo que quedó en local se sube solo al reconectar. Web 1.10:
+     si la voz sigue en local (la subida falló), el envío va detrás de
+     su subida (ver pushChatMessageToServer1562): el otro la recibe
+     con la URL pública, no con la data: larguísima. */
+  pushChatMessageToServer1562(r.message, openChatPhone, false);
   showSuccess('Mensaje de voz enviado.');
 }
 $('chatVoiceBtn').addEventListener('click', function () {
@@ -13494,6 +13662,14 @@ async function pullFromServer() {
                ya existía en local. */
             if (m.readBy) ex.readBy = m.readBy;
             if (m.readAt) ex.readAt = m.readAt;
+            /* Web 1.10: el servidor ya tiene mi mensaje: se quitan las
+               marcas de «Enviando…» / «No se envió» y se toman sus URLs
+               públicas (si la voz, la foto o el archivo llegaron como
+               URL, la copia local deja de apuntar al archivo local). */
+            if (ex.pendingSync || ex.sendFailed) { delete ex.pendingSync; delete ex.sendFailed; }
+            if (m.media && String(m.media).indexOf('http') === 0) { ex.media = m.media; ex.mediaType = m.mediaType || ex.mediaType; }
+            if (m.file && m.file.uri && String(m.file.uri).indexOf('http') === 0 && ex.file) ex.file.uri = m.file.uri;
+            if (m.voice && m.voice.uri && String(m.voice.uri).indexOf('http') === 0 && ex.voice) ex.voice.uri = m.voice.uri;
           }
         });
         local.messages.sort(function (a, b) { return a.createdAt - b.createdAt; });
@@ -13647,10 +13823,31 @@ async function pushPostToServer(post) {
      da por hecho. */
   return pushToServer('/api/posts', 'POST', { post: post }, { queueRetryable: true });
 }
+/* Web 1.10: el envío al servidor ya no falla EN SILENCIO. CAUSA REAL de
+   que un mensaje «se enviaba» pero nunca llegaba: pushMessageToServer
+   no miraba la respuesta; si el servidor rechazaba el mensaje (404 la
+   persona ya no existe, 400 contenido inválido, 500), la copia local
+   quedaba como «✓ Enviado» para siempre. Ahora: si llega (ok) se
+   quitan las marcas de pendiente/fallo; si no hay conexión se marca
+   «Enviando…» (la cola lo reintenta sola al reconectar); si el servidor
+   lo rechaza de verdad se avisa con su error y el mensaje queda
+   marcado para reintentarlo a mano (ver __wrRetryMessage1562). */
+function markMsgSendState1562(message, failed) {
+  if (!message) return;
+  if (failed) { message.sendFailed = true; delete message.pendingSync; }
+  else { delete message.sendFailed; delete message.pendingSync; }
+  save();
+  if (openChatPhone || openChatGroupId) renderChatMsgs();
+}
 async function pushMessageToServer(message, to) {
   var base = C.serverBase(state);
-  if (!base || !message) return;
-  await pushToServer('/api/messages', 'POST', { from: message.from, to: to, message: message });
+  if (!base || !message) return { ok: false, error: 'Sin conexión.' };
+  var r = await pushToServer('/api/messages', 'POST', { from: message.from, to: to, message: message });
+  if (r.ok) { markMsgSendState1562(message, false); return r; }
+  if (C.isConnectionError(r)) { message.pendingSync = true; delete message.sendFailed; save(); if (openChatPhone === to) renderChatMsgs(); return r; }
+  markMsgSendState1562(message, true);
+  toast(r.error || 'No se pudo enviar el mensaje.');
+  return r;
 }
 async function pushListingToServer(listing) {
   var base = C.serverBase(state);
@@ -13781,11 +13978,58 @@ function setCallBtnLabel(btnId, label) {
    señalización (oferta/respuesta/ICE/colgar). Nada sale a otra app:
    ni WhatsApp ni el teléfono. Honesto: sin servidor desplegado y sin
    los dos en línea, el botón de llamar lo dice claro en vez de fingir. */
+/* Web 1.10: servidores ICE de las llamadas. CAUSA REAL de que las
+   llamadas «no funcionaban» en el teléfono: todos los PeerConnection
+   usaban UN SOLO STUN de Google y NADA más. En redes móviles (NAT
+   simétrico, lo común en México) el STUN solo no abre el camino y la
+   llamada se quedaba en «en llamada» sin audio ni video y sin avisar
+   nada. Ahora hay dos STUN y un TURN gratuito (Open Relay Project,
+   servicio público gratuito para pruebas y apps pequeñas) que releva
+   el audio/video cuando el directo no pasa; si ni así se conecta, la
+   llamada avisa y cuelga en vez de quedarse muda (ver
+   wrCallIceFailed1562). */
+function wrIceServers1562() {
+  return [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+  ];
+}
+/* Web 1.10: la conexión de medios de la llamada falló (ICE 'failed' o
+   'disconnected' sin volver en 8 s). Antes la llamada seguía en
+   pantalla con el temporizador corriendo y en silencio; ahora avisa
+   claro y cuelga (con 'hangup' al otro lado para que tampoco se le
+   quede colgada). */
+function wrCallIceFailed1562() {
+  if (call.state === 'idle' || call.state === 'incoming') return;
+  if (call.iceFailTimer1562) { clearTimeout(call.iceFailTimer1562); call.iceFailTimer1562 = null; }
+  toast('No se pudo conectar el audio de la llamada. Revisa tu internet e inténtalo de nuevo.');
+  endCall(false);
+}
+function wrCallIceState1562(pc) {
+  var s = pc.iceConnectionState;
+  if (s === 'connected' || s === 'completed') {
+    if (call.iceFailTimer1562) { clearTimeout(call.iceFailTimer1562); call.iceFailTimer1562 = null; }
+    return;
+  }
+  if (s === 'disconnected') {
+    if (call.iceFailTimer1562) return;
+    call.iceFailTimer1562 = setTimeout(function () {
+      call.iceFailTimer1562 = null;
+      if (call.pc === pc && (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed')) wrCallIceFailed1562();
+    }, 8000);
+    return;
+  }
+  if (s === 'failed') wrCallIceFailed1562();
+}
 function makePeerConnection() {
-  var pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+  var pc = new RTCPeerConnection({ iceServers: wrIceServers1562() });
   pc.onicecandidate = function (e) {
     if (e.candidate && call.peer) sendCallSignal('ice', e.candidate);
   };
+  pc.oniceconnectionstatechange = function () { wrCallIceState1562(pc); };
   pc.ontrack = function (e) {
     call.remoteStream = e.streams[0];
     attachCallRemoteStream(e.streams[0]);
@@ -13968,6 +14212,7 @@ function handleCallSignal(data) {
 function endCall(silent) {
   stopAllCallSounds();
   clearCallRingTimer(); /* v1.6: al terminar la llamada se apaga el temporizador de "No contesta" */
+  if (call.iceFailTimer1562) { clearTimeout(call.iceFailTimer1562); call.iceFailTimer1562 = null; } /* Web 1.10: también se apaga el temporizador de fallo de conexión. */
   if (callScreenSharing) { /* 1.5.26 (28): al colgar se detiene la pantalla compartida. */
     callScreenSharing = false;
     if (callScreenShareStream) callScreenShareStream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
@@ -14392,7 +14637,7 @@ function liveShareButtonHtml(post) {
    y le manda su cámara; los candidatos ICE van y vienen por el servidor. */
 function makeLivePc(peer) {
   var pc = null;
-  try { pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }); } catch (e) { return null; }
+  try { pc = new RTCPeerConnection({ iceServers: wrIceServers1562() }); } catch (e) { return null; }
   pc.onicecandidate = function (e) {
     if (e.candidate && currentLive) sendLiveSignal(peer, 'ice', e.candidate);
   };
@@ -14417,7 +14662,7 @@ function makeLivePc(peer) {
 /* 1.5.26 (23): PC del transmisor que RECIBE la cámara del invitado. */
 function makeLiveCoHostPc(peer) {
   var pc = null;
-  try { pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }); } catch (e) { return null; }
+  try { pc = new RTCPeerConnection({ iceServers: wrIceServers1562() }); } catch (e) { return null; }
   pc.onicecandidate = function (e) {
     if (e.candidate && currentLive) sendLiveSignal(peer, 'ice', { cohost: true, candidate: e.candidate });
   };
@@ -14515,7 +14760,7 @@ async function doCoHostPublish1526() {
   catch (e) { toast('No se pudo encender tu cámara para el live. Revisa el permiso.'); return; }
   liveCoHostLocalStream = stream;
   var pc = null;
-  try { pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }); } catch (e) { toast('Este teléfono no permite compartir tu cámara en el live.'); return; }
+  try { pc = new RTCPeerConnection({ iceServers: wrIceServers1562() }); } catch (e) { toast('Este teléfono no permite compartir tu cámara en el live.'); return; }
   liveCoHostPublishPc = pc;
   pc.onicecandidate = function (e) {
     if (e.candidate && currentLive) sendLiveSignal(currentLive.host, 'ice', { cohost: true, candidate: e.candidate });
@@ -16080,8 +16325,8 @@ var TUTORIAL_STEPS_1533 = [
   { art: 'bienvenida', title: 'Bienvenido a WordRed', text: 'Aquí está tu inicio: las publicaciones de tus amigos y de la cuenta de ejemplo aparecen en un solo lugar.' },
   { art: 'inicio', title: 'Tu inicio', text: 'Arriba siempre están los reels, luego «¿Qué estás pensando?» y el reloj con el clima a su derecha. Desliza para ver publicaciones, dale Me gusta, comenta y comparte. Entre las publicaciones verás los Reels grandes y la cartelera de estrenos. Los reels se abren a pantalla completa y se cambian deslizando. Llegan más dramas cada 2 semanas: salen mezclados entre los Shorts y en el visor puedes seguir una serie para que te avise de capítulos nuevos. En tu perfil está «Guardados», con lo que guardes para luego. Las barras se ocultan solas al bajar y vuelven al subir; Mercado está en el centro de la barra de abajo.' }, /* Web 1.2: el buscador del Inicio se quitó. */ /* Web 1.5: reels a pantalla completa, buscar y seguir dramas, Guardados. */ /* Web 1.7: ya no hay sección Dramas en el Inicio (se quitó en la 1.6): los dramas salen entre los Shorts y se sigue desde el visor. */
   { art: 'publicar', title: 'Publica algo', text: 'Toca «Publicar» y comparte una foto, un video o lo que piensas. La vista previa sale al instante y la subida sigue en segundo plano: si la conexión se corta, continúa donde se quedó y nada se publica roto. También puedes hacer una encuesta, grabar una nota de voz, compartir una canción del catálogo o ponerle un filtro a tu foto antes de publicar.' }, /* Web 1.5: encuestas, notas de voz, canciones y filtros. */
-  { art: 'shorts', title: 'Shorts e historias', text: 'Mira videos cortos en Shorts y crea historias que duran 24 horas. Arriba en el inicio están los reels: toca tu foto con el + para publicar uno. Las historias se crean desde tu perfil y se ven en Shorts: pueden llevar música, una encuesta o una foto con las dos cámaras. Entre los Shorts aparecen tarjetas de dramas: al llegar a una se reproduce sola en su primer capítulo, sin que aparezca el tutorial.' }, /* Web 1.5: historias con música, encuestas y doble cámara. */ /* Web 1.7: los dramas entre los Shorts se reproducen solos al llegar, sin el tutorial (antes había que tocar la tarjeta). */
-  { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. En Amigos verás «Gente que quizá conozcas», con personas reales que quizá conozcas. Los grupos tienen sus propios administradores y reglas, y ahora también eventos y llamadas de voz o video en grupo. En los chats puedes mandar notas de voz, buscar mensajes, fijar un chat y borrar un mensaje para todos. También puedes ponerle emojis a lo que escribes y reaccionar a un mensaje con un emoji; la barra para escribir es grande y está arriba de los botones.' }, /* Web 1.5: sugerencias, eventos en grupos, llamadas grupales. */ /* Web 1.8: emojis en el chat y barra grande arriba. */
+  { art: 'shorts', title: 'Shorts e historias', text: 'Mira videos cortos en Shorts y crea historias que duran 24 horas. Arriba en el inicio están los reels: toca tu foto con el + para publicar uno. Las historias se crean desde tu perfil y se ven en Shorts: pueden llevar música, una encuesta o una foto con las dos cámaras. Entre los Shorts aparecen tarjetas de dramas: al llegar a una se reproduce sola en su primer capítulo, sin que aparezca el tutorial. Al entrar a los Shorts, los videos del inicio se paran solos.' }, /* Web 1.5: historias con música, encuestas y doble cámara. */ /* Web 1.7: los dramas entre los Shorts se reproducen solos al llegar, sin el tutorial (antes había que tocar la tarjeta). */ /* Web 1.10: al entrar a los Shorts, los videos del inicio se paran. */
+  { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. En Amigos verás «Gente que quizá conozcas», con personas reales que quizá conozcas. Los grupos tienen sus propios administradores y reglas, y ahora también eventos y llamadas de voz o video en grupo. En los chats puedes mandar notas de voz, buscar mensajes, fijar un chat y borrar un mensaje para todos. También puedes ponerle emojis a lo que escribes y reaccionar a un mensaje con un emoji; la barra para escribir es grande y está arriba de los botones. Los mensajes, las notas de voz, los emojis, las llamadas y las videollamadas ya funcionan sin fallos: si un mensaje no se envía, avisa y se puede reintentar tocándolo.' }, /* Web 1.5: sugerencias, eventos en grupos, llamadas grupales. */ /* Web 1.8: emojis en el chat y barra grande arriba. */ /* Web 1.10: chat sin fallos (mensajes, voz, emojis, llamadas y videollamadas) y reintento al tocar un mensaje no enviado. */
   { art: 'perfil', title: 'Tu perfil', text: 'En tu perfil está tu foto, tu biografía y tus publicaciones, con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos. También están «Guardados», «Archivados», «Me gusta» y el «Archivo de historias», tu código QR para compartir tu perfil, tu nota y tu negocio si lo agregas. Toca el engrane para ir a Ajustes: ahí están las notificaciones push, el modo No molestar, el texto grande, el ahorro de datos y exportar tus datos.' } /* Web 1.9: los Eventos salieron del perfil. */ /* Web 1.5: Guardados, Archivados, QR, nota, negocio, Ajustes nuevos. */
 ];
 /* Ilustración estática de cada paso: un teléfono con la pantalla de la
@@ -18955,6 +19200,15 @@ window.__wordredTest = {
   startCall: startCall,
   acceptCall: acceptCall,
   endCall: endCall,
+  getCallIceState: function () { return call.pc ? call.pc.iceConnectionState : null; },
+  getCallRemoteStream: function () { return !!call.remoteStream; },
+  wrIceServers1562: wrIceServers1562,
+  wrCallIceFailed1562: wrCallIceFailed1562,
+  ensureChatProfile1562: ensureChatProfile1562,
+  pushMessageToServer: pushMessageToServer,
+  pushChatMessageToServer1562: pushChatMessageToServer1562,
+  pauseAllFeedMedia1562: pauseAllFeedMedia1562,
+  retryMessage1562: function (id) { window.__wrRetryMessage1562(id); },
   handleCallSignal: handleCallSignal,
   renderChatMsgs: renderChatMsgs,
   fileCardHtml: fileCardHtml,
@@ -20527,11 +20781,43 @@ var groupCall1550 = null;
 function sendGroupCallSignal1550(to, type, payload) {
   return C.serverFetch(state, '/api/call-signal', 'POST', { from: state.me, to: to, type: type, payload: payload }, 30000);
 }
+/* Web 1.10: en la llamada de grupo, si la conexión de medios con UN
+   participante falla (ICE 'failed' o 'disconnected' sin volver en 8 s),
+   solo se saca a ese participante (su baldosa desaparece y se avisa):
+   antes se quedaba su baldosa en silencio para siempre. */
+var groupCallIceTimers1550 = {};
+function wrGroupCallIceFailed1562(peer) {
+  if (!groupCall1550 || !groupCall1550.pcs[peer]) return;
+  var pc = groupCall1550.pcs[peer];
+  try { pc.close(); } catch (e) {}
+  delete groupCall1550.pcs[peer];
+  delete groupCall1550.remoteStreams[peer];
+  if (groupCallIceTimers1550[peer]) { clearTimeout(groupCallIceTimers1550[peer]); delete groupCallIceTimers1550[peer]; }
+  toast('Se perdió la conexión con ' + profileName(peer) + ' en la llamada de grupo.');
+  renderGroupCall1550();
+}
+function wrGroupCallIceState1562(pc, peer) {
+  var s = pc.iceConnectionState;
+  if (s === 'connected' || s === 'completed') {
+    if (groupCallIceTimers1550[peer]) { clearTimeout(groupCallIceTimers1550[peer]); delete groupCallIceTimers1550[peer]; }
+    return;
+  }
+  if (s === 'disconnected') {
+    if (groupCallIceTimers1550[peer]) return;
+    groupCallIceTimers1550[peer] = setTimeout(function () {
+      delete groupCallIceTimers1550[peer];
+      if (groupCall1550 && groupCall1550.pcs[peer] === pc && (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed')) wrGroupCallIceFailed1562(peer);
+    }, 8000);
+    return;
+  }
+  if (s === 'failed') wrGroupCallIceFailed1562(peer);
+}
 function makeGroupPc1550(peer) {
-  var pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+  var pc = new RTCPeerConnection({ iceServers: wrIceServers1562() });
   pc.onicecandidate = function (e) {
     if (e.candidate) sendGroupCallSignal1550(peer, 'ice', { candidate: e.candidate, groupId: groupCall1550 ? groupCall1550.groupId : '' });
   };
+  pc.oniceconnectionstatechange = function () { wrGroupCallIceState1562(pc, peer); };
   pc.ontrack = function (e) {
     if (!groupCall1550) return;
     groupCall1550.remoteStreams[peer] = e.streams[0];
