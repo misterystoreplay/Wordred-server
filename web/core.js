@@ -609,6 +609,11 @@ function completeProfile(state, phone, data) {
     prof.headerGradient = data.headerGradient;
   }
   if (!prof.headerGradient) prof.headerGradient = 'none';
+  /* Web 1.13: una cuenta nueva nace en español y en México y sin ser
+     creadora, salvo que el alta pida otra cosa. */
+  if (!prof.language) prof.language = 'es';
+  if (!prof.country) prof.country = 'México';
+  if (prof.creator === undefined) prof.creator = false;
   if (data && data.job !== undefined) prof.job = String(data.job || '').slice(0, 100);
   if (data && data.education !== undefined) prof.education = String(data.education || '').slice(0, 100);
   if (data && data.city !== undefined) prof.city = String(data.city || '').slice(0, 80);
@@ -616,6 +621,16 @@ function completeProfile(state, phone, data) {
     if (data.relationship && RELATIONSHIPS.indexOf(data.relationship) < 0) return { ok: false, error: 'Ese estado civil no existe.' };
     prof.relationship = data.relationship || '';
   }
+  /* Web 1.13: idioma, país y si es creador de contenido (alta de cuenta
+     nueva y Ajustes). El idioma solo acepta los tres que la web sabe
+     mostrar; el país es texto libre; creador es un sí/no. */
+  if (data && data.language !== undefined) {
+    var lang113 = String(data.language || '').toLowerCase();
+    if (['es', 'en', 'pt'].indexOf(lang113) < 0) return { ok: false, error: 'Ese idioma no está disponible.' };
+    prof.language = lang113;
+  }
+  if (data && data.country !== undefined) prof.country = String(data.country || '').slice(0, 80);
+  if (data && data.creator !== undefined) prof.creator = data.creator === true;
   if (data && data.birthday !== undefined) {
     var bd = String(data.birthday || '');
     if (bd && !/^\d{4}-\d{2}-\d{2}$/.test(bd)) return { ok: false, error: 'El cumpleaños debe ser una fecha válida.' };
@@ -3599,6 +3614,9 @@ function profileBody(state) {
     headerGradient: p.headerGradient || 'none', job: p.job || '', education: p.education || '',
     city: p.city || '', relationship: p.relationship || '', birthday: p.birthday || '',
     website: p.website || '', pinnedPosts: p.pinnedPosts || [],
+    /* Web 1.13: el idioma, el país y si es creador viajan al servidor
+       con el resto del perfil (POST /api/profile los guarda). */
+    language: p.language || 'es', country: p.country || 'México', creator: p.creator === true,
     sectionPrivacy: p.sectionPrivacy || { bio: 'Público', friends: 'Público', posts: 'Público' }
   };
 }
@@ -4203,7 +4221,7 @@ var api = {
   TEXT_SIZES: TEXT_SIZES, TEXT_SIZE_LABELS: TEXT_SIZE_LABELS, textSizeValid: textSizeValid, textSizeClass: textSizeClass,
   CHAT_BG_COLORS: CHAT_BG_COLORS, chatBgValid: chatBgValid,
   isCellularConnection: isCellularConnection, dataSaverHoldsVideo: dataSaverHoldsVideo,
-  isSpanishText: isSpanishText, translateUrl: translateUrl, translateResponseOk: translateResponseOk,
+  isSpanishText: isSpanishText, translateUrl: translateUrl, translateResponseOk: translateResponseOk, isLangText: isLangText,
   isValidHttpUrl: isValidHttpUrl, validateGeoPlace: validateGeoPlace, staticMapUrl: staticMapUrl, osmUrl: osmUrl,
   MOODS: MOODS, moodById: moodById, validateMood: validateMood, moodLine: moodLine,
   normalizeChallengeTag: normalizeChallengeTag, challengeFromPost: challengeFromPost,
@@ -4441,8 +4459,37 @@ function isSpanishText(text) {
   words.forEach(function (w) { if (SPANISH_WORDS.indexOf(w) >= 0) hits++; });
   return hits / words.length >= 0.2;
 }
-function translateUrl(text) {
-  return 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(String(text || '').slice(0, 500)) + '&langpair=auto|es';
+/* Web 1.13: el destino ya no es siempre español: se traduce al idioma
+   que la persona eligió en Ajustes (es/en/pt). MyMemory rechaza 'auto'
+   como idioma de origen (403 «'AUTO' IS AN INVALID SOURCE LANGUAGE»,
+   comprobado 2026-11-21: con auto|en devuelve 403 y con es|en 200):
+   se detecta el idioma del texto con las listas de palabras; si no se
+   sabe, se supone español (casi todo el contenido lo es), salvo que el
+   destino sea español, en cuyo caso se supone inglés. */
+function translateUrl(text, target) {
+  var tl = ['es', 'en', 'pt'].indexOf(String(target || '').toLowerCase()) >= 0 ? String(target).toLowerCase() : 'es';
+  var sl = '';
+  if (tl !== 'en' && isLangText(text, 'en')) sl = 'en';
+  else if (tl !== 'pt' && isLangText(text, 'pt')) sl = 'pt';
+  else if (tl !== 'es' && isSpanishText(text)) sl = 'es';
+  if (!sl) sl = tl === 'es' ? 'en' : 'es';
+  return 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(String(text || '').slice(0, 500)) + '&langpair=' + sl + '|' + tl;
+}
+/* Web 1.13: ¿el texto parece estar en ese idioma? Listas cortas como
+   SPANISH_WORDS: solo deciden si vale la pena traducir; si no se sabe,
+   se traduce igual (traducir un texto que ya está en el idioma no
+   rompe nada, solo gasta una llamada al servicio gratuito). */
+var ENGLISH_WORDS = ['the', 'and', 'you', 'that', 'with', 'for', 'are', 'this', 'have', 'from', 'your', 'not', 'but', 'all', 'can', 'her', 'his', 'she', 'they', 'one', 'about', 'what', 'when', 'there', 'their', 'would', 'like', 'just', 'love', 'good', 'day', 'time', 'people', 'life', 'new', 'now', 'how', 'out', 'get', 'see', 'know', 'take', 'thank', 'hello', 'happy', 'birthday', 'friend', 'friends', 'today', 'photo', 'video', 'music', 'song'];
+var PORTUGUESE_WORDS = ['o', 'a', 'de', 'que', 'em', 'e', 'os', 'um', 'com', 'por', 'para', 'seu', 'ao', 'do', 'das', 'uma', 'como', 'mais', 'mas', 'seus', 'este', 'esta', 'eu', 'obrigado', 'bom', 'dia', 'tarde', 'noite', 'amor', 'vida', 'tempo', 'gente', 'hoje', 'foto', 'música', 'amigo', 'amigos', 'feliz'];
+function isLangText(text, lang) {
+  if (lang === 'es') return isSpanishText(text);
+  var list = lang === 'en' ? ENGLISH_WORDS : lang === 'pt' ? PORTUGUESE_WORDS : null;
+  if (!list) return true;
+  var words = String(text || '').toLowerCase().replace(/[^a-záéíóúñüâêôãõç\s]/g, ' ').split(/\s+/).filter(function (w) { return w.length > 1; });
+  if (!words.length) return true;
+  var hits = 0;
+  words.forEach(function (w) { if (list.indexOf(w) >= 0) hits++; });
+  return hits / words.length >= 0.2;
 }
 function translateResponseOk(data) {
   if (!data || !data.responseData) return { ok: false };

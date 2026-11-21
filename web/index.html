@@ -1281,22 +1281,90 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
     <button class="btn ghost mt" id="authBack" style="width:100%">Cambiar número</button>
     <p class="tiny mt center" id="authResendWrap">¿No llegó? <button id="authResend" style="color:var(--red2);font-weight:700">Pedir otro código</button></p>
   </div>
+  <!-- Web 1.13: alta de cuenta nueva en pasos: nombre → foto → portada →
+       lenguaje → país → descripción → fecha de nacimiento → estado civil →
+       ¿creador? → agradecimiento. Solo el nombre es obligatorio; lo demás
+       se puede saltar. Las cuentas que ya existen nunca ven esto. -->
   <div class="glass authcard hidden" id="authStepProfile">
-    <h2>Cuéntanos quién eres</h2>
-    <p class="muted mb">Así te verán tus amigos.</p>
-    <div class="avatarPick">
-      <div class="avatar" id="authAvatarPrev">?</div>
-      <div style="flex:1">
-        <button class="btn ghost small" id="authPhotoBtn"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span> Elegir foto</button>
-        <input type="file" id="authPhotoInput" accept="image/*" class="hidden">
-        <p class="tiny mt">Opcional. Puedes ponerla después en tu perfil.</p>
-      </div>
+    <div id="authObStep1">
+      <h2 data-i18n1563="auth_who">Cuéntanos quién eres</h2>
+      <p class="muted mb">Así te verán tus amigos.</p>
+      <label class="tiny" data-i18n1563="auth_name">Nombre</label>
+      <input id="authName" type="text" maxlength="60" placeholder="Tu nombre">
+      <button class="btn mt" style="width:100%" onclick="window.__wrAuthObNext1563(1)" data-i18n1563="auth_continue">Continuar</button>
     </div>
-    <label class="tiny">Nombre</label>
-    <input id="authName" type="text" maxlength="60" placeholder="Tu nombre">
-    <label class="tiny mt" style="display:block">Biografía (opcional)</label>
-    <textarea id="authBio" maxlength="200" placeholder="Cuéntanos algo de ti..."></textarea>
-    <button class="btn mt" id="authFinish" style="width:100%">Crear mi perfil</button>
+    <div id="authObStep2" class="hidden">
+      <h2 data-i18n1563="auth_photo">Elegir foto</h2>
+      <p class="muted mb">Tu foto de perfil. Opcional.</p>
+      <div class="avatarPick">
+        <div class="avatar" id="authAvatarPrev">?</div>
+        <div style="flex:1">
+          <button class="btn ghost small" id="authPhotoBtn"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span> <span data-i18n1563="auth_photo">Elegir foto</span></button>
+          <input type="file" id="authPhotoInput" accept="image/*" class="hidden">
+          <p class="tiny mt">Opcional. Puedes ponerla después en tu perfil.</p>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="window.__wrAuthObBack1563(2)" data-i18n1563="auth_back">Atrás</button><button class="btn ghost" style="flex:1" onclick="window.__wrAuthObSkip1563(2)" data-i18n1563="auth_skip">Saltar</button><button class="btn" style="flex:1" onclick="window.__wrAuthObNext1563(2)" data-i18n1563="auth_continue">Continuar</button></div>
+    </div>
+    <div id="authObStep3" class="hidden">
+      <h2 data-i18n1563="auth_cover">Elegir portada</h2>
+      <p class="muted mb">La foto de portada de tu perfil. Opcional.</p>
+      <div class="cover" id="authCoverPrev1563" style="height:110px;margin-top:6px"><span style="position:absolute;left:12px;bottom:10px;color:#c9a8ae;font-size:13px">Sin portada</span></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn ghost small" id="authCoverBtn1563"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></span> <span data-i18n1563="auth_cover">Elegir portada</span></button>
+        <input type="file" id="authCoverInput1563" accept="image/*" class="hidden">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="window.__wrAuthObBack1563(3)" data-i18n1563="auth_back">Atrás</button><button class="btn ghost" style="flex:1" onclick="window.__wrAuthObSkip1563(3)" data-i18n1563="auth_skip">Saltar</button><button class="btn" style="flex:1" onclick="window.__wrAuthObNext1563(3)" data-i18n1563="auth_continue">Continuar</button></div>
+    </div>
+    <div id="authObStep4" class="hidden">
+      <h2 data-i18n1563="auth_lang">Lenguaje</h2>
+      <p class="muted mb">¿En qué idioma quieres ver WordRed?</p>
+      <label class="tiny" data-i18n1563="auth_lang">Lenguaje</label>
+      <select id="authLangSelect1563" style="width:100%"></select>
+      <div style="display:flex;gap:8px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="window.__wrAuthObBack1563(4)" data-i18n1563="auth_back">Atrás</button><button class="btn" style="flex:1" onclick="window.__wrAuthObNext1563(4)" data-i18n1563="auth_continue">Continuar</button></div>
+    </div>
+    <div id="authObStep5" class="hidden">
+      <h2 data-i18n1563="auth_country">País</h2>
+      <p class="muted mb">¿De qué país eres?</p>
+      <label class="tiny" data-i18n1563="auth_country">País</label>
+      <select id="authCountrySelect1563" style="width:100%"></select>
+      <div style="display:flex;gap:8px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="window.__wrAuthObBack1563(5)" data-i18n1563="auth_back">Atrás</button><button class="btn" style="flex:1" onclick="window.__wrAuthObNext1563(5)" data-i18n1563="auth_continue">Continuar</button></div>
+    </div>
+    <div id="authObStep6" class="hidden">
+      <h2 data-i18n1563="auth_desc">Descripción</h2>
+      <p class="muted mb">Cuéntanos algo de ti. Opcional.</p>
+      <label class="tiny" data-i18n1563="auth_desc">Descripción</label>
+      <textarea id="authBio" maxlength="200" placeholder="Cuéntanos algo de ti..."></textarea>
+      <div style="display:flex;gap:8px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="window.__wrAuthObBack1563(6)" data-i18n1563="auth_back">Atrás</button><button class="btn ghost" style="flex:1" onclick="window.__wrAuthObSkip1563(6)" data-i18n1563="auth_skip">Saltar</button><button class="btn" style="flex:1" onclick="window.__wrAuthObNext1563(6)" data-i18n1563="auth_continue">Continuar</button></div>
+    </div>
+    <div id="authObStep7" class="hidden">
+      <h2 data-i18n1563="auth_birth">Fecha de nacimiento</h2>
+      <p class="muted mb">¿Cuándo naciste? Opcional.</p>
+      <label class="tiny" data-i18n1563="auth_birth">Fecha de nacimiento</label>
+      <input id="authBirthday1563" type="date" style="width:100%">
+      <div style="display:flex;gap:8px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="window.__wrAuthObBack1563(7)" data-i18n1563="auth_back">Atrás</button><button class="btn ghost" style="flex:1" onclick="window.__wrAuthObSkip1563(7)" data-i18n1563="auth_skip">Saltar</button><button class="btn" style="flex:1" onclick="window.__wrAuthObNext1563(7)" data-i18n1563="auth_continue">Continuar</button></div>
+    </div>
+    <div id="authObStep8" class="hidden">
+      <h2 data-i18n1563="auth_civil">Estado civil</h2>
+      <p class="muted mb">¿Cuál es tu estado civil? Opcional.</p>
+      <label class="tiny" data-i18n1563="auth_civil">Estado civil</label>
+      <select id="authRelSelect1563" style="width:100%"></select>
+      <div style="display:flex;gap:8px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="window.__wrAuthObBack1563(8)" data-i18n1563="auth_back">Atrás</button><button class="btn ghost" style="flex:1" onclick="window.__wrAuthObSkip1563(8)" data-i18n1563="auth_skip">Saltar</button><button class="btn" style="flex:1" onclick="window.__wrAuthObNext1563(8)" data-i18n1563="auth_continue">Continuar</button></div>
+    </div>
+    <div id="authObStep9" class="hidden">
+      <h2 data-i18n1563="auth_creator">¿Eres creador de contenido?</h2>
+      <p class="muted mb">Si creas videos, fotos o publicaciones para otros, dilo aquí. No te da la insignia de verificado: esa solo la otorga el dueño de WordRed.</p>
+      <div class="chiprow">
+        <button type="button" class="chip" id="authCreatorYes1563" onclick="window.__wrAuthObCreator1563(true)" data-i18n1563="auth_yes">Sí</button>
+        <button type="button" class="chip on" id="authCreatorNo1563" onclick="window.__wrAuthObCreator1563(false)" data-i18n1563="auth_no">No</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px"><button class="btn ghost" style="flex:1" onclick="window.__wrAuthObBack1563(9)" data-i18n1563="auth_back">Atrás</button><button class="btn ghost" style="flex:1" onclick="window.__wrAuthObSkip1563(9)" data-i18n1563="auth_skip">Saltar</button><button class="btn" id="authFinish" style="flex:1" data-i18n1563="auth_continue">Continuar</button></div>
+    </div>
+    <div id="authObStep10" class="hidden">
+      <h2 id="authThanksTitle1563" data-i18n1563="auth_thanks">Agradecimientos por usar WordRed</h2>
+      <p class="muted mb" data-i18n1563="auth_thanks_sub">Tu cuenta ya está lista. Bienvenido a WordRed.</p>
+      <button class="btn mt" style="width:100%" onclick="window.__wrAuthObEnter1563()" data-i18n1563="auth_enter">Entrar a WordRed</button>
+    </div>
   </div>
   <footer class="appfoot">Creada y diseñada por Mistery Store Play</footer>
 </div>
@@ -1348,7 +1416,7 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
       <div class="homeWidget" data-widget="publicar" data-size="m" data-color="rojo">
         <div class="glass composer">
           <div class="avatar" id="composerAvatar">?</div>
-          <button class="fake" id="composerOpen">¿Qué estás pensando?</button>
+          <button class="fake" id="composerOpen" data-i18n1563="composer_think">¿Qué estás pensando?</button>
           <button class="iconbtn" id="composerPhoto" aria-label="Foto"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></span></button>
         </div>
       </div>
@@ -1547,13 +1615,13 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
 <nav id="bottomNav">
 
   <div class="bn-side">
-    <button data-nav="feed" class="on"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg></span>Inicio</button>
-    <button data-nav="shorts" class="bn-main"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg></span>Shorts</button>
+    <button data-nav="feed" class="on"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg></span><span data-i18n1563="nav_home">Inicio</span></button>
+    <button data-nav="shorts" class="bn-main"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/></svg></span><span data-i18n1563="nav_shorts">Shorts</span></button>
   </div>
-  <button data-nav="marketplace" aria-label="Mercado"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41 11 3H4v7l9.59 9.59a2 2 0 0 0 2.82 0l4.18-4.18a2 2 0 0 0 0-2.82z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/></svg></span>Mercado</button>
+  <button data-nav="marketplace" aria-label="Mercado"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41 11 3H4v7l9.59 9.59a2 2 0 0 0 2.82 0l4.18-4.18a2 2 0 0 0 0-2.82z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/></svg></span><span data-i18n1563="nav_market">Mercado</span></button>
   <div class="bn-side">
-    <button data-nav="groups"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M6.5 19.5c.6-3.2 2.7-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="4.8" cy="10" r="2.2"/><path d="M2.4 18.6c.4-2.1 1.6-3.5 3.3-4.1"/><circle cx="19.2" cy="10" r="2.2"/><path d="M18.3 14.5c1.7.6 2.9 2 3.3 4.1"/></svg></span>Grupos</button>
-    <button data-nav="profile"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>Perfil</button>
+    <button data-nav="groups"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3"/><path d="M6.5 19.5c.6-3.2 2.7-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="4.8" cy="10" r="2.2"/><path d="M2.4 18.6c.4-2.1 1.6-3.5 3.3-4.1"/><circle cx="19.2" cy="10" r="2.2"/><path d="M18.3 14.5c1.7.6 2.9 2 3.3 4.1"/></svg></span><span data-i18n1563="nav_groups">Grupos</span></button>
+    <button data-nav="profile"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span data-i18n1563="nav_profile">Perfil</span></button>
   </div>
 </nav>
 <!-- 1.5.36: barra de edición de un apartado del menú principal. Solo se
@@ -2063,17 +2131,20 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
 <!-- ============ AJUSTES ============ -->
 <div class="overlay floatWin1547" id="settingsOverlay">
   <div class="sheet setSheet1560">
-    <div class="top"><button class="xbtn" data-close="settingsOverlay">✕</button><h2>Ajustes</h2><button type="button" class="wOptRound1542" id="settingsFaqBtn1542" aria-label="Preguntas" title="Preguntas"><span class="wOptQ1542">?</span></button><button type="button" class="wOptRound1542" id="logoutBtn" aria-label="Cerrar sesión" title="Cerrar sesión"><span class="ic"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span></button><!-- Web 1.6: cambiar de cuenta como botón de solo símbolo junto al de cerrar sesión --><button type="button" class="wOptRound1542" id="switchAccountBtn" aria-label="Cambiar de cuenta" title="Cambiar de cuenta"><span class="ic"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span></button></div>
+    <div class="top"><button class="xbtn" data-close="settingsOverlay">✕</button><h2 data-i18n1563="settings_title">Ajustes</h2><button type="button" class="wOptRound1542" id="settingsFaqBtn1542" aria-label="Preguntas" title="Preguntas"><span class="wOptQ1542">?</span></button><button type="button" class="wOptRound1542" id="logoutBtn" aria-label="Cerrar sesión" title="Cerrar sesión"><span class="ic"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span></button><!-- Web 1.6: cambiar de cuenta como botón de solo símbolo junto al de cerrar sesión --><button type="button" class="wOptRound1542" id="switchAccountBtn" aria-label="Cambiar de cuenta" title="Cambiar de cuenta"><span class="ic"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></span></button></div>
     <!-- Web 1.6: Ajustes rediseñados — secciones en el orden más
-       intuitivo (Cuenta, Apariencia, Notificaciones, Privacidad y
-       seguridad, Inicio, Tus datos, Ayuda, Apoyar a WordRed, Acerca
-       de) y todas con la misma fila alineada (.setRow1560: etiqueta
-       a la izquierda, control a la derecha, mismo espaciado).
-       Ninguna opción se quita: solo cambia el orden y la fila.
+       intuitivo (Cuenta, Apariencia, País e idioma, Notificaciones,
+       Privacidad y seguridad, Inicio, Tus datos, Ayuda, Apoyar a
+       WordRed, Acerca de) y todas con la misma fila alineada
+       (.setRow1560: etiqueta a la izquierda, control a la derecha,
+       mismo espaciado). Ninguna opción se quita: solo cambia el
+       orden y la fila. Web 1.13: la sección «País e idioma» se suma
+       entre Apariencia y Notificaciones, y hasta abajo de «Acerca
+       de» va el pie «Distribuida y Creada en Puebla, México».
        El título «Seguridad» quedaba vacío (sin ningún control
        debajo): su contenido vive ahora en «Privacidad y seguridad». -->
     <section class="setSec1560" id="setSecCuenta1560">
-    <h3 class="sectitle">Cuenta</h3>
+    <h3 class="sectitle" data-i18n1563="settings_account">Cuenta</h3>
     <div id="setDynCuenta1560"></div>
     <p class="muted mb">Muestra este código para que otros te agreguen y te sigan rápido con su cámara. Se genera dentro de la app, sin internet.</p>
     <div class="glass card" style="display:block;text-align:center">
@@ -2086,7 +2157,7 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
     <p class="tiny mt">Eliminar tu cuenta borra tu perfil, tus publicaciones, tus anuncios, tus mensajes y todo lo demás. No se puede deshacer.</p>
     </section>
     <section class="setSec1560" id="setSecApariencia1560">
-    <h3 class="sectitle">Apariencia</h3>
+    <h3 class="sectitle" data-i18n1563="settings_appearance">Apariencia</h3>
     <p class="muted mb">Elige el color de WordRed: se aplica a toda la app y se guarda. La base sigue oscura. Mueve los controles para ver cómo queda antes de aplicarlo.</p>
     <div class="glass card" style="display:block" id="colorPickerCard">
       <div style="display:flex;gap:12px;align-items:center">
@@ -2116,13 +2187,18 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
     </div>
     <div id="setDynApariencia1560"></div>
     </section>
+    <!-- Web 1.13: país e idioma en Ajustes (se llena en renderSettings1526). -->
+    <section class="setSec1560" id="setSecLocale1560">
+    <h3 class="sectitle" data-i18n1563="settings_locale">País e idioma</h3>
+    <div id="setDynLocale1560"></div>
+    </section>
     <section class="setSec1560" id="setSecNotif1560">
-    <h3 class="sectitle">Notificaciones</h3>
+    <h3 class="sectitle" data-i18n1563="settings_notif">Notificaciones</h3>
     <div id="notifPrefs"></div>
     <div id="setDynNotif1560"></div>
     </section>
     <section class="setSec1560" id="setSecPriv1560">
-    <h3 class="sectitle">Privacidad y seguridad</h3>
+    <h3 class="sectitle" data-i18n1563="settings_privacy">Privacidad y seguridad</h3>
     <div class="setRow1560"><div class="setRowTxt1560"><b>Privacidad de publicaciones</b></div>
     <select id="settingsPrivacy">
       <option value="Público">Público</option>
@@ -2135,19 +2211,19 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
     <div id="setDynPriv1560"></div>
     </section>
     <section class="setSec1560" id="setSecInicio1560">
-    <h3 class="sectitle">Inicio</h3>
+    <h3 class="sectitle" data-i18n1563="settings_home">Inicio</h3>
     <div id="setDynInicio1560"></div>
     </section>
     <section class="setSec1560" id="setSecDatos1560">
-    <h3 class="sectitle">Tus datos</h3>
+    <h3 class="sectitle" data-i18n1563="settings_data">Tus datos</h3>
     <div id="setDynDatos1560"></div>
     </section>
     <section class="setSec1560" id="setSecAyuda1560">
-    <h3 class="sectitle">Ayuda</h3>
+    <h3 class="sectitle" data-i18n1563="settings_help">Ayuda</h3>
     <div id="setDynAyuda1560"></div>
     </section>
     <section class="setSec1560" id="setSecApoyo1560">
-    <h3 class="sectitle">¿Quieres apoyar a WordRed?</h3>
+    <h3 class="sectitle" data-i18n1563="settings_support">¿Quieres apoyar a WordRed?</h3>
     <div id="supportSection" class="glass card" style="display:block">
       <p style="font-size:16px;line-height:1.5">WordRed es gratis y la hace una sola persona.</p>
       <p class="mt" style="font-size:16px;line-height:1.8">Banco: <b>BBVA</b><br>Titular: <b>CHRISTIAN CARRILLO CORTEZANO</b><br>Cuenta: <b id="supportAccount">4815163105956802</b></p>
@@ -2155,8 +2231,10 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
     </div>
     </section>
     <section class="setSec1560" id="setSecAcerca1560">
-    <h3 class="sectitle">Acerca de</h3>
-    <p class="muted">WordRed Web 1.12 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
+    <h3 class="sectitle" data-i18n1563="settings_about">Acerca de</h3>
+    <p class="muted">WordRed Web 1.13 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
+    <!-- Web 1.13: pie de Ajustes, hasta abajo. -->
+    <p class="muted" style="margin-top:10px" data-i18n1563="settings_footer">Distribuida y Creada en Puebla, México</p>
     </section>
   </div>
 </div>

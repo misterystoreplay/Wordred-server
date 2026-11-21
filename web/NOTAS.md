@@ -793,6 +793,96 @@ Web 1.6?», FAQ 32) y el tutorial no cambia.
    aparecen entre las publicaciones con separación y la fila de
    Reels fija, y el tráiler y la noticia se abren al tocarlos.
 
+## Qué cambió en la Web 1.13 (todo marcado «Web 1.13»)
+
+Pedido por Christian («Sí, hazlo así»): hasta abajo de Ajustes va el
+pie «Distribuida y Creada en Puebla, México»; en Ajustes se pueden
+cambiar el país y el idioma y todo se traduce solo; y al abrir una
+cuenta nueva la app pregunta paso a paso quién eres. La FAQ crece con
+su entrada de versión («¿Qué hay de nuevo en la Web 1.13?», FAQ 39)
+y el tutorial ya habla del país, el idioma y el alta en pasos. El
+servidor sigue en 5.0: solo se le suman tres campos al perfil
+(`language`, `country`, `creator` en POST /api/profile).
+
+**0) «Más reacciones» con la publicación abierta (arreglo, pedido por
+Christian el 2026-11-21).** Al abrir una publicación, el detalle pone
+una segunda copia de la misma tarjeta encima del muro con el mismo id
+(`rx-…`); `__wrToggleReactions` buscaba ese id en todo el documento
+y movía el panel de la copia del muro, que queda tapada, así que en el
+detalle no se veía nada. Ahora el botón pasa `this` y el selector se
+abre en la tarjeta que se tocó (W87).
+
+**1) Pie de Ajustes.** Hasta abajo de Ajustes, en «Acerca de»,
+debajo de la línea de siempre («Creada y diseñada por Mistery Store
+Play»), va «Distribuida y Creada en Puebla, México». El pie de la
+app no se toca. Al cambiar el idioma, esa línea también se traduce
+(W86).
+
+**2) País e idioma en Ajustes.** Nueva sección «País e idioma»
+(`setSecLocale1560`, entre Apariencia y Notificaciones) con dos
+selectores: Idioma (Español, English, Português) y País (29 países,
+México por defecto). Al cambiar el idioma, los textos de la interfaz
+cambian al instante con el diccionario `I18N_1563` (`t1563(key)`,
+`applyI18n1563()`): barra de abajo, títulos de Ajustes, alta de
+cuenta, compositor, opciones y reacciones de las publicaciones. Las
+publicaciones y los comentarios se traducen solos al idioma elegido
+con el mismo servicio gratuito de «Traducir» (`C.translateUrl(text,
+target)`, límite 15 s, aviso honesto si no se puede y nunca el aviso
+de cuota como traducción): al pintar el muro, cada publicación que
+no está en el idioma se traduce sola (`autoTranslatePost1563`, como
+mucho 2 a la vez, caché por publicación+idioma; si falla, se queda
+el texto original). La elección se guarda en este navegador
+(`state.settings.lang1563`/`country1563`) y en el perfil del
+servidor (`profileBody`), así que sigue a la cuenta; al entrar, el
+perfil manda (`adoptProfileLocale1563`). Límite honesto: el servicio
+gratuito tiene cuota diaria por IP; si se acaba, las publicaciones
+se quedan en su idioma original y el botón «Traducir» avisa, como
+desde la 1.11. Los textos de la interfaz (diccionario) no dependen
+de ese servicio y siempre cambian (W86).
+
+**3) Alta de cuenta nueva en pasos.** Solo para cuentas nuevas
+(`authStepProfile` con `authObStep1..10`): (1) nombre (obligatorio,
+mínimo 2 letras), (2) imagen de perfil, (3) portada, (4) lenguaje,
+(5) país, (6) descripción, (7) fecha de nacimiento, (8) estado
+civil, (9) «¿Eres creador de contenido?» (Sí/No, nace en No) y (10)
+«Agradecimientos por usar WordRed» con el botón «Entrar a WordRed».
+Todo menos el nombre se puede saltar («Saltar»); lenguaje y país
+nacen en Español/México. Al terminar se crea el perfil con
+`C.completeProfile` (que ya aceptaba foto, portada, descripción,
+fecha y estado civil; ahora también `language`, `country` y
+`creator`) y se guarda en el servidor con el mismo control de nombre
+tomado de la 1.10 (409 → vuelve al paso 1). La respuesta de creador
+se guarda como `creator: true/false` en el perfil: NO da la
+insignia de creador verificado, que sigue otorgándola solo el dueño
+con /api/verify (Web 1.5). Las cuentas que ya existen nunca ven
+esto: `finishServerLogin` carga su perfil del servidor y entra
+directo, como desde la 1.10 (W86).
+
+**4) Dos causas reales que el alta destapó (corregidas en la 1.13).**
+(a) Al sincronizar los perfiles que trae el Inicio desde el servidor,
+la app REEMPLAZABA el perfil local entero con la copia del servidor;
+como el servidor (antes de la 1.13) no devuelve idioma, país ni
+creador, cada refresco del Inicio borraba lo del alta. Ahora se
+fusiona (`mergeServerProfile1563`, también en la actualización de
+perfil en vivo): si el servidor no trae esos tres campos, se quedan
+los del perfil local; cuando ya los trae, mandan los suyos. (b) El
+servicio gratuito de traducción (MyMemory) rechaza `auto` como idioma
+de origen (403 «'AUTO' IS AN INVALID SOURCE LANGUAGE», comprobado
+con curl: `auto|en` → 403, `es|en` → 200 «Hello friends, good
+morning»): por eso la traducción automática nunca llegaba aunque el
+servicio estaba vivo. Ahora `C.translateUrl` detecta el idioma del
+texto con las listas de palabras (`isLangText`/`isSpanishText`) y
+manda el par explícito (`es|en`, `en|es`…); si no se sabe, supone
+español (salvo destino español, que supone inglés). El aviso honesto
+y el límite de 15 s de la 1.11 no cambian.
+
+**Límites honestos.** No probado en un teléfono real (solo Electron
+en esta VM); el audio y el video reales de una llamada entre dos
+teléfonos solo se confirman con dos teléfonos. YouTube revisa a veces
+la IP de esta VM («Sign in to confirm you are not a bot»): los
+checks de dramas que reproducen video de YouTube (W12/W21/W47) pueden
+fallar por eso en la VM; en el teléfono no pasa.
+
 ## Qué cambió en la Web 1.12 (todo marcado «Web 1.12»)
 
 Pedido por Christian («Sí, hazlo así»): las opciones de las

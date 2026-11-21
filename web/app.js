@@ -8,7 +8,7 @@ var C = window.WordRedCore;
    última versión del servidor (GET /api/app/latest). Tiene que ser
    igual que versionCode/versionName del AndroidManifest.xml. */
 var APP_VERSION_CODE = 79;
-var APP_VERSION_NAME = 'Web 1.12'; /* Web 1.12: contenido de Android 1.5.64. */
+var APP_VERSION_NAME = 'Web 1.13'; /* Web 1.13: contenido de Android 1.5.64. */
 var LS_KEY = 'wordred_state_v1';
 var state = loadState();
 ensure1526State(); /* 1.5.26: rellenar los campos nuevos en estados guardados de la 1.5.25. */
@@ -2043,7 +2043,15 @@ async function finishServerLogin(email, name, photo, hasProfile) {
   } else {
     $('authAvatarPrev').textContent = '?';
   }
+  /* Web 1.13: la cuenta nueva empieza el alta en pasos desde el paso 1,
+     con todo lo demás vacío. */
+  authCover1563 = '';
+  authCreator1563 = false;
+  var authCov1563 = $('authCoverPrev1563'); if (authCov1563) authCov1563.innerHTML = '<span style="position:absolute;left:12px;bottom:10px;color:#c9a8ae;font-size:13px">Sin portada</span>';
+  var authBd1563 = $('authBirthday1563'); if (authBd1563) authBd1563.value = '';
+  var authBio1563 = $('authBio'); if (authBio1563) authBio1563.value = '';
   showAuthStep('authStepProfile');
+  showAuthObStep1563(1);
   $('authName').focus();
 }
 $('authBack').addEventListener('click', function () { showAuthStep('authStepPhone'); });
@@ -2101,10 +2109,79 @@ $('authPhotoInput').addEventListener('change', function () {
     $('authAvatarPrev').innerHTML = '<img src="' + dataUrl + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover" alt="Foto">';
   });
 });
-$('authFinish').addEventListener('click', async function () {
+$('authFinish').addEventListener('click', function () { authObFinish1563(); });
+/* Web 1.13: alta de cuenta nueva en pasos (ver index.html:
+   authObStep1..10 dentro de authStepProfile). Solo el nombre es
+   obligatorio; foto, portada, descripción, fecha de nacimiento y
+   estado civil se pueden saltar; lenguaje y país nacen en
+   Español/México; creador nace en No. Al terminar se crea el perfil
+   en el servidor (con el control de nombre tomado de la Web 1.10) y
+   sale la pantalla de agradecimiento. */
+var authCover1563 = '';
+var authCreator1563 = false;
+function fillAuthObLang1563() {
+  var s = $('authLangSelect1563');
+  if (!s || s.options.length) return;
+  s.innerHTML = I18N_LANGS_1563.map(function (l) { return '<option value="' + l + '">' + I18N_LANG_NAMES_1563[l] + '</option>'; }).join('');
+  s.value = 'es';
+}
+function fillAuthObCountry1563() {
+  var s = $('authCountrySelect1563');
+  if (!s || s.options.length) return;
+  s.innerHTML = I18N_COUNTRIES_1563.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('');
+  s.value = 'México';
+}
+function fillAuthObRel1563() {
+  var s = $('authRelSelect1563');
+  if (!s || s.options.length) return;
+  s.innerHTML = '<option value="">Elige tu estado civil (opcional)</option>' + C.RELATIONSHIPS.map(function (r) { return '<option value="' + esc(r) + '">' + esc(r) + '</option>'; }).join('');
+  s.value = '';
+}
+function showAuthObStep1563(n) {
+  for (var i = 1; i <= 10; i++) { var el = $('authObStep' + i); if (el) el.classList.toggle('hidden', i !== n); }
+  if (n === 4) fillAuthObLang1563();
+  if (n === 5) fillAuthObCountry1563();
+  if (n === 8) fillAuthObRel1563();
+  if (n === 1) { var nm = $('authName'); if (nm) nm.focus(); }
+}
+function authObCreatorBtns1563() {
+  var y = $('authCreatorYes1563'), n = $('authCreatorNo1563');
+  if (y) y.classList.toggle('on', authCreator1563 === true);
+  if (n) n.classList.toggle('on', authCreator1563 !== true);
+}
+window.__wrAuthObCreator1563 = function (v) { authCreator1563 = v === true; authObCreatorBtns1563(); };
+window.__wrAuthObBack1563 = function (step) { showAuthObStep1563(step - 1); };
+window.__wrAuthObNext1563 = function (step) {
+  if (step === 1) {
+    var name = $('authName').value.trim();
+    if (name.length < 2) { toast('Escribe tu nombre (mínimo 2 letras).'); return; }
+  }
+  showAuthObStep1563(step + 1);
+};
+window.__wrAuthObSkip1563 = function (step) {
+  if (step === 2) { authPhotoData = ''; var av = $('authAvatarPrev'); if (av) av.textContent = '?'; }
+  if (step === 3) { authCover1563 = ''; var cov = $('authCoverPrev1563'); if (cov) cov.innerHTML = '<span style="position:absolute;left:12px;bottom:10px;color:#c9a8ae;font-size:13px">Sin portada</span>'; }
+  if (step === 6) { var bio = $('authBio'); if (bio) bio.value = ''; }
+  if (step === 7) { var bd = $('authBirthday1563'); if (bd) bd.value = ''; }
+  if (step === 8) { var rs = $('authRelSelect1563'); if (rs) rs.value = ''; }
+  if (step === 9) { authCreator1563 = false; authObCreatorBtns1563(); authObFinish1563(); return; }
+  showAuthObStep1563(step + 1);
+};
+async function authObFinish1563() {
   var name = $('authName').value.trim();
-  var r = C.completeProfile(state, authPhone, { name: name, bio: $('authBio').value.trim(), photo: authPhotoData });
-  if (!r.ok) { toast(r.error); return; }
+  var data = {
+    name: name,
+    bio: ($('authBio') && $('authBio').value.trim()) || '',
+    photo: authPhotoData,
+    cover: authCover1563,
+    language: ($('authLangSelect1563') && $('authLangSelect1563').value) || 'es',
+    country: ($('authCountrySelect1563') && $('authCountrySelect1563').value) || 'México',
+    birthday: ($('authBirthday1563') && $('authBirthday1563').value) || '',
+    relationship: ($('authRelSelect1563') && $('authRelSelect1563').value) || '',
+    creator: authCreator1563 === true
+  };
+  var r = C.completeProfile(state, authPhone, data);
+  if (!r.ok) { toast(r.error); showAuthObStep1563(1); return; }
   C.seedDemo(state);
   save();
   /* Web 1.10: el nombre es único en el servidor. Si ya lo usa otra
@@ -2113,18 +2190,34 @@ $('authFinish').addEventListener('click', async function () {
      a la app igual y el fallo quedaba en silencio (pushProfileToServer
      solo marcaba profileDirty), así que la cuenta quedaba rota sin
      avisar. Ahora se espera al guardado y, si el nombre está tomado,
-     se avisa y se queda en este paso para elegir otro. Si no hay
+     se avisa y se vuelve al paso 1 para elegir otro. Si no hay
      conexión, se entra igual y la cola lo reintenta sola. */
   state.settings.profileDirty = true;
   save();
   var pr = await pushProfileToServer();
-  if (pr && !pr.ok && pr.status === 409) { toast(pr.error || 'Ese nombre ya lo usa otra persona. Elige otro.'); return; }
+  if (pr && !pr.ok && pr.status === 409) { toast(pr.error || 'Ese nombre ya lo usa otra persona. Elige otro.'); showAuthObStep1563(1); return; }
+  showAuthObStep1563(10);
+}
+window.__wrAuthObEnter1563 = function () {
   enterApp();
   /* Web 1.5 (flujo de entrada): si se llegó por un enlace
      compartido, después de crear la cuenta se abre esa publicación
      (o drama/perfil), no el inicio genérico. */
   openPendingDeepLink1550();
-  toast('¡Bienvenido a WordRed, ' + name + '!');
+  var p = myProfile();
+  toast('¡Bienvenido a WordRed, ' + (p ? p.name : '') + '!');
+};
+window.__wrAuthObStep1563 = function () { for (var i = 1; i <= 10; i++) { var el = $('authObStep' + i); if (el && !el.classList.contains('hidden')) return i; } return 0; };
+$('authCoverBtn1563').addEventListener('click', function () { $('authCoverInput1563').click(); });
+$('authCoverInput1563').addEventListener('change', function () {
+  var f = this.files && this.files[0];
+  if (!f) return;
+  fileToDataUrl(f, 1024, 0.85, function (dataUrl) {
+    if (!dataUrl) return;
+    authCover1563 = dataUrl;
+    var cov = $('authCoverPrev1563');
+    if (cov) cov.innerHTML = '<img src="' + dataUrl + '" style="width:100%;height:100%;object-fit:cover" alt="Portada">';
+  });
 });
 $('authPhone').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('authSendCode').click(); });
 $('authCode').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('authVerify').click(); });
@@ -3072,6 +3165,10 @@ function publishGameRecord(game, score) {
 function enterApp() {
   $('authView').classList.add('hidden');
   $('appView').classList.remove('hidden');
+  /* Web 1.13: el idioma y el país del perfil mandan al entrar, y los
+     textos de la interfaz se ponen en ese idioma. */
+  adoptProfileLocale1563();
+  applyI18n1563();
   applyAppColor(currentAppColor());
   var p = myProfile();
   if (p) {
@@ -3235,6 +3332,9 @@ function showAccountsScreen1544() {
   }
 }
 function boot1544() {
+  /* Web 1.13: los textos de la entrada (y de la app) van en el idioma
+     guardado en este navegador. */
+  applyI18n1563();
   /* Web 1.5 (flujo de entrada): el enlace profundo se lee antes de
      decidir la pantalla. Con sesión → directo a Inicio (boot1550
      abre el enlace). Sin sesión y con enlace, sin cuentas guardadas
@@ -3488,6 +3588,7 @@ var FAQ = [
   { q: '¿Qué hay de nuevo en la Web 1.10?', a: 'El chat ya funciona sin fallos: mandar mensajes, notas de voz, emojis, llamadas y videollamadas. Antes, chatear con alguien cuyo perfil no estaba guardado en el teléfono fallaba con «Esa persona no existe» aunque existiera, y un mensaje que el servidor rechazaba quedaba como «Enviado» sin llegar nunca: ahora el perfil se trae del servidor al abrir el chat, y si un mensaje no se envía avisa y se puede reintentar tocándolo. También se arregló que un nombre ya usado por otra persona dejaba entrar a la app sin perfil en el servidor (y nadie podía escribirle): ahora avisa y pide otro nombre. Las llamadas ahora usan también un servidor TURN para conectar el audio y el video en redes móviles, y si la conexión de medios falla, avisan y cuelgan en vez de quedarse mudas. Además, al entrar a los Shorts, todos los videos del inicio se paran, y las pastillas del perfil (Guardados, Archivados, Me gusta, Mi QR…) ya no se enciman: van en varias filas con su espacio.' }, /* Web 1.10: chat sin fallos (perfil al abrir el chat, envío con aviso y reintento, TURN + aviso de fallo de medios), videos del Inicio parados al entrar a los Shorts, pastillas del perfil sin encimarse. */
   { q: '¿Qué hay de nuevo en la Web 1.11?', a: 'Pulido completo: el «?» de Ajustes abre las preguntas, «Salas de audio» abre las salas y «Unirme al grupo» entra al grupo; los grupos ya llegan al servidor. El estado en línea y No molestar se guardan. Traducir ya no muestra el aviso de cuota en inglés como traducción. En el Inicio solo salen «Más reacciones» y «Descargar»; «Copiar enlace», «Quién reaccionó» y «Archivar» solo salen en el perfil.' }, /* Web 1.11: pulido completo (preguntas, salas de audio, unirse al grupo, grupos al servidor, estado en línea, No molestar, traducir, fila de opciones de la publicación). */
   { q: '¿Qué hay de nuevo en la Web 1.12?', a: 'Las opciones de cada publicación ahora llevan icono con su letrita, como los iconos de la barra de abajo, y van en rojo cuando están activas. En el inicio se ven «Más reacciones» y «Descargar» con una flecha › que despliega «Copiar enlace», «Quién reaccionó» y «Archivar» en el mismo lugar; en tu perfil salen las cinco directas, sin flecha. Las reacciones también llevan su icono arriba y su nombre debajo, y en los comentarios las reacciones y las opciones (Eliminar, Editar, Fijar) llevan el mismo diseño.' }, /* Web 1.12: fila de opciones con flecha desplegable y diseño de iconos como la barra de abajo en opciones y reacciones. */
+  { q: '¿Qué hay de nuevo en la Web 1.13?', a: 'Hasta abajo de Ajustes dice «Distribuida y Creada en Puebla, México». En Ajustes, en «País e idioma», puedes cambiar tu país y tu idioma: los textos de la app cambian al instante (español, inglés o portugués) y las publicaciones se traducen solas a ese idioma. Y al crear una cuenta nueva te pregunta, paso a paso, tu nombre, tu foto de perfil, tu portada, tu lenguaje, tu país, tu descripción, tu fecha de nacimiento, tu estado civil y si eres creador de contenido, y al final te da las gracias por usar WordRed. Las cuentas que ya existen no vuelven a pasar por eso: su perfil se carga solo.' }, /* Web 1.13: pie «Distribuida y Creada en Puebla, México» en Ajustes; país e idioma con traducción automática; alta de cuenta nueva en pasos con creador y agradecimiento. */
 
 ];
 function renderFaq() {
@@ -7344,21 +7445,21 @@ function postOptsHtml1562(post, inProfile) {
   var long = !!(post.text && post.text.length > 280);
   var reading = !!readingPosts1550[post.id];
   var h = '<div class="postOpts1550">';
-  h += postOptBtn1562('smile', 'Más reacciones', "window.__wrToggleReactions('" + post.id + "')", false, 'postOptReactions1562', '');
+  h += postOptBtn1562('smile', t1563('opt_more_reactions'), "window.__wrToggleReactions('" + post.id + "', this)", false, 'postOptReactions1562', '');
   if (inProfile) {
-    h += postOptBtn1562('link', 'Copiar enlace', "window.__wrCopyPostLink1550('" + post.id + "')", false, '', '');
-    h += postOptBtn1562('users', 'Quién reaccionó', "window.__wrWhoReacted1550('" + post.id + "')", false, '', '');
+    h += postOptBtn1562('link', t1563('opt_copy_link'), "window.__wrCopyPostLink1550('" + post.id + "')", false, '', '');
+    h += postOptBtn1562('users', t1563('opt_who_reacted'), "window.__wrWhoReacted1550('" + post.id + "')", false, '', '');
   } else {
-    h += postOptBtn1562('link', 'Copiar enlace', "window.__wrCopyPostLink1550('" + post.id + "')", false, 'postOptsExtra1562', open ? '' : 'display:none');
-    h += postOptBtn1562('users', 'Quién reaccionó', "window.__wrWhoReacted1550('" + post.id + "')", false, 'postOptsExtra1562', open ? '' : 'display:none');
+    h += postOptBtn1562('link', t1563('opt_copy_link'), "window.__wrCopyPostLink1550('" + post.id + "')", false, 'postOptsExtra1562', open ? '' : 'display:none');
+    h += postOptBtn1562('users', t1563('opt_who_reacted'), "window.__wrWhoReacted1550('" + post.id + "')", false, 'postOptsExtra1562', open ? '' : 'display:none');
   }
   if (long) h += postOptBtn1562('book', 'Lectura', "window.__wrToggleReading1550('" + post.id + "')", reading, '', '');
   if (mine) {
-    if (inProfile) h += postOptBtn1562('archive', 'Archivar', "window.__wrArchivePost1550('" + post.id + "')", false, '', '');
-    else h += postOptBtn1562('archive', 'Archivar', "window.__wrArchivePost1550('" + post.id + "')", false, 'postOptsExtra1562', open ? '' : 'display:none');
-    h += postOptBtn1562('download', 'Descargar', "window.__wrDownloadPost1550('" + post.id + "')", false, '', '');
+    if (inProfile) h += postOptBtn1562('archive', t1563('opt_archive'), "window.__wrArchivePost1550('" + post.id + "')", false, '', '');
+    else h += postOptBtn1562('archive', t1563('opt_archive'), "window.__wrArchivePost1550('" + post.id + "')", false, 'postOptsExtra1562', open ? '' : 'display:none');
+    h += postOptBtn1562('download', t1563('opt_download'), "window.__wrDownloadPost1550('" + post.id + "')", false, '', '');
   }
-  if (!inProfile) h += postOptBtn1562(open ? 'chevleft' : 'chevright', open ? 'Menos' : 'Más', "window.__wrTogglePostOpts1562('" + post.id + "', this)", open, 'postOptArrow1562', '');
+  if (!inProfile) h += postOptBtn1562(open ? 'chevleft' : 'chevright', open ? t1563('opt_less') : t1563('opt_more'), "window.__wrTogglePostOpts1562('" + post.id + "', this)", open, 'postOptArrow1562', '');
   return h + '</div>';
 }
 window.__wrTogglePostOpts1562 = function (postId, btn) {
@@ -7370,7 +7471,7 @@ window.__wrTogglePostOpts1562 = function (postId, btn) {
   var extras = card.querySelectorAll('.postOptsExtra1562');
   for (var i = 0; i < extras.length; i++) extras[i].style.display = open ? '' : 'none';
   var arrow = card.querySelector('.postOptArrow1562');
-  if (arrow) { arrow.classList.toggle('on', open); arrow.innerHTML = ic(open ? 'chevleft' : 'chevright', 20) + '<span>' + (open ? 'Menos' : 'Más') + '</span>'; }
+  if (arrow) { arrow.classList.toggle('on', open); arrow.innerHTML = ic(open ? 'chevleft' : 'chevright', 20) + '<span>' + (open ? t1563('opt_less') : t1563('opt_more')) + '</span>'; }
 };
 /* Web 1.11: postCardHtml(post, inProfile) — la fila de opciones lleva
    «Más reacciones» y «Descargar» en todas partes; «Copiar enlace»,
@@ -8197,12 +8298,19 @@ window.__wrOpenFeaturedGame = function () { openFeaturedGame1549(); };
 window.__wrPlayFeaturedGame = function () { playFeaturedGame1549(); };
 window.__wrRateFeaturedGame = function (n) { rateFeaturedGame1549(n); };
 window.__wrFeaturedShot = function (i) { featuredGameShot1549Go(i); };
-window.__wrToggleReactions = function (postId) {
-  var el = $('rx-' + postId);
+window.__wrToggleReactions = function (postId, btn) {
+  /* Web 1.13: se abre el selector DE ESTA tarjeta, no el primero con ese
+     id en el documento. Al abrir una publicación, el detalle pone una
+     SEGUNDA copia de la misma tarjeta (mismo id «rx-…») encima del muro,
+     y getElementById devolvía la del muro, que queda tapada: se tocaba
+     «Más reacciones» en el detalle y no se veía nada. */
+  var card = btn && btn.closest ? btn.closest('article.post') : null;
+  var el = card ? card.querySelector('.reactions') : null;
+  if (!el) el = $('rx-' + postId);
   if (el) el.style.display = el.style.display === 'none' ? 'flex' : 'none';
   /* Web 1.12: el botón «Más reacciones» queda en rojo mientras el
      panel de reacciones está abierto. */
-  var card = document.querySelector('article.post[data-post="' + postId + '"]');
+  if (!card) card = document.querySelector('article.post[data-post="' + postId + '"]');
   if (card) { var b = card.querySelector('.postOptReactions1562'); if (b) b.classList.toggle('on', !!(el && el.style.display === 'flex')); }
 };
 window.__wrLike = function (postId) {
@@ -8494,29 +8602,29 @@ window.__wrClearCommentMedia = function () {
   if (prev) { prev.classList.add('hidden'); prev.innerHTML = ''; }
 };
 /* 1.5.26 (52): traducción de comentarios con el mismo servicio gratuito
-   que las publicaciones (MyMemory). */
+   que las publicaciones (MyMemory). Web 1.13: al idioma de la app. */
 function commentTranslateHtml1526(post, c) {
-  if (!c.text || C.isSpanishText(c.text)) return '';
-  var key = post.id + ':' + c.id;
+  if (!c.text || C.isLangText(c.text, wrLang1563())) return '';
+  var key = post.id + ':' + c.id + ':' + wrLang1563();
   var cached = translateCommentCache[key];
-  if (cached) return '<p style="margin-top:4px">' + esc(cached.text) + '</p><p class="tiny muted">Traducido automáticamente · <button class="tiny" onclick="window.__wrShowCommentOriginal(\'' + post.id + '\',\'' + c.id + '\')">Ver original</button></p>';
-  return '<button class="btn ghost small" onclick="window.__wrTranslateComment(\'' + post.id + '\',\'' + c.id + '\')">Traducir</button>';
+  if (cached) return '<p style="margin-top:4px">' + esc(cached.text) + '</p><p class="tiny muted">' + t1563('auto_translated') + ' · <button class="tiny" onclick="window.__wrShowCommentOriginal(\'' + post.id + '\',\'' + c.id + '\')">' + t1563('see_original') + '</button></p>';
+  return '<button class="btn ghost small" onclick="window.__wrTranslateComment(\'' + post.id + '\',\'' + c.id + '\')">' + t1563('translate') + '</button>';
 }
 window.__wrTranslateComment = async function (postId, commentId) {
   var post = state.posts.filter(function (p) { return p.id === postId; })[0];
   var c = post ? findComment(post, commentId) : null;
   if (!c || !c.text) return;
   try {
-    var res = await fetchWithTimeout1550(C.translateUrl(c.text), 15000);
+    var res = await fetchWithTimeout1550(C.translateUrl(c.text, wrLang1563()), 15000);
     var data = await res.json();
     var t = C.translateResponseOk(data);
     if (!t.ok) { toast('No se pudo traducir. Se queda el texto original.'); return; }
-    translateCommentCache[postId + ':' + commentId] = { text: t.text };
+    translateCommentCache[postId + ':' + commentId + ':' + wrLang1563()] = { text: t.text };
     renderPostDetail(postId);
   } catch (e) { toast('No se pudo traducir (sin internet). Se queda el texto original.'); }
 };
 window.__wrShowCommentOriginal = function (postId, commentId) {
-  delete translateCommentCache[postId + ':' + commentId];
+  delete translateCommentCache[postId + ':' + commentId + ':' + wrLang1563()];
   renderPostDetail(postId);
 };
 function commentHtml(post, c, isReply, topId) {
@@ -13573,7 +13681,8 @@ function handleServerMessage(data) {
        (feed, perfil, amigos o mensajes). */
     var p = data.profile;
     if (p && p.phone) {
-      state.profiles[p.phone] = p;
+      /* Web 1.13: se fusiona, no se reemplaza (mergeServerProfile1563). */
+      state.profiles[p.phone] = mergeServerProfile1563(state.profiles[p.phone], p);
       save();
       if (currentView === 'feed') renderFeed();
       else if (currentView === 'profile') renderOwnProfile();
@@ -13705,7 +13814,10 @@ async function pullFromServer() {
       }
     }
     if (Array.isArray(r.data.profiles)) {
-      r.data.profiles.forEach(function (p) { if (p && p.phone) state.profiles[p.phone] = p; });
+      /* Web 1.13: se fusiona, no se reemplaza (mergeServerProfile1563):
+         el servidor viejo no trae idioma, país ni creador y sin esto
+         cada refresco del Inicio los borraría del perfil local. */
+      r.data.profiles.forEach(function (p) { if (p && p.phone) state.profiles[p.phone] = mergeServerProfile1563(state.profiles[p.phone], p); });
     }
     save();
     checkPostNotifications();
@@ -16401,7 +16513,7 @@ var TUTORIAL_STEPS_1533 = [
   { art: 'publicar', title: 'Publica algo', text: 'Toca «Publicar» y comparte una foto, un video o lo que piensas. La vista previa sale al instante y la subida sigue en segundo plano: si la conexión se corta, continúa donde se quedó y nada se publica roto. También puedes hacer una encuesta, grabar una nota de voz, compartir una canción del catálogo o ponerle un filtro a tu foto antes de publicar.' }, /* Web 1.5: encuestas, notas de voz, canciones y filtros. */
   { art: 'shorts', title: 'Shorts e historias', text: 'Mira videos cortos en Shorts y crea historias que duran 24 horas. Arriba en el inicio están los reels: toca tu foto con el + para publicar uno. Las historias se crean desde tu perfil y se ven en Shorts: pueden llevar música, una encuesta o una foto con las dos cámaras. Entre los Shorts aparecen tarjetas de dramas: al llegar a una se reproduce sola en su primer capítulo, sin que aparezca el tutorial. Al entrar a los Shorts, los videos del inicio se paran solos.' }, /* Web 1.5: historias con música, encuestas y doble cámara. */ /* Web 1.7: los dramas entre los Shorts se reproducen solos al llegar, sin el tutorial (antes había que tocar la tarjeta). */ /* Web 1.10: al entrar a los Shorts, los videos del inicio se paran. */
   { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. En Amigos verás «Gente que quizá conozcas», con personas reales que quizá conozcas. Los grupos tienen sus propios administradores y reglas, y ahora también eventos y llamadas de voz o video en grupo; los grupos que creas ya llegan al servidor y los enlaces para invitar ya funcionan. En los chats puedes mandar notas de voz, buscar mensajes, fijar un chat y borrar un mensaje para todos. También puedes ponerle emojis a lo que escribes y reaccionar a un mensaje con un emoji; la barra para escribir es grande y está arriba de los botones. Los mensajes, las notas de voz, los emojis, las llamadas y las videollamadas ya funcionan sin fallos: si un mensaje no se envía, avisa y se puede reintentar tocándolo.' }, /* Web 1.5: sugerencias, eventos en grupos, llamadas grupales. */ /* Web 1.8: emojis en el chat y barra grande arriba. */ /* Web 1.10: chat sin fallos (mensajes, voz, emojis, llamadas y videollamadas) y reintento al tocar un mensaje no enviado. */ /* Web 1.11: los grupos ya llegan al servidor y los enlaces de invitación ya funcionan. */
-  { art: 'perfil', title: 'Tu perfil', text: 'En tu perfil está tu foto, tu biografía y tus publicaciones, con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos. También están «Guardados», «Archivados», «Me gusta» y el «Archivo de historias», tu código QR para compartir tu perfil, tu nota y tu negocio si lo agregas. Toca el engrane para ir a Ajustes: ahí están las notificaciones push, el modo No molestar, el texto grande, el ahorro de datos y exportar tus datos.' } /* Web 1.9: los Eventos salieron del perfil. */ /* Web 1.5: Guardados, Archivados, QR, nota, negocio, Ajustes nuevos. */
+  { art: 'perfil', title: 'Tu perfil', text: 'En tu perfil está tu foto, tu biografía y tus publicaciones, con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos. También están «Guardados», «Archivados», «Me gusta» y el «Archivo de historias», tu código QR para compartir tu perfil, tu nota y tu negocio si lo agregas. Toca el engrane para ir a Ajustes: ahí están las notificaciones push, el modo No molestar, el texto grande, el ahorro de datos y exportar tus datos. En Ajustes, en «País e idioma», puedes cambiar tu país y tu idioma: los textos y las publicaciones se traducen solos. Y al crear una cuenta nueva la app te pregunta paso a paso tu nombre, tu foto, tu portada, tu lenguaje, tu país, tu descripción, tu fecha de nacimiento, tu estado civil y si eres creador de contenido.' } /* Web 1.9: los Eventos salieron del perfil. */ /* Web 1.5: Guardados, Archivados, QR, nota, negocio, Ajustes nuevos. */ /* Web 1.13: país e idioma en Ajustes y alta de cuenta nueva en pasos. */
 ];
 /* Ilustración estática de cada paso: un teléfono con la pantalla de la
    app dibujada con rectángulos y círculos (sin fotos, sin animales, sin
@@ -16914,13 +17026,20 @@ window.__wrOpenPhotoPollVotes = async function (postId) {
     }).join('') : '<p class="muted">Nadie ha votado todavía.</p>');
   showOverlay('storyViewsOverlay');
 }
+/* Web 1.13: se traduce al idioma de la app, no siempre al español.
+   Si la publicación no está en ese idioma, se traduce sola al pintar
+   el muro (autoTranslatePost1563); mientras llega, sale el botón
+   «Traducir» para pedirla a mano. La caché es por publicación+idioma. */
 function translateBtnHtml1526(post) {
-  if (!post.text || C.isSpanishText(post.text)) return '';
-  var cached = translateCache[post.id];
+  if (!post.text) return '';
+  var lang = wrLang1563();
+  if (C.isLangText(post.text, lang)) return '';
+  var cached = translateCache[post.id + ':' + lang];
   if (cached) {
-    return '<div class="mt"><p style="white-space:pre-wrap;word-break:break-word">' + esc(cached.text) + '</p><p class="tiny muted">Traducido automáticamente · <button class="tiny" onclick="window.__wrShowOriginal(\'' + post.id + '\')">Ver original</button></p></div>';
+    return '<div class="mt"><p style="white-space:pre-wrap;word-break:break-word">' + esc(cached.text) + '</p><p class="tiny muted">' + t1563('auto_translated') + ' · <button class="tiny" onclick="window.__wrShowOriginal(\'' + post.id + '\')">' + t1563('see_original') + '</button></p></div>';
   }
-  return '<div class="mt"><button class="btn ghost small" onclick="window.__wrTranslatePost(\'' + post.id + '\')">Traducir</button></div>';
+  autoTranslatePost1563(post.id);
+  return '<div class="mt"><button class="btn ghost small" onclick="window.__wrTranslatePost(\'' + post.id + '\')">' + t1563('translate') + '</button></div>';
 }
 /* Web 1.11: el servicio gratuito de traducción puede tardar mucho o
    colgarse; sin tiempo límite el botón «Traducir» quedaba muerto para
@@ -16935,17 +17054,18 @@ function fetchWithTimeout1550(url, ms) {
 window.__wrTranslatePost = async function (postId) {
   var post = state.posts.filter(function (p) { return p.id === postId; })[0];
   if (!post || !post.text) return;
+  var lang = wrLang1563();
   try {
-    var res = await fetchWithTimeout1550(C.translateUrl(post.text), 15000);
+    var res = await fetchWithTimeout1550(C.translateUrl(post.text, lang), 15000);
     var data = await res.json();
     var t = C.translateResponseOk(data);
     if (!t.ok) { toast('No se pudo traducir. Se queda el texto original.'); return; }
-    translateCache[postId] = { text: t.text, translated: true };
+    translateCache[postId + ':' + lang] = { text: t.text, translated: true };
     refreshPostViews(postId);
   } catch (e) { toast('No se pudo traducir (sin internet). Se queda el texto original.'); }
 };
 window.__wrShowOriginal = function (postId) {
-  delete translateCache[postId];
+  delete translateCache[postId + ':' + wrLang1563()];
   refreshPostViews(postId);
 };
 function postViewsHtml1526(post) {
@@ -18721,16 +18841,190 @@ function toggleFriendsOnlyFeed1526() {
 window.__wrToggleFriendsOnlyFeed = toggleFriendsOnlyFeed1526;
 
 /* ---- Ajustes 1.5.26: texto, horas tranquilas, silenciados, verificación, fondo de chats, ahorro de datos, filtro de palabras, respaldo, tiempo, cuentas ---- */
+/* Web 1.13: país e idioma. La app nace en español y en México; en
+   Ajustes se cambian los dos y todo se traduce solo: los textos de la
+   interfaz con este diccionario (es/en/pt) y las publicaciones con el
+   servicio gratuito de traducción (el mismo de «Traducir», con su
+   límite de 15 s y su aviso honesto). El idioma vive en dos sitios:
+   en este navegador (state.settings.lang1563, guardado con save()) y
+   en el perfil del servidor (profile.language), para que siga a la
+   cuenta; el país igual (lang/country). Cuando hay sesión, manda el
+   perfil; sin sesión, manda el navegador. */
+var I18N_LANGS_1563 = ['es', 'en', 'pt'];
+var I18N_LANG_NAMES_1563 = { es: 'Español', en: 'English', pt: 'Português' };
+var I18N_COUNTRIES_1563 = ['México', 'Estados Unidos', 'España', 'Brasil', 'Argentina', 'Colombia', 'Perú', 'Chile', 'Venezuela', 'Guatemala', 'Ecuador', 'Bolivia', 'República Dominicana', 'Honduras', 'Paraguay', 'Uruguay', 'El Salvador', 'Nicaragua', 'Costa Rica', 'Panamá', 'Cuba', 'Puerto Rico', 'Canadá', 'Portugal', 'Francia', 'Alemania', 'Italia', 'Reino Unido', 'Otro'];
+var I18N_1563 = {
+  nav_home: ['Inicio', 'Home', 'Início'],
+  nav_shorts: ['Shorts', 'Shorts', 'Shorts'],
+  nav_market: ['Mercado', 'Market', 'Mercado'],
+  nav_groups: ['Grupos', 'Groups', 'Grupos'],
+  nav_profile: ['Perfil', 'Profile', 'Perfil'],
+  composer_think: ['¿Qué estás pensando?', "What's on your mind?", 'O que você está pensando?'],
+  settings_title: ['Ajustes', 'Settings', 'Configurações'],
+  settings_account: ['Cuenta', 'Account', 'Conta'],
+  settings_appearance: ['Apariencia', 'Appearance', 'Aparência'],
+  settings_notif: ['Notificaciones', 'Notifications', 'Notificações'],
+  settings_privacy: ['Privacidad y seguridad', 'Privacy and security', 'Privacidade e segurança'],
+  settings_home: ['Inicio', 'Home', 'Início'],
+  settings_data: ['Tus datos', 'Your data', 'Seus dados'],
+  settings_help: ['Ayuda', 'Help', 'Ajuda'],
+  settings_support: ['¿Quieres apoyar a WordRed?', 'Want to support WordRed?', 'Quer apoiar o WordRed?'],
+  settings_about: ['Acerca de', 'About', 'Sobre'],
+  settings_locale: ['País e idioma', 'Country and language', 'País e idioma'],
+  settings_country: ['País', 'Country', 'País'],
+  settings_language: ['Idioma', 'Language', 'Idioma'],
+  locale_note: ['Los textos y las publicaciones se traducen solos a tu idioma.', 'Texts and posts translate themselves to your language.', 'Os textos e as publicações são traduzidos para o seu idioma.'],
+  opt_more_reactions: ['Más reacciones', 'More reactions', 'Mais reações'],
+  opt_download: ['Descargar', 'Download', 'Baixar'],
+  opt_copy_link: ['Copiar enlace', 'Copy link', 'Copiar link'],
+  opt_who_reacted: ['Quién reaccionó', 'Who reacted', 'Quem reagiu'],
+  opt_archive: ['Archivar', 'Archive', 'Arquivar'],
+  opt_more: ['Más', 'More', 'Mais'],
+  opt_less: ['Menos', 'Less', 'Menos'],
+  auth_who: ['Cuéntanos quién eres', 'Tell us who you are', 'Conte-nos quem é você'],
+  auth_create: ['Crear mi perfil', 'Create my profile', 'Criar meu perfil'],
+  auth_name: ['Nombre', 'Name', 'Nome'],
+  auth_bio: ['Biografía (opcional)', 'Bio (optional)', 'Biografia (opcional)'],
+  auth_photo: ['Elegir foto', 'Choose photo', 'Escolher foto'],
+  auth_cover: ['Elegir portada', 'Choose cover', 'Escolher capa'],
+  auth_lang: ['Lenguaje', 'Language', 'Idioma'],
+  auth_country: ['País', 'Country', 'País'],
+  auth_desc: ['Descripción', 'Description', 'Descrição'],
+  auth_birth: ['Fecha de nacimiento', 'Date of birth', 'Data de nascimento'],
+  auth_civil: ['Estado civil', 'Marital status', 'Estado civil'],
+  auth_creator: ['¿Eres creador de contenido?', 'Are you a content creator?', 'Você é criador de conteúdo?'],
+  auth_yes: ['Sí', 'Yes', 'Sim'],
+  auth_no: ['No', 'No', 'Não'],
+  auth_skip: ['Saltar', 'Skip', 'Pular'],
+  auth_continue: ['Continuar', 'Continue', 'Continuar'],
+  auth_back: ['Atrás', 'Back', 'Voltar'],
+  auth_thanks: ['Agradecimientos por usar WordRed', 'Thank you for using WordRed', 'Obrigado por usar o WordRed'],
+  auth_thanks_sub: ['Tu cuenta ya está lista. Bienvenido a WordRed.', 'Your account is ready. Welcome to WordRed.', 'Sua conta está pronta. Bem-vindo ao WordRed.'],
+  auth_enter: ['Entrar a WordRed', 'Enter WordRed', 'Entrar no WordRed'],
+  search: ['Buscar', 'Search', 'Buscar'],
+  publish: ['Publicar', 'Post', 'Publicar'],
+  save: ['Guardar', 'Save', 'Salvar'],
+  cancel: ['Cancelar', 'Cancel', 'Cancelar'],
+  close: ['Cerrar', 'Close', 'Fechar'],
+  translate: ['Traducir', 'Translate', 'Traduzir'],
+  see_original: ['Ver original', 'See original', 'Ver original'],
+  auto_translated: ['Traducido automáticamente', 'Auto-translated', 'Traduzido automaticamente'],
+  settings_footer: ['Distribuida y Creada en Puebla, México', 'Distributed and Created in Puebla, Mexico', 'Distribuído e Criado em Puebla, México']
+};
+function wrLang1563() {
+  var p = state.me && state.profiles ? state.profiles[state.me] : null;
+  var l = (p && p.language) || (state.settings && state.settings.lang1563) || 'es';
+  return I18N_LANGS_1563.indexOf(l) >= 0 ? l : 'es';
+}
+function wrCountry1563() {
+  var p = state.me && state.profiles ? state.profiles[state.me] : null;
+  return (p && p.country) || (state.settings && state.settings.country1563) || 'México';
+}
+/* Web 1.13: al sincronizar un perfil desde el servidor no se borran
+   el idioma, el país ni si es creador que ya tiene el perfil local:
+   el servidor (antes de la 1.13) no devuelve esos campos, y sin esta
+   fusión cada refresco del Inicio los borraría. Cuando el servidor ya
+   los trae, mandan los suyos. */
+function mergeServerProfile1563(local, server) {
+  if (!server || !server.phone) return server;
+  if (!local) return server;
+  if (server.language === undefined && local.language !== undefined) server.language = local.language;
+  if (server.country === undefined && local.country !== undefined) server.country = local.country;
+  if (server.creator === undefined && local.creator !== undefined) server.creator = local.creator;
+  return server;
+}
+function t1563(key) {
+  var row = I18N_1563[key];
+  if (!row) return key;
+  var idx = wrLang1563() === 'en' ? 1 : wrLang1563() === 'pt' ? 2 : 0;
+  return row[idx] || row[0];
+}
+/* Aplica el diccionario a todo el HTML estático marcado con
+   data-i18n1563 (texto) o data-i18n-ph1563 (placeholder). Los botones
+   de la barra de abajo llevan la etiqueta en su propio <span>, así
+   que el icono SVG no se borra. */
+function applyI18n1563() {
+  try { document.documentElement.lang = wrLang1563(); } catch (e) {}
+  var els = document.querySelectorAll('[data-i18n1563]');
+  for (var i = 0; i < els.length; i++) { var k = els[i].getAttribute('data-i18n1563'); var v = t1563(k); if (v && v !== k) els[i].textContent = v; }
+  var phs = document.querySelectorAll('[data-i18n-ph1563]');
+  for (var j = 0; j < phs.length; j++) { var k2 = phs[j].getAttribute('data-i18n-ph1563'); var v2 = t1563(k2); if (v2 && v2 !== k2) phs[j].setAttribute('placeholder', v2); }
+}
+/* Al entrar, el perfil del servidor manda sobre el navegador: si la
+   cuenta trae idioma o país, se adoptan aquí para que sigan a la
+   cuenta en cualquier teléfono o navegador. */
+function adoptProfileLocale1563() {
+  var p = state.me && state.profiles ? state.profiles[state.me] : null;
+  if (!p) return;
+  if (!state.settings) state.settings = {};
+  if (p.language && I18N_LANGS_1563.indexOf(p.language) >= 0) state.settings.lang1563 = p.language;
+  if (p.country) state.settings.country1563 = p.country;
+}
+function setAppLang1563(lang) {
+  if (I18N_LANGS_1563.indexOf(lang) < 0) return;
+  if (!state.settings) state.settings = {};
+  state.settings.lang1563 = lang;
+  var p = state.me && state.profiles ? state.profiles[state.me] : null;
+  if (p) { p.language = lang; state.settings.profileDirty = true; }
+  save();
+  applyI18n1563();
+  if (typeof renderFeed === 'function' && currentView === 'feed') renderFeed();
+  if (typeof renderSettings1526 === 'function') renderSettings1526();
+  if (p) pushProfileToServer();
+  toast(lang === 'es' ? 'Idioma: Español.' : lang === 'en' ? 'Language: English.' : 'Idioma: Português.');
+}
+function setAppCountry1563(country) {
+  if (!country) return;
+  if (!state.settings) state.settings = {};
+  state.settings.country1563 = country;
+  var p = state.me && state.profiles ? state.profiles[state.me] : null;
+  if (p) { p.country = country; state.settings.profileDirty = true; }
+  save();
+  if (typeof renderSettings1526 === 'function') renderSettings1526();
+  if (p) pushProfileToServer();
+  toast('País: ' + country + '.');
+}
+window.__wrSetLang1563 = function (lang) { setAppLang1563(lang); };
+window.__wrSetCountry1563 = function (country) { setAppCountry1563(country); };
+window.__wrLang1563 = function () { return wrLang1563(); };
+window.__wrCountry1563 = function () { return wrCountry1563(); };
+/* Web 1.13: traducción automática de publicaciones al idioma elegido.
+   Al pintar el muro, cada publicación que no está en el idioma de la
+   app se traduce sola con el mismo servicio gratuito de «Traducir»
+   (límite 15 s; si falla o se acaba la cuota, se queda el texto
+   original en silencio — el aviso honesto solo sale al tocar
+   «Traducir» a mano). Como mucho 2 traducciones a la vez y cada
+   publicación se traduce una sola vez por idioma (caché por
+   publicación+idioma). */
+var autoTranslating1563 = {};
+var autoTranslateQueue1563 = 0;
+function autoTranslatePost1563(postId) {
+  var lang = wrLang1563();
+  if (lang === 'es') return;
+  var key = postId + ':' + lang;
+  if (translateCache[key] || autoTranslating1563[key]) return;
+  var post = state.posts.filter(function (p) { return p.id === postId; })[0];
+  if (!post || !post.text || C.isLangText(post.text, lang)) return;
+  if (autoTranslateQueue1563 >= 2) { setTimeout(function () { autoTranslatePost1563(postId); }, 1200); return; }
+  autoTranslating1563[key] = true;
+  autoTranslateQueue1563++;
+  fetchWithTimeout1550(C.translateUrl(post.text, lang), 15000).then(function (res) { return res.json(); }).then(function (data) {
+    var t = C.translateResponseOk(data);
+    if (t.ok) { translateCache[key] = { text: t.text, translated: true }; refreshPostViews(postId); }
+  }).catch(function () {}).then(function () { delete autoTranslating1563[key]; autoTranslateQueue1563--; });
+}
 function renderSettings1526() {
   /* Web 1.6: Ajustes rediseñados — cada sección se dibuja en su
      propio contenedor (ver index.html: setDynCuenta1560,
-     setDynApariencia1560, setDynNotif1560, setDynPriv1560,
-     setDynInicio1560, setDynDatos1560, setDynAyuda1560) en el orden
-     Cuenta, Apariencia, Notificaciones, Privacidad y seguridad,
-     Inicio, Tus datos, Ayuda. Todos los interruptores usan la misma
-     fila (.setRow1560 con el control a la derecha) que las
-     preferencias de avisos. Ninguna opción se quita ni cambia de
-     comportamiento: solo cambia el orden y la fila. */
+     setDynApariencia1560, setDynLocale1560, setDynNotif1560,
+     setDynPriv1560, setDynInicio1560, setDynDatos1560,
+     setDynAyuda1560) en el orden Cuenta, Apariencia, País e idioma,
+     Notificaciones, Privacidad y seguridad, Inicio, Tus datos,
+     Ayuda. Web 1.13 suma la sección «País e idioma». Todos los
+     interruptores usan la misma fila (.setRow1560 con el control a
+     la derecha) que las preferencias de avisos. Ninguna opción se
+     quita ni cambia de comportamiento: solo cambia el orden y la
+     fila. */
   if (!$('setDynCuenta1560')) return;
   var hiddenCount = 0;
   try {
@@ -18750,6 +19044,14 @@ function renderSettings1526() {
     }).join('') + '</select></div>' +
     '<p class="tiny muted">Solo escala el texto, no los iconos ni la barra de abajo. Con la letra muy grande los textos ocupan más líneas.</p>' +
     '<div class="glass card" style="display:block"><p class="muted">El fondo solo se ve en este teléfono.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrOpenChatBg()">Elegir fondo de chats</button></div></div>');
+  setDyn1560('setDynLocale1560',
+    '<div class="setRow1560"><div class="setRowTxt1560"><b>' + t1563('settings_language') + '</b></div><select id="langSelect1563">' + I18N_LANGS_1563.map(function (l) {
+      return '<option value="' + l + '"' + (wrLang1563() === l ? ' selected' : '') + '>' + I18N_LANG_NAMES_1563[l] + '</option>';
+    }).join('') + '</select></div>' +
+    '<div class="setRow1560"><div class="setRowTxt1560"><b>' + t1563('settings_country') + '</b></div><select id="countrySelect1563">' + I18N_COUNTRIES_1563.map(function (c) {
+      return '<option value="' + esc(c) + '"' + (wrCountry1563() === c ? ' selected' : '') + '>' + esc(c) + '</option>';
+    }).join('') + '</select></div>' +
+    '<p class="tiny muted">' + t1563('locale_note') + '</p>'); /* Web 1.13: país e idioma en Ajustes; todo se traduce solo al idioma elegido. */
   setDyn1560('setDynNotif1560',
     '<label class="setRow1560"><span class="setRowTxt1560"><b>Horas tranquilas</b><span>Durante esas horas, los avisos no suenan ni aparecen en el teléfono: se guardan en la campana. Las llamadas sí suenan, son urgentes.</span></span><span class="setSwitch1560"><input type="checkbox" id="quietHoursToggle"' + (qh.on ? ' checked' : '') + '><span class="setKnob1560"></span></span></label>' +
     '<div class="setRow1560"><div style="display:flex;gap:8px;align-items:center;flex:1;min-width:0"><input type="time" id="quietStart" value="' + esc(qh.start) + '" style="flex:1;min-width:0"><span class="muted">a</span><input type="time" id="quietEnd" value="' + esc(qh.end) + '" style="flex:1;min-width:0"></div></div>' +
@@ -18775,6 +19077,10 @@ function renderSettings1526() {
     '<div class="glass card" style="display:block"><p class="muted">Verificación automática por criterios, no manual.</p><div class="mt"><button class="btn ghost small" onclick="window.__wrOpenVerification()">Solicitar verificación</button></div></div>');
   var ts = $('textSizeSelect');
   if (ts) ts.addEventListener('change', function () { setTextSize1526(ts.value); });
+  var lg = $('langSelect1563');
+  if (lg) lg.addEventListener('change', function () { setAppLang1563(lg.value); }); /* Web 1.13: cambiar el idioma traduce toda la app al instante. */
+  var cy = $('countrySelect1563');
+  if (cy) cy.addEventListener('change', function () { setAppCountry1563(cy.value); }); /* Web 1.13: el país se guarda en el perfil. */
   var ds = $('dataSaverToggle');
   if (ds) ds.addEventListener('change', function () { state.settings.dataSaver = ds.checked; save(); toast(ds.checked ? 'Ahorro de datos activado.' : 'Ahorro de datos apagado.'); });
   var so = $('showOnlineToggle');
