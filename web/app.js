@@ -8,7 +8,7 @@ var C = window.WordRedCore;
    última versión del servidor (GET /api/app/latest). Tiene que ser
    igual que versionCode/versionName del AndroidManifest.xml. */
 var APP_VERSION_CODE = 79;
-var APP_VERSION_NAME = 'Web 1.10'; /* Web 1.10: contenido de Android 1.5.64. */
+var APP_VERSION_NAME = 'Web 1.11'; /* Web 1.11: contenido de Android 1.5.64. */
 var LS_KEY = 'wordred_state_v1';
 var state = loadState();
 ensure1526State(); /* 1.5.26: rellenar los campos nuevos en estados guardados de la 1.5.25. */
@@ -1229,6 +1229,11 @@ function hideOverlay(id) {
   $(id).style.zIndex = '';
   $(id).classList.remove('on');
 }
+/* Web 1.11: hideOverlay NO es global (app.js vive en un IIFE): el
+   botón «Salas de audio» del inicio del en vivo lo llamaba suelto en
+   su onclick y el clic moría con ReferenceError antes de abrir las
+   salas. Ahora se expone como window.__wrHideOverlay. */
+window.__wrHideOverlay = hideOverlay;
 document.addEventListener('click', function (e) {
   var c = e.target.closest('[data-close]');
   if (!c) return;
@@ -3476,6 +3481,7 @@ var FAQ = [
   { q: '¿Qué hay de nuevo en la Web 1.8?', a: 'Los emojis del chat ya funcionan: la carita abre un panel con Emojis y Stickers; tocar un emoji lo mete en el mensaje, y la carita de un mensaje deja reaccionar con ❤️ 😂 😮 😢 😡 👍 y se ve al instante. La barra para escribir ahora es grande y va arriba, con los botones abajo. Nada se quitó.' }, /* Web 1.8: emojis en el chat (panel de emojis + reacciones que se ven al instante) y compositor de dos filas con la barra grande arriba. */
   { q: '¿Qué hay de nuevo en la Web 1.9?', a: 'Los Eventos salieron del perfil: ya no hay sección de Eventos ni botón «Crear un evento» ahí; la moneda, Compartir y Editar quedan igual. Y el modo Lectura ya funciona de verdad: en una publicación larga, tocar «Lectura» agranda el texto y esconde los botones para leer tranquilo, y tocarlo otra vez lo apaga.' }, /* Web 1.9: Eventos fuera del perfil y modo lectura arreglado (su CSS apuntaba a clases que ya no existen). */
   { q: '¿Qué hay de nuevo en la Web 1.10?', a: 'El chat ya funciona sin fallos: mandar mensajes, notas de voz, emojis, llamadas y videollamadas. Antes, chatear con alguien cuyo perfil no estaba guardado en el teléfono fallaba con «Esa persona no existe» aunque existiera, y un mensaje que el servidor rechazaba quedaba como «Enviado» sin llegar nunca: ahora el perfil se trae del servidor al abrir el chat, y si un mensaje no se envía avisa y se puede reintentar tocándolo. También se arregló que un nombre ya usado por otra persona dejaba entrar a la app sin perfil en el servidor (y nadie podía escribirle): ahora avisa y pide otro nombre. Las llamadas ahora usan también un servidor TURN para conectar el audio y el video en redes móviles, y si la conexión de medios falla, avisan y cuelgan en vez de quedarse mudas. Además, al entrar a los Shorts, todos los videos del inicio se paran, y las pastillas del perfil (Guardados, Archivados, Me gusta, Mi QR…) ya no se enciman: van en varias filas con su espacio.' }, /* Web 1.10: chat sin fallos (perfil al abrir el chat, envío con aviso y reintento, TURN + aviso de fallo de medios), videos del Inicio parados al entrar a los Shorts, pastillas del perfil sin encimarse. */
+  { q: '¿Qué hay de nuevo en la Web 1.11?', a: 'Pulido completo: el «?» de Ajustes abre las preguntas, «Salas de audio» abre las salas y «Unirme al grupo» entra al grupo; los grupos ya llegan al servidor. El estado en línea y No molestar se guardan. Traducir ya no muestra el aviso de cuota en inglés como traducción. En el Inicio solo salen «Más reacciones» y «Descargar»; «Copiar enlace», «Quién reaccionó» y «Archivar» solo salen en el perfil.' }, /* Web 1.11: pulido completo (preguntas, salas de audio, unirse al grupo, grupos al servidor, estado en línea, No molestar, traducir, fila de opciones de la publicación). */
 
 ];
 function renderFaq() {
@@ -7315,7 +7321,12 @@ function ownMediaHtml(post, shared) {
   if (!post.media || (sharedSrc && post.media === sharedSrc)) return '';
   return mediaHtml(post.media, post.mediaType, post.id, post.videoEdits, post.videoThumb || '');
 }
-function postCardHtml(post) {
+/* Web 1.11: postCardHtml(post, inProfile) — la fila de opciones lleva
+   «Más reacciones» y «Descargar» en todas partes; «Copiar enlace»,
+   «Quién reaccionó» y «Archivar» SOLO aparecen en el PERFIL
+   (inProfile true), no en el Inicio. */
+function postCardHtml(post, inProfile) {
+  inProfile = inProfile === true;
   var author = post.author;
   var page = post.pageId ? state.pages.filter(function (x) { return x.id === post.pageId; })[0] : null;
   var counts = C.likeCounts(post);
@@ -7417,13 +7428,16 @@ function postCardHtml(post) {
       return '<button class="' + (myReaction === r ? 'on' : '') + '" onclick="window.__wrReact(\'' + post.id + '\',\'' + r + '\')">' + C.REACTION_EMOJI[r] + ' ' + r + '</button>';
     }).join('') +
     '</div>' +
-    '<div style="text-align:right;margin-top:4px"><button class="tiny" style="color:var(--mut)" onclick="window.__wrToggleReactions(\'' + post.id + '\')">Más reacciones</button>' +
-    /* Web 1.5: copiar enlace, quién reaccionó, modo lectura; en las
-       propias, archivar y descargar. */
-    ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrCopyPostLink1550(\'' + post.id + '\')">Copiar enlace</button>' +
-    ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrWhoReacted1550(\'' + post.id + '\')">Quién reaccionó</button>' +
+    /* Web 1.11: la fila de opciones de la publicación (postOpts1550)
+       lleva «Más reacciones» y «Descargar» en todas partes; «Copiar
+       enlace», «Quién reaccionó» y «Archivar» SOLO aparecen en el
+       PERFIL (inProfile), no en el Inicio ni en el resto. «Lectura»
+       sale en publicaciones largas (arreglo de la Web 1.9). */
+    '<div class="postOpts1550" style="text-align:right;margin-top:4px"><button class="tiny" style="color:var(--mut)" onclick="window.__wrToggleReactions(\'' + post.id + '\')">Más reacciones</button>' +
+    (inProfile ? ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrCopyPostLink1550(\'' + post.id + '\')">Copiar enlace</button>' +
+    ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrWhoReacted1550(\'' + post.id + '\')">Quién reaccionó</button>' : '') +
     ((post.text && post.text.length > 280) ? ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrToggleReading1550(\'' + post.id + '\')">Lectura</button>' : '') +
-    (author === state.me ? ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrArchivePost1550(\'' + post.id + '\')">Archivar</button> <button class="tiny" style="color:var(--mut)" onclick="window.__wrDownloadPost1550(\'' + post.id + '\')">Descargar</button>' : '') +
+    (author === state.me ? (inProfile ? ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrArchivePost1550(\'' + post.id + '\')">Archivar</button>' : '') + ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrDownloadPost1550(\'' + post.id + '\')">Descargar</button>' : '') +
     '</div>' +
     postViewsHtml1526(post) + /* 1.5.26 (4): vistas reales de tus publicaciones */
     sharesRowHtml1526(post) + /* 1.5.26 (42): quién compartió */
@@ -8446,7 +8460,7 @@ window.__wrTranslateComment = async function (postId, commentId) {
   var c = post ? findComment(post, commentId) : null;
   if (!c || !c.text) return;
   try {
-    var res = await fetch(C.translateUrl(c.text));
+    var res = await fetchWithTimeout1550(C.translateUrl(c.text), 15000);
     var data = await res.json();
     var t = C.translateResponseOk(data);
     if (!t.ok) { toast('No se pudo traducir. Se queda el texto original.'); return; }
@@ -8760,10 +8774,10 @@ function renderProfileDetail(phone) {
     '<button class="btn ghost wide" onclick="window.__wrReportUser(\'' + phone + '\')">Reportar</button></div></div>' +
     theirSong1526 +
     (showPosts
-      ? ((p.pinnedCover ? '<div style="border-radius:14px;overflow:hidden;margin-bottom:8px"><img src="' + esc(p.pinnedCover) + '" style="width:100%;max-height:180px;object-fit:cover" alt="Portada de Destacadas"></div>' : '') + (pinned.length ? '<h3 class="sectitle">' + ic('bookmark', 14) + ' Destacadas</h3>' + pinned.map(postCardHtml).join('') : '')) + /* 1.5.26 (36) */
+      ? ((p.pinnedCover ? '<div style="border-radius:14px;overflow:hidden;margin-bottom:8px"><img src="' + esc(p.pinnedCover) + '" style="width:100%;max-height:180px;object-fit:cover" alt="Portada de Destacadas"></div>' : '') + (pinned.length ? '<h3 class="sectitle">' + ic('bookmark', 14) + ' Destacadas</h3>' + pinned.map(function (p) { return postCardHtml(p, true); }).join('') : '')) + /* 1.5.26 (36) */
         '<h3 class="sectitle">Publicaciones</h3>' +
-        (rest.length ? rest.slice(0, 20).map(postCardHtml).join('') : '<div class="empty">Sin publicaciones visibles.</div>') +
-        (recPosts.length ? '<h3 class="sectitle">' + ic('videocam', 14) + ' En vivos grabados</h3>' + recPosts.map(postCardHtml).join('') : '')
+        (rest.length ? rest.slice(0, 20).map(function (p) { return postCardHtml(p, true); }).join('') : '<div class="empty">Sin publicaciones visibles.</div>') +
+        (recPosts.length ? '<h3 class="sectitle">' + ic('videocam', 14) + ' En vivos grabados</h3>' + recPosts.map(function (p) { return postCardHtml(p, true); }).join('') : '')
       : '<h3 class="sectitle">Publicaciones</h3><div class="empty">Las publicaciones de este perfil solo las ven sus amigos.</div>') +
     '</div>';
 }
@@ -9036,13 +9050,13 @@ function renderOwnProfile() {
     '<div class="profileShortcuts1539"><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenSavedShorts()">Shorts guardados</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenScheduled()">Programadas</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenDrafts()">Borradores</button><button class="btn ghost small profileShortcutBtn1539" onclick="window.__wrOpenSavedLinks()">Enlaces guardados</button></div>' +
     ownExtras1550() + /* Web 1.5: Guardados, Archivados, Me gusta, QR, nota, negocio, archivo de historias y, solo para el dueño, estadísticas/verificaciones/reportes. */
     thinkBoxHtml1559() + /* 1.5.60: «¿Qué estás pensando?» va ARRIBA de las secciones destacadas (corrección a la 1.5.59, que lo dejó abajo) */ /* Web 1.9: la sección de Eventos salió del perfil. */
-    (pinned.length ? pinnedCoverHtml1526() + '<h3 class="sectitle">' + ic('bookmark', 14) + ' Destacadas</h3>' + pinned.map(postCardHtml).join('') : '') + /* 1.5.26 (36) */
+    (pinned.length ? pinnedCoverHtml1526() + '<h3 class="sectitle">' + ic('bookmark', 14) + ' Destacadas</h3>' + pinned.map(function (p) { return postCardHtml(p, true); }).join('') : '') + /* 1.5.26 (36) */
     featuredGameProfileHtml1559() + /* 1.5.59: Gamer Premium se queda abajo de las destacadas, antes de «Mis publicaciones» */
     '<h3 class="sectitle">Mis publicaciones</h3>' +
-    (rest.length ? rest.map(postCardHtml).join('') : '<div class="empty">Sin publicaciones todavía.</div>') +
-    (recPosts.length ? '<h3 class="sectitle">' + ic('videocam', 14) + ' En vivos grabados</h3>' + recPosts.map(postCardHtml).join('') : '') +
+    (rest.length ? rest.map(function (p) { return postCardHtml(p, true); }).join('') : '<div class="empty">Sin publicaciones todavía.</div>') +
+    (recPosts.length ? '<h3 class="sectitle">' + ic('videocam', 14) + ' En vivos grabados</h3>' + recPosts.map(function (p) { return postCardHtml(p, true); }).join('') : '') +
     '<h3 class="sectitle">Guardadas</h3>' +
-    (saved.length ? savedShown.map(postCardHtml).join('') + (saved.length > 3 && !showAllSaved ? '<div style="text-align:center;margin-top:8px"><button class="btn ghost" id="savedMoreBtn" aria-label="Ver más guardadas" onclick="window.__wrShowAllSaved()">…</button></div>' : '') : '<div class="empty">Sin publicaciones guardadas.</div>') +
+    (saved.length ? savedShown.map(function (p) { return postCardHtml(p, true); }).join('') + (saved.length > 3 && !showAllSaved ? '<div style="text-align:center;margin-top:8px"><button class="btn ghost" id="savedMoreBtn" aria-label="Ver más guardadas" onclick="window.__wrShowAllSaved()">…</button></div>' : '') : '<div class="empty">Sin publicaciones guardadas.</div>') +
     '</div>';
   renderGames();
   renderLiveRecordings(); /* Web 1.9: la lista de Eventos ya no se pinta en el perfil. */
@@ -10448,7 +10462,7 @@ function renderPageDetail(pageId) {
       : '<button class="btn" onclick="window.__wrFollowPage(\'' + p.id + '\')">Seguir página</button>') +
     '</div>' +
     '<h3 class="sectitle">Publicaciones</h3>' +
-    (posts.length ? posts.map(postCardHtml).join('') : '<div class="empty">Sin publicaciones todavía.</div>') +
+    (posts.length ? posts.map(function (p) { return postCardHtml(p); }).join('') : '<div class="empty">Sin publicaciones todavía.</div>') +
     '</div>';
 }
 /* ---- anuncios de empresa (v1.2, ola 8) ---- */
@@ -11367,7 +11381,7 @@ function renderSearch() {
   if (res.posts.length) {
     /* 1.5.26 (45): el filtro de palabras también se aplica en la búsqueda. */
     var filteredPosts1526 = C.filterFeedWords(res.posts, state.wordFilter || []).visible;
-    html += '<h3 class="sectitle">Publicaciones</h3>' + filteredPosts1526.slice(0, 20).map(postCardHtml).join('');
+    html += '<h3 class="sectitle">Publicaciones</h3>' + filteredPosts1526.slice(0, 20).map(function (p) { return postCardHtml(p); }).join('');
   }
   html += savedLinksCard1526;
   if (!res.people.length && !res.groups.length && !res.posts.length) {
@@ -12389,6 +12403,14 @@ $('logoutBtn').addEventListener('click', function () {
 $('switchAccountBtn').addEventListener('click', function () {
   hideOverlay('settingsOverlay');
   window.__wrOpenSwitchAccount();
+});
+/* Web 1.11: el botón «?» de Ajustes no tenía ninguna acción: la
+   ventana de preguntas frecuentes existía (faqOverlay1543) y su lista
+   se dibujaba (renderFaq), pero nadie la abría, así que las preguntas
+   no se podían ver. Ahora el «?» las abre. */
+$('settingsFaqBtn1542').addEventListener('click', function () {
+  renderFaq();
+  showOverlay('faqOverlay1543');
 });
 /* Web 1.5: burbuja de «Cerrando cuenta» al cerrar sesión. */
 function showClosingBubble1550() {
@@ -16326,7 +16348,7 @@ var TUTORIAL_STEPS_1533 = [
   { art: 'inicio', title: 'Tu inicio', text: 'Arriba siempre están los reels, luego «¿Qué estás pensando?» y el reloj con el clima a su derecha. Desliza para ver publicaciones, dale Me gusta, comenta y comparte. Entre las publicaciones verás los Reels grandes y la cartelera de estrenos. Los reels se abren a pantalla completa y se cambian deslizando. Llegan más dramas cada 2 semanas: salen mezclados entre los Shorts y en el visor puedes seguir una serie para que te avise de capítulos nuevos. En tu perfil está «Guardados», con lo que guardes para luego. Las barras se ocultan solas al bajar y vuelven al subir; Mercado está en el centro de la barra de abajo.' }, /* Web 1.2: el buscador del Inicio se quitó. */ /* Web 1.5: reels a pantalla completa, buscar y seguir dramas, Guardados. */ /* Web 1.7: ya no hay sección Dramas en el Inicio (se quitó en la 1.6): los dramas salen entre los Shorts y se sigue desde el visor. */
   { art: 'publicar', title: 'Publica algo', text: 'Toca «Publicar» y comparte una foto, un video o lo que piensas. La vista previa sale al instante y la subida sigue en segundo plano: si la conexión se corta, continúa donde se quedó y nada se publica roto. También puedes hacer una encuesta, grabar una nota de voz, compartir una canción del catálogo o ponerle un filtro a tu foto antes de publicar.' }, /* Web 1.5: encuestas, notas de voz, canciones y filtros. */
   { art: 'shorts', title: 'Shorts e historias', text: 'Mira videos cortos en Shorts y crea historias que duran 24 horas. Arriba en el inicio están los reels: toca tu foto con el + para publicar uno. Las historias se crean desde tu perfil y se ven en Shorts: pueden llevar música, una encuesta o una foto con las dos cámaras. Entre los Shorts aparecen tarjetas de dramas: al llegar a una se reproduce sola en su primer capítulo, sin que aparezca el tutorial. Al entrar a los Shorts, los videos del inicio se paran solos.' }, /* Web 1.5: historias con música, encuestas y doble cámara. */ /* Web 1.7: los dramas entre los Shorts se reproducen solos al llegar, sin el tutorial (antes había que tocar la tarjeta). */ /* Web 1.10: al entrar a los Shorts, los videos del inicio se paran. */
-  { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. En Amigos verás «Gente que quizá conozcas», con personas reales que quizá conozcas. Los grupos tienen sus propios administradores y reglas, y ahora también eventos y llamadas de voz o video en grupo. En los chats puedes mandar notas de voz, buscar mensajes, fijar un chat y borrar un mensaje para todos. También puedes ponerle emojis a lo que escribes y reaccionar a un mensaje con un emoji; la barra para escribir es grande y está arriba de los botones. Los mensajes, las notas de voz, los emojis, las llamadas y las videollamadas ya funcionan sin fallos: si un mensaje no se envía, avisa y se puede reintentar tocándolo.' }, /* Web 1.5: sugerencias, eventos en grupos, llamadas grupales. */ /* Web 1.8: emojis en el chat y barra grande arriba. */ /* Web 1.10: chat sin fallos (mensajes, voz, emojis, llamadas y videollamadas) y reintento al tocar un mensaje no enviado. */
+  { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. En Amigos verás «Gente que quizá conozcas», con personas reales que quizá conozcas. Los grupos tienen sus propios administradores y reglas, y ahora también eventos y llamadas de voz o video en grupo; los grupos que creas ya llegan al servidor y los enlaces para invitar ya funcionan. En los chats puedes mandar notas de voz, buscar mensajes, fijar un chat y borrar un mensaje para todos. También puedes ponerle emojis a lo que escribes y reaccionar a un mensaje con un emoji; la barra para escribir es grande y está arriba de los botones. Los mensajes, las notas de voz, los emojis, las llamadas y las videollamadas ya funcionan sin fallos: si un mensaje no se envía, avisa y se puede reintentar tocándolo.' }, /* Web 1.5: sugerencias, eventos en grupos, llamadas grupales. */ /* Web 1.8: emojis en el chat y barra grande arriba. */ /* Web 1.10: chat sin fallos (mensajes, voz, emojis, llamadas y videollamadas) y reintento al tocar un mensaje no enviado. */ /* Web 1.11: los grupos ya llegan al servidor y los enlaces de invitación ya funcionan. */
   { art: 'perfil', title: 'Tu perfil', text: 'En tu perfil está tu foto, tu biografía y tus publicaciones, con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos. También están «Guardados», «Archivados», «Me gusta» y el «Archivo de historias», tu código QR para compartir tu perfil, tu nota y tu negocio si lo agregas. Toca el engrane para ir a Ajustes: ahí están las notificaciones push, el modo No molestar, el texto grande, el ahorro de datos y exportar tus datos.' } /* Web 1.9: los Eventos salieron del perfil. */ /* Web 1.5: Guardados, Archivados, QR, nota, negocio, Ajustes nuevos. */
 ];
 /* Ilustración estática de cada paso: un teléfono con la pantalla de la
@@ -16848,11 +16870,21 @@ function translateBtnHtml1526(post) {
   }
   return '<div class="mt"><button class="btn ghost small" onclick="window.__wrTranslatePost(\'' + post.id + '\')">Traducir</button></div>';
 }
+/* Web 1.11: el servicio gratuito de traducción puede tardar mucho o
+   colgarse; sin tiempo límite el botón «Traducir» quedaba muerto para
+   siempre sin avisar nada. 15 s y luego sale el aviso honesto de
+   siempre («No se pudo traducir»). */
+function fetchWithTimeout1550(url, ms) {
+  if (typeof AbortController === 'undefined') return fetch(url);
+  var c = new AbortController();
+  var t = setTimeout(function () { try { c.abort(); } catch (e) {} }, ms || 15000);
+  return fetch(url, { signal: c.signal }).then(function (r) { clearTimeout(t); return r; }, function (e) { clearTimeout(t); throw e; });
+}
 window.__wrTranslatePost = async function (postId) {
   var post = state.posts.filter(function (p) { return p.id === postId; })[0];
   if (!post || !post.text) return;
   try {
-    var res = await fetch(C.translateUrl(post.text));
+    var res = await fetchWithTimeout1550(C.translateUrl(post.text), 15000);
     var data = await res.json();
     var t = C.translateResponseOk(data);
     if (!t.ok) { toast('No se pudo traducir. Se queda el texto original.'); return; }
@@ -18415,16 +18447,36 @@ async function openGroupByLink1526(groupId) {
   var mine = state.groups.some(function (x) { return x.id === groupId; });
   showDialog('Grupo: ' + g.name, '<p class="muted">' + esc(g.desc || 'Sin descripción') + ' · ' + g.memberCount + ' miembros' + (g.secret ? ' · Grupo secreto' : '') + '</p>' +
     (mine ? '<p class="tiny" style="margin-top:8px">Ya eres miembro de este grupo.</p>'
-      : '<div class="mt"><button class="btn" onclick="joinGroupById1526(\'' + groupId + '\')">Unirme al grupo</button></div>') +
+      : '<div class="mt"><button class="btn" onclick="window.__wrJoinGroupById1526(\'' + groupId + '\')">Unirme al grupo</button></div>') +
     '<p class="tiny muted" style="margin-top:8px">Unirse sigue las reglas del grupo: en uno cerrado o secreto necesitas solicitud o invitación.</p>');
 }
 async function joinGroupById1526(groupId) {
   var r = await pushToServer('/api/groups/' + encodeURIComponent(groupId) + '/join', 'POST', {});
   hideDialog();
   if (!r.ok) { toast(r.error || 'No se pudo entrar al grupo.'); return; }
+  /* Web 1.11: el grupo tiene que aparecer en la lista al momento.
+     pullFromServer solo trae el feed, no los grupos: sin esto el grupo
+     no se veía en Grupos hasta volver a abrir la app (el aviso decía
+     «Entraste al grupo» pero la lista no lo tenía). Se trae la lista
+     del servidor y se mete el grupo con sus miembros de verdad. */
+  var rg = await C.serverFetch(state, '/api/groups', 'GET');
+  if (rg.ok && rg.data && Array.isArray(rg.data.groups)) {
+    var gg = rg.data.groups.filter(function (g) { return g.id === groupId; })[0];
+    if (gg) {
+      var gi = -1;
+      state.groups.forEach(function (x, i) { if (x.id === gg.id) gi = i; });
+      if (gi >= 0) state.groups[gi] = gg; else state.groups.push(gg);
+      save();
+      if (currentView === 'groups') renderGroups();
+    }
+  }
   pullFromServer();
   toast('Entraste al grupo.');
 }
+/* Web 1.11: joinGroupById1526 NO es global (app.js vive en un IIFE):
+   el botón «Unirme al grupo» del diálogo de invitación por enlace lo
+   llamaba suelto en su onclick y el clic moría con ReferenceError. */
+window.__wrJoinGroupById1526 = joinGroupById1526;
 
 /* ---- 53. Ver el clima de otra ciudad ---- */
 async function searchWeatherCity1526(q) {
@@ -19818,7 +19870,13 @@ window.__wrFlushPending1550 = function () {
 async function refreshDnd1550() {
   try {
     var r = await C.serverFetch(state, '/api/dnd', 'GET', null);
-    dndCache1550 = (r.ok && r.data && r.data.ok && r.data.dnd) ? r.data.dnd : null;
+    /* Web 1.11: el servidor devuelve { ok, active, until } en el
+       nivel superior, no un objeto «dnd». Antes se leía r.data.dnd
+       (siempre vacío), así que dndCache1550 quedaba siempre en null:
+       nunca aparecía el aviso «No molestar hasta las…» ni el botón
+       «Apagar No molestar» en el diálogo, aunque el servidor sí
+       silenciaba los avisos. */
+    dndCache1550 = (r.ok && r.data && r.data.ok && r.data.active) ? { active: true, until: r.data.until } : null;
   } catch (e) { dndCache1550 = null; }
   renderDndBadge1550();
   return dndCache1550;

@@ -21,7 +21,7 @@
    quitó. */
 (function () {
 'use strict';
-var WEB_VERSION = 'Web 1.10';
+var WEB_VERSION = 'Web 1.11';
 /* Marcador de diagnóstico (solo para pruebas externas): la versión que
    se muestra sale del app.js editado (APP_VERSION_NAME = 'Web 1.2'); esta
    propiedad de window NO toca el interior de la app. */

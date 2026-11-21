@@ -4448,6 +4448,13 @@ function translateResponseOk(data) {
   if (!data || !data.responseData) return { ok: false };
   var t = String(data.responseData.translatedText || '').trim();
   if (!t || /QUERY LENGTH LIMIT/i.test(t) || /INVALID/i.test(t)) return { ok: false };
+  /* Web 1.11: cuando se agota la cuota gratuita diaria, MyMemory
+     devuelve su aviso EN VEZ de la traducción («MYMEMORY WARNING: YOU
+     USED ALL AVAILABLE FREE TRANSLATIONS FOR TODAY…»). Antes ese aviso
+     en inglés se guardaba como si fuera la traducción y se mostraba en
+     la publicación. Ahora se rechaza y la app avisa honestamente que
+     no se pudo traducir. */
+  if (/^MYMEMORY WARNING/i.test(t) || /USED ALL AVAILABLE FREE TRANSLATIONS/i.test(t)) return { ok: false };
   return { ok: true, text: t };
 }
 

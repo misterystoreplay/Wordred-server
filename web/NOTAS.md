@@ -1,4 +1,4 @@
-# WordRed Web 1.10 — NOTAS
+# WordRed Web 1.11 — NOTAS
 
 Versión web de WordRed: se abre con un enlace en el navegador, sin
 descargar ni instalar nada. Las actualizaciones llegan solas al abrir
@@ -792,6 +792,109 @@ Web 1.6?», FAQ 32) y el tutorial no cambia.
    respeta los huecos, en el Inicio real las tres secciones
    aparecen entre las publicaciones con separación y la fila de
    Reels fija, y el tráiler y la noticia se abren al tocarlos.
+
+## Qué cambió en la Web 1.11 (todo marcado «Web 1.11»)
+
+Pulido completo de arriba a abajo, pedido por Christian («que nada
+falle y esté a la calidad de los grandes», confirmado con «Sí, hazlo
+así»): auditoría sistemática sección por sección en el harness DOM y
+con sonda en vivo contra el servidor 5.0. La FAQ crece con su entrada
+de versión («¿Qué hay de nuevo en la Web 1.11?», FAQ 37) y el
+tutorial se actualiza en el sitio (el paso «Amigos y grupos» dice que
+los grupos ya llegan al servidor y que los enlaces de invitación ya
+funcionan). Además, por captura del teléfono de Christian, la fila de
+opciones de la publicación cambia: en el Inicio solo salen «Más
+reacciones» y «Descargar»; en el perfil salen las cinco («Más
+reacciones», «Descargar», «Copiar enlace», «Quién reaccionó» y
+«Archivar»).
+
+**Diagnóstico primero (sonda en vivo, no suposiciones).** La auditoría
+encontró 5 defectos reales y 4 aparentes (errores de la sonda, no de
+la app: el tamaño de texto se probó con un valor que no existe, el
+color se leyó en la variable equivocada, No molestar se buscó en el
+estado local en vez de en el servidor, y el botón «Filtros» del
+Marketplace se buscó por otro id). Las cuentas de prueba de la
+auditoría se borraron; nunca se tocaron la 5500000156 ni la 5500000157.
+
+**1) El botón «?» de Ajustes no hacía nada (causa real en la web).**
+La ventana de preguntas frecuentes existía (`faqOverlay1543`) y su
+lista se dibujaba (`renderFaq`), pero el botón no tenía ningún
+listener: nada la abría. Ahora el «?» abre las preguntas (W71).
+
+**2) «Salas de audio» no abría (causa real en la web).** El botón
+(`#liveAudioRoomsBtn`) llamaba a `hideOverlay` suelto en su onclick,
+pero `hideOverlay` vive dentro de la IIFE y NO es global: el clic
+moría con ReferenceError antes de abrir las salas. Se expuso
+`window.__wrHideOverlay` y el botón lo usa (W75b).
+
+**3) «Unirme al grupo» no entraba (causa real en la web).** El diálogo
+de invitación por enlace llamaba a `joinGroupById1526` suelto en su
+onclick, pero esa función vive dentro de la IIFE y NO es global: el
+clic moría con ReferenceError. Se expuso
+`window.__wrJoinGroupById1526` (W80b).
+
+**4) El estado en línea no se guardaba (causa real en el servidor).**
+El interruptor mandaba solo `{ showOnline }` a `POST /api/profile`,
+pero el servidor exigía el nombre siempre (400 «Escribe tu nombre»
+si faltaba): el cambio se perdía en silencio. Lo mismo valía para
+otras 8 actualizaciones parciales del perfil (nota, marco y filtro de
+la foto, video de perfil, negocio, portada de Destacadas). El
+servidor ahora valida el nombre solo cuando se manda (al crear la
+cuenta sigue siendo obligatorio y único, 409 si está tomado). El
+arreglo es del servidor y se publica junto con la web (W64).
+
+**5) Los grupos creados no llegaban al servidor (causa real en el
+servidor).** La app manda `POST /api/groups` con `{ group: {...} }`
+(igual que el PUT de edición), pero el servidor leía
+`req.body.name` —siempre vacío— y respondía 400 «El grupo necesita
+un nombre»: ningún grupo llegaba al servidor, los grupos solo
+existían en el teléfono del creador y los enlaces de invitación nunca
+resolvían. El servidor ahora acepta el objeto y su id, y si esa id
+ya existe devuelve el grupo (reintento seguro, sin duplicados). El
+arreglo es del servidor y se publica junto con la web (W79/W80).
+
+**6) No molestar nunca se veía activo (causa real en la web).**
+`refreshDnd1550` leía `r.data.dnd`, pero el servidor devuelve
+`{ ok, active, until }` en el nivel superior: el caché quedaba
+siempre en null, así que nunca aparecía el aviso «No molestar hasta
+las…» ni el botón «Apagar No molestar», aunque el servidor sí
+silenciaba los avisos. Ahora se lee `r.data.active`/`r.data.until`
+(W67b).
+
+**7) Traducir mostraba el aviso de cuota como traducción (causa real
+en el servicio gratuito).** Con la cuota diaria de MyMemory agotada,
+el servicio devuelve su aviso EN VEZ de la traducción («MYMEMORY
+WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS FOR TODAY…») y
+`translateResponseOk` lo aceptaba como traducción válida: la
+publicación mostraba ese aviso en inglés. Ahora se rechaza y la app
+avisa honestamente que no se pudo traducir. Además, traducir tiene
+tiempo límite de 15 s (antes, si el servicio se colgaba, el botón
+quedaba muerto para siempre sin avisar) (W76b).
+
+**8) Al entrar a un grupo por enlace, el grupo no aparecía en la
+lista (causa real en la web).** El aviso decía «Entraste al grupo»,
+pero `pullFromServer` solo trae el feed, no los grupos: el grupo no
+se veía en Grupos hasta volver a abrir la app. Ahora, tras entrar,
+la app trae la lista de grupos del servidor y mete el grupo con sus
+miembros de verdad (W80b).
+
+**9) Fila de opciones de la publicación (pedido de Christian con
+captura).** En el Inicio la fila (`postOpts1550`) lleva solo «Más
+reacciones» y «Descargar»; «Copiar enlace», «Quién reaccionó» y
+«Archivar» solo aparecen en el perfil (`postCardHtml(post,
+inProfile)`; los perfiles pasan `true`). «Lectura» sigue saliendo en
+publicaciones largas (arreglo de la Web 1.9). Las funciones de las
+tres opciones siguen existiendo por si se vuelven a usar (W84).
+
+**Límites honestos.** No probado en un teléfono real (solo Electron
+en esta VM); el audio y el video reales de una llamada entre dos
+teléfonos solo se confirman con dos teléfonos. YouTube revisa a veces
+la IP de esta VM («Sign in to confirm you are not a bot»): los
+checks de dramas que reproducen video de YouTube (W12/W21/W47) pueden
+fallar por eso en la VM; en el teléfono no pasa. La traducción usa el
+servicio gratuito MyMemory, con cuota diaria por IP: si se agota, la
+app avisa que no se pudo traducir en vez de mostrar el aviso en
+inglés como traducción.
 
 ## Qué cambió en la Web 1.10 (todo marcado «Web 1.10»)
 
