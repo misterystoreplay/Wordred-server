@@ -8,7 +8,7 @@ var C = window.WordRedCore;
    última versión del servidor (GET /api/app/latest). Tiene que ser
    igual que versionCode/versionName del AndroidManifest.xml. */
 var APP_VERSION_CODE = 79;
-var APP_VERSION_NAME = 'Web 1.7'; /* Web 1.7: contenido de Android 1.5.64. */
+var APP_VERSION_NAME = 'Web 1.8'; /* Web 1.8: contenido de Android 1.5.64. */
 var LS_KEY = 'wordred_state_v1';
 var state = loadState();
 ensure1526State(); /* 1.5.26: rellenar los campos nuevos en estados guardados de la 1.5.25. */
@@ -3466,6 +3466,7 @@ var FAQ = [
   { q: '¿Qué hay de nuevo en la Web 1.5?', a: 'Mucho: notificaciones push reales (con la pestaña cerrada), Guardados para publicaciones y dramas, diseño ancho en computadora, compartir por WhatsApp, seguir dramas con aviso de capítulos nuevos, buscar y filtrar dramas, reels a pantalla completa con deslizamiento, notas de voz en chats y en publicaciones, instalar la Web como app, audio en segundo plano, subidas que no mueren al cerrar la pestaña, transmisiones en vivo, traducción de publicaciones y comentarios, encuestas en publicaciones e historias, fotos en comentarios, insignia verificada (solo la otorga el dueño), sugerencias de amigos, reacciones con emoji en publicaciones y comentarios, videollamadas y llamadas de voz en grupo, vistas de tus publicaciones, fijar publicaciones y comentarios, recordatorios de cumpleaños, menciones con @, archivar publicaciones e historias, fondos de perfil, historias con música, descargar tus publicaciones, bloquear y reportar, mensajes que se autodestruyen, subtítulos automáticos, estado en línea, compartir pantalla en llamadas, filtros de foto antes de publicar, texto grande y modo lectura, eventos en grupos con recordatorios, silenciar sin bloquear, QR de tu perfil, historial de Me gusta, respuestas en comentarios, notas de perfil, retomar videos donde los dejaste, buscar y fijar chats, ahorro de datos, cambiar tu nombre, stickers propios, compartir canciones, ver quién reaccionó, foto con doble cámara, editar comentarios, borrar mensajes para todos, copiar enlace de una publicación, modo No molestar, programar historias, grupos privados, reacciones rápidas en historias, negocio en tu perfil, estadísticas de tus historias, escuchar y ver juntos en grupo, y exportar tus datos. Los avisos push y las subidas en segundo plano dependen de lo que permita tu navegador; la traducción usa un servicio gratuito y puede fallar a veces; lo guardado vive en este navegador.' }, /* Web 1.5: 70 novedades. */
   { q: '¿Qué hay de nuevo en la Web 1.6?', a: 'Ya no hay sección de Dramas en el Inicio: los dramas salen mezclados al azar entre los Shorts, y al tocar uno se abre el drama como siempre. Además, en la fila de arriba los Reels ya no se ven más largos que el primer tile: todas las tarjetas miden lo mismo. En Ajustes, cerrar sesión y cambiar de cuenta son botones de solo símbolo junto al «?», y las secciones están ordenadas de la forma más intuitiva.' }, /* Web 1.6: sin sección Dramas (dramas al azar entre los Shorts); fila de arriba simétrica; logout y cambiar de cuenta como símbolos; Ajustes rediseñado. */
   { q: '¿Qué hay de nuevo en la Web 1.7?', a: 'Los dramas entre los Shorts ya se reproducen solos al llegar, como los Shorts: no hay que tocar la portada ni el botón, y no aparece el tutorial (la guía de gestos). Si cierras el drama, se queda cerrado en esa tarjeta hasta que pases a otro Short y vuelvas. Además, en la fila de Reels de arriba ya no hay texto debajo de las fotos (ni «Agregar reel» ni el nombre de quien lo publicó). Todo lo demás sigue igual.' }, /* Web 1.7: los dramas entre los Shorts se reproducen solos al llegar, sin que aparezca el tutorial; y sin texto debajo de los Reels de arriba. */
+  { q: '¿Qué hay de nuevo en la Web 1.8?', a: 'Los emojis del chat ya funcionan: la carita abre un panel con Emojis y Stickers; tocar un emoji lo mete en el mensaje, y la carita de un mensaje deja reaccionar con ❤️ 😂 😮 😢 😡 👍 y se ve al instante. La barra para escribir ahora es grande y va arriba, con los botones abajo. Nada se quitó.' }, /* Web 1.8: emojis en el chat (panel de emojis + reacciones que se ven al instante) y compositor de dos filas con la barra grande arriba. */
 
 ];
 function renderFaq() {
@@ -10853,6 +10854,7 @@ async function sendChat() {
     if (nextMsgDisappearing1550) { rg.message.disappearingMs = nextMsgDisappearing1550; rg.message.expiresAt = Date.now() + nextMsgDisappearing1550; nextMsgDisappearing1550 = 0; updateDestructBtn1550(); }
     save();
     $('chatText').value = '';
+    hideChatPicker1562(); /* Web 1.8: al enviar se cierra el panel de emojis/stickers. */
     sendTyping(false);
     chatMedia = null;
     chatFile = null;
@@ -10876,6 +10878,7 @@ async function sendChat() {
   if (chatListing) { r.message.listing = chatListing; chatListing = null; }
   save();
   $('chatText').value = '';
+  hideChatPicker1562(); /* Web 1.8: al enviar se cierra el panel de emojis/stickers. */
   sendTyping(false);
   chatMedia = null;
   chatFile = null;
@@ -16093,7 +16096,7 @@ var TUTORIAL_STEPS_1533 = [
   { art: 'inicio', title: 'Tu inicio', text: 'Arriba siempre están los reels, luego «¿Qué estás pensando?» y el reloj con el clima a su derecha. Desliza para ver publicaciones, dale Me gusta, comenta y comparte. Entre las publicaciones verás los Reels grandes y la cartelera de estrenos. Los reels se abren a pantalla completa y se cambian deslizando. Llegan más dramas cada 2 semanas: salen mezclados entre los Shorts y en el visor puedes seguir una serie para que te avise de capítulos nuevos. En tu perfil está «Guardados», con lo que guardes para luego. Las barras se ocultan solas al bajar y vuelven al subir; Mercado está en el centro de la barra de abajo.' }, /* Web 1.2: el buscador del Inicio se quitó. */ /* Web 1.5: reels a pantalla completa, buscar y seguir dramas, Guardados. */ /* Web 1.7: ya no hay sección Dramas en el Inicio (se quitó en la 1.6): los dramas salen entre los Shorts y se sigue desde el visor. */
   { art: 'publicar', title: 'Publica algo', text: 'Toca «Publicar» y comparte una foto, un video o lo que piensas. La vista previa sale al instante y la subida sigue en segundo plano: si la conexión se corta, continúa donde se quedó y nada se publica roto. También puedes hacer una encuesta, grabar una nota de voz, compartir una canción del catálogo o ponerle un filtro a tu foto antes de publicar.' }, /* Web 1.5: encuestas, notas de voz, canciones y filtros. */
   { art: 'shorts', title: 'Shorts e historias', text: 'Mira videos cortos en Shorts y crea historias que duran 24 horas. Arriba en el inicio están los reels: toca tu foto con el + para publicar uno. Las historias se crean desde tu perfil y se ven en Shorts: pueden llevar música, una encuesta o una foto con las dos cámaras. Entre los Shorts aparecen tarjetas de dramas: al llegar a una se reproduce sola en su primer capítulo, sin que aparezca el tutorial.' }, /* Web 1.5: historias con música, encuestas y doble cámara. */ /* Web 1.7: los dramas entre los Shorts se reproducen solos al llegar, sin el tutorial (antes había que tocar la tarjeta). */
-  { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. En Amigos verás «Gente que quizá conozcas», con personas reales que quizá conozcas. Los grupos tienen sus propios administradores y reglas, y ahora también eventos y llamadas de voz o video en grupo. En los chats puedes mandar notas de voz, buscar mensajes, fijar un chat y borrar un mensaje para todos.' }, /* Web 1.5: sugerencias, eventos en grupos, llamadas grupales. */
+  { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. En Amigos verás «Gente que quizá conozcas», con personas reales que quizá conozcas. Los grupos tienen sus propios administradores y reglas, y ahora también eventos y llamadas de voz o video en grupo. En los chats puedes mandar notas de voz, buscar mensajes, fijar un chat y borrar un mensaje para todos. También puedes ponerle emojis a lo que escribes y reaccionar a un mensaje con un emoji; la barra para escribir es grande y está arriba de los botones.' }, /* Web 1.5: sugerencias, eventos en grupos, llamadas grupales. */ /* Web 1.8: emojis en el chat y barra grande arriba. */
   { art: 'perfil', title: 'Tu perfil', text: 'En tu perfil está tu foto, tu biografía y tus publicaciones, con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos. Los eventos están en tu perfil, donde estaba el navegador, abajo de «¿Qué estás pensando?». También están «Guardados», «Archivados», «Me gusta» y el «Archivo de historias», tu código QR para compartir tu perfil, tu nota y tu negocio si lo agregas. Toca el engrane para ir a Ajustes: ahí están las notificaciones push, el modo No molestar, el texto grande, el ahorro de datos y exportar tus datos.' } /* Web 1.2: los Eventos están en el perfil. */ /* Web 1.3: los Eventos van abajo de «¿Qué estás pensando?». */ /* Web 1.5: Guardados, Archivados, QR, nota, negocio, Ajustes nuevos. */
 ];
 /* Ilustración estática de cada paso: un teléfono con la pantalla de la
@@ -17786,12 +17789,26 @@ function stickerImgHtml1526(id, size) {
   if (!C.validateStickerId(id)) return '';
   return '<img src="stickers/' + id + '.svg" alt="' + esc(C.STICKER_NAMES[id] || id) + '" style="width:' + (size || 96) + 'px;height:' + (size || 96) + 'px;object-fit:contain" loading="lazy">';
 }
-function toggleStickerPicker1526() {
+/* Web 1.8: el panel del chat tiene dos pestañas — Emojis y Stickers.
+   Antes el botón de la carita solo abría stickers: no había manera de
+   meter un emoji en el texto, por eso «los emojis no funcionan». Sin
+   animales en la lista (regla de WordRed). */
+var CHAT_EMOJIS_1562 = ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😍', '😘', '😜', '🤪', '😎', '🥳', '😭', '😢', '😡', '😱', '🤔', '🙏', '👍', '👎', '👏', '🙌', '💪', '🔥', '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '💔', '💯', '✨', '🎉', '🎊', '🎂', '🍕', '🍔', '🍟', '☕', '🎵', '🎶', '⚽', '🏀', '🎮', '📱', '💡', '🎁', '🌹', '🌞', '🌙', '⭐', '🌈', '👋', '🤝', '👀', '💤', '😴', '🤒', '🤕'];
+var chatPickerTab1562 = 'emoji';
+function chatPickerTabsHtml1562() {
+  return '<div style="display:flex;gap:8px;padding:8px 8px 0"><button class="btn ' + (chatPickerTab1562 === 'emoji' ? '' : 'ghost') + ' small" style="flex:1" onclick="window.__wrOpenEmojiPicker()">😀 Emojis</button><button class="btn ' + (chatPickerTab1562 === 'sticker' ? '' : 'ghost') + ' small" style="flex:1" onclick="window.__wrOpenStickerPicker()">Stickers</button></div>';
+}
+function renderChatPicker1562() {
   var el = $('stickerPicker');
   if (!el) return;
-  if (el.classList.contains('hidden')) {
+  if (chatPickerTab1562 === 'emoji') {
+    el.innerHTML = chatPickerTabsHtml1562() + '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px;padding:8px">' +
+      CHAT_EMOJIS_1562.map(function (e) {
+        return '<button style="background:none;border:0;padding:6px 0;font-size:26px" onclick="window.__wrInsertEmoji1562(\'' + e + '\')">' + e + '</button>';
+      }).join('') + '</div>';
+  } else {
     var customs = customStickers1550();
-    el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:8px">' +
+    el.innerHTML = chatPickerTabsHtml1562() + '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:8px">' +
       C.STICKER_IDS.map(function (id) {
         return '<button style="background:none;border:0;padding:4px" onclick="window.__wrSendSticker(\'' + id + '\')" title="' + esc(C.STICKER_NAMES[id] || id) + '">' + stickerImgHtml1526(id, 48) + '</button>';
       }).join('') + '</div>' +
@@ -17799,12 +17816,32 @@ function toggleStickerPicker1526() {
         return '<button style="background:none;border:0;padding:4px" onclick="window.__wrSendCustomSticker1550(\'' + s.url.replace(/'/g, '%27') + '\')"><img src="' + s.url + '" style="width:48px;height:48px;object-fit:contain" alt="Sticker propio"></button>';
       }).join('') + '</div></div>' : '') +
       '<div style="padding:0 8px 8px"><button class="btn ghost small" style="width:100%" onclick="window.__wrOpenCreateSticker1550()">+ Crear sticker de una foto mía</button></div>';
-    el.classList.remove('hidden');
-  } else {
-    el.classList.add('hidden');
   }
+  el.setAttribute('data-tab1562', chatPickerTab1562);
 }
-window.__wrOpenStickerPicker = function () { toggleStickerPicker1526(); };
+function toggleChatPicker1562(tab) {
+  var el = $('stickerPicker');
+  if (!el) return;
+  if (tab) chatPickerTab1562 = tab;
+  if (el.classList.contains('hidden')) { renderChatPicker1562(); el.classList.remove('hidden'); }
+  else if (el.getAttribute('data-tab1562') !== chatPickerTab1562) { renderChatPicker1562(); }
+  else { el.classList.add('hidden'); }
+}
+function toggleStickerPicker1526() { toggleChatPicker1562('sticker'); }
+function hideChatPicker1562() { var el = $('stickerPicker'); if (el) el.classList.add('hidden'); }
+window.__wrOpenStickerPicker = function () { toggleChatPicker1562('sticker'); };
+window.__wrOpenEmojiPicker = function () { toggleChatPicker1562('emoji'); };
+window.__wrInsertEmoji1562 = function (e) {
+  var t = $('chatText');
+  if (!t) return;
+  var s = (t.selectionStart != null) ? t.selectionStart : t.value.length;
+  var en = (t.selectionEnd != null) ? t.selectionEnd : t.value.length;
+  t.value = t.value.slice(0, s) + e + t.value.slice(en);
+  var pos = s + e.length;
+  try { t.setSelectionRange(pos, pos); } catch (err) {}
+  t.focus();
+  t.dispatchEvent(new Event('input', { bubbles: true }));
+};
 window.__wrSendSticker = async function (id) {
   if (!C.validateStickerId(id)) return;
   var phone = openChatPhone;
@@ -17829,11 +17866,12 @@ window.__wrReactToMessage = async function (messageId, emoji) {
   if (!C.validateMsgReaction(emoji)) return;
   var m = findChatMessage1526(messageId);
   if (!m) return;
-  var r = await pushToServer('/api/messages/' + encodeURIComponent(messageId) + '/react', 'POST', { emoji: emoji });
-  if (!r.ok) { toast(r.error || 'No se pudo reaccionar.'); return; }
+  /* Web 1.8: la reacción se aplica PRIMERO en este teléfono y se ve al instante. Antes solo se aplicaba si el servidor la aceptaba: un mensaje que el servidor no tiene (por ejemplo, el de la cuenta de ejemplo, que no existe en el servidor) devolvía 404 «Mensaje no encontrado» y la reacción nunca aparecía. El envío al servidor sigue, lo mejor que se pueda; si falla, la reacción ya quedó guardada aquí y no se revierte. */
   C.applyMsgReaction(m, state.me, profileName(state.me), emoji);
   save();
   renderChatMsgs();
+  hideDialog();
+  await pushToServer('/api/messages/' + encodeURIComponent(messageId) + '/react', 'POST', { emoji: emoji });
 };
 window.__wrShowMsgReactions = function (messageId) {
   var m = findChatMessage1526(messageId);
@@ -17848,7 +17886,7 @@ window.__wrOpenMsgReactPicker = function (messageId) {
   var my = C.myMsgReaction(m, state.me);
   showDialog('Reaccionar', '<div style="display:flex;gap:8px;justify-content:center;padding:8px">' +
     C.MSG_REACTION_EMOJIS.map(function (e) {
-      return '<button style="font-size:28px;background:' + (my === e ? 'rgba(224,20,48,.4)' : 'transparent') + ';border:1px solid rgba(255,255,255,.2);border-radius:50%;width:48px;height:48px" onclick="window.__wrReactToMessage(\'' + messageId + '\',\'' + e + '\');hideDialog()">' + e + '</button>';
+      return '<button style="font-size:28px;background:' + (my === e ? 'rgba(224,20,48,.4)' : 'transparent') + ';border:1px solid rgba(255,255,255,.2);border-radius:50%;width:48px;height:48px" onclick="window.__wrReactToMessage(\'' + messageId + '\',\'' + e + '\')">' + e + '</button>'; /* Web 1.8: el diálogo se cierra dentro de __wrReactToMessage; antes el botón llamaba a hideDialog() suelto, que NO es global (app.js vive en un IIFE) y el diálogo nunca se cerraba. */
     }).join('') + '</div>');
 };
 function findChatMessage1526(messageId) {

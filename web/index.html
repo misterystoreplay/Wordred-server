@@ -643,8 +643,10 @@ nav#bottomNav button[data-nav="feed"],nav#bottomNav button[data-nav="feed"].on{c
 .msg.me{align-self:flex-end;background:linear-gradient(135deg,var(--red),var(--red2));border-bottom-right-radius:5px}
 .msg.them{align-self:flex-start;background:rgba(255,255,255,.1);border-bottom-left-radius:5px}
 .msg .tiny{display:block;margin-top:3px;opacity:.75}
-.chatbar{position:sticky;bottom:0;display:flex;gap:8px;padding:10px 0;background:linear-gradient(180deg,transparent,var(--bg) 30%)}
-.chatbar input{flex:1}
+.chatbar{position:sticky;bottom:0;display:flex;flex-direction:column;gap:8px;padding:10px 0;background:linear-gradient(180deg,transparent,var(--bg) 30%)} /* Web 1.8: el compositor es de dos filas — la barra para escribir arriba, grande, y los botones abajo. */
+.chatbarInput1562{display:flex}
+.chatbarInput1562 input{flex:1;height:50px;font-size:17px;padding:0 16px;border-radius:25px}
+.chatbarIcons1562{display:flex;gap:8px;align-items:center}
 /* ---- story viewer ---- */
 #storyViewer{background:#000}
 #storyViewer .frame{max-width:480px;margin:0 auto;height:100vh;display:flex;flex-direction:column;padding:14px}
@@ -1986,19 +1988,21 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
       <button class="btn ghost small" id="voiceRecCancel">Cancelar</button>
       <button class="btn small" id="voiceRecSend">Enviar</button>
     </div>
-    <!-- 1.5.26 (47): stickers -->
+    <!-- 1.5.26 (47): stickers; Web 1.8: este panel es el del chat, con dos pestañas (Emojis y Stickers). -->
     <div id="stickerPicker" class="hidden" style="border-top:1px solid var(--line);max-height:180px;overflow:auto"></div>
     <div class="chatbar">
-      <button class="iconbtn" id="chatStickerBtn" aria-label="Sticker" onclick="window.__wrOpenStickerPicker()"><span class="ic" style="width:18px;height:18px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></span></button>
+      <div class="chatbarInput1562"><input id="chatText" type="text" placeholder="Escribe un mensaje..." autocomplete="off"></div>
+      <div class="chatbarIcons1562">
+      <button class="iconbtn" id="chatEmojiBtn" aria-label="Emojis" onclick="window.__wrOpenEmojiPicker()"><span class="ic" style="width:18px;height:18px"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></span></button>
       <button class="iconbtn" id="chatPhotoBtn" aria-label="Foto"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></span></button>
       <button class="iconbtn" id="chatFileBtn" aria-label="Archivo"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></span></button>
       <button class="iconbtn" id="chatVoiceBtn" aria-label="Mensaje de voz"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg></span></button>
       <input type="file" id="chatFileInput" class="hidden">
       <input type="file" id="chatMediaInput" accept="image/*" class="hidden">
-      <input id="chatText" type="text" placeholder="Escribe un mensaje..." autocomplete="off">
       <!-- Web 1.5 (27): mensaje que se borra solo (1 min / 1 h / 1 día). -->
       <button class="iconbtn" id="chatDestructBtn1550" aria-label="Mensaje que se borra solo" title="Mensaje que se borra solo" onclick="window.__wrCycleDestruct1550()">⏱</button>
       <button class="btn" id="chatSend">Enviar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2130,7 +2134,7 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
     </section>
     <section class="setSec1560" id="setSecAcerca1560">
     <h3 class="sectitle">Acerca de</h3>
-    <p class="muted">WordRed Web 1.7 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
+    <p class="muted">WordRed Web 1.8 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
     </section>
   </div>
 </div>

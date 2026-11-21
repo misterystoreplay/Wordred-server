@@ -1,4 +1,4 @@
-# WordRed Web 1.7 — NOTAS
+# WordRed Web 1.8 — NOTAS
 
 Versión web de WordRed: se abre con un enlace en el navegador, sin
 descargar ni instalar nada. Las actualizaciones llegan solas al abrir
@@ -792,6 +792,46 @@ Web 1.6?», FAQ 32) y el tutorial no cambia.
    respeta los huecos, en el Inicio real las tres secciones
    aparecen entre las publicaciones con separación y la fila de
    Reels fija, y el tráiler y la noticia se abren al tocarlos.
+
+## Qué cambió en la Web 1.8 (todo marcado «Web 1.8»)
+
+Dos arreglos del chat, pedidos por el usuario: los emojis de los
+mensajes no funcionaban, y la barra para escribir debe ir arriba de
+los iconos de abajo y en grande. La FAQ crece con su entrada de
+versión («¿Qué hay de nuevo en la Web 1.8?», FAQ 34) y el tutorial
+se actualiza en el sitio (el paso de Amigos y grupos ya habla de
+emojis y de la barra grande).
+
+**Causa real de que los emojis no funcionaran (dos, comprobadas con
+una sonda en Electron contra el servidor 5.0 vivo).** 1) El botón de
+la carita del compositor solo abría el panel de stickers: NO había
+ningún panel de emojis, así que no había manera de meter un emoji en
+el texto. 2) Al reaccionar a un mensaje, la reacción solo se
+aplicaba si el servidor la aceptaba primero; un mensaje que el
+servidor no tiene (por ejemplo, el de la cuenta de ejemplo, que no
+existe en el servidor: `POST /api/messages` lo rechaza con 404 «Esa
+persona no existe») devolvía 404 «Mensaje no encontrado» y la
+reacción nunca aparecía en el teléfono. Y además el diálogo de
+reacciones nunca se cerraba: sus botones llamaban a `hideDialog()`
+suelto, que NO es global (app.js vive en un IIFE) y rompía al
+tocar el emoji.
+
+**Arreglo.** La carita del compositor ahora abre un panel con dos
+pestañas, Emojis y Stickers: tocar un emoji lo mete en el texto en
+la posición del cursor y el panel se queda abierto para meter más
+(65 emojis, sin animales). Los stickers siguen exactamente igual en
+su pestaña. Al reaccionar, la reacción se aplica PRIMERO en este
+teléfono y se ve al instante; el envío al servidor sigue, lo mejor
+que se pueda, y si falla la reacción ya quedó guardada aquí y no se
+revierte. El diálogo ahora se cierra dentro de
+`__wrReactToMessage` (el `hideDialog()` suelto se quitó del botón).
+
+**Compositor de dos filas.** `.chatbar` ahora es de dos filas: la
+barra para escribir arriba, a todo lo ancho y grande (50 px de alto,
+letra de 17 px), y los botones abajo (emoji, foto, archivo, voz,
+borrar solo y Enviar). Nada se quitó: todos los botones siguen
+funcionando igual (enviar, foto, archivo, mensaje de voz, stickers,
+borrar solo, barra de grabación de voz, chip de archivo).
 
 ## Qué cambió en la Web 1.7 (todo marcado «Web 1.7»)
 
