@@ -1597,20 +1597,33 @@ app.post('/api/auth/google', async (req, res) => {
 app.post('/api/profile', async (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
+  /* Web 1.11: el nombre solo se valida cuando el cliente lo manda.
+     Antes se exigía siempre (400 si faltaba), pero la app también
+     actualiza el perfil por partes —nota, estado en línea, marco o
+     filtro de la foto, video de perfil, negocio— sin mandar el nombre,
+     y esas actualizaciones fallaban en silencio en la web y en
+     Android. Al crear la cuenta el nombre sigue siendo obligatorio
+     (y único, 409 si está tomado, como desde la Web 1.10). */
+  const hasName = !!(req.body && req.body.name !== undefined);
   const name = String((req.body && req.body.name) || '').trim();
-  if (name.length < 2) return res.status(400).json({ ok: false, error: 'Escribe tu nombre.' });
-  /* Web 1.5 (5.0): el nombre de pantalla es único (sin distinguir
-     mayúsculas). Cambiarlo nunca rompe el inicio de sesión: la
-     identidad sigue siendo el teléfono (o el correo). */
-  const nameTaken = Object.values(profiles).some(function (p) {
-    return p && p.phone !== phone && String(p.name || '').trim().toLowerCase() === name.toLowerCase();
-  });
-  if (nameTaken) return res.status(409).json({ ok: false, error: 'Ese nombre ya lo usa otra persona. Elige otro.' });
+  const isNewProfile = !profiles[phone];
+  if (hasName) {
+    if (name.length < 2) return res.status(400).json({ ok: false, error: 'Escribe tu nombre.' });
+    /* Web 1.5 (5.0): el nombre de pantalla es único (sin distinguir
+       mayúsculas). Cambiarlo nunca rompe el inicio de sesión: la
+       identidad sigue siendo el teléfono (o el correo). */
+    const nameTaken = Object.values(profiles).some(function (p) {
+      return p && p.phone !== phone && String(p.name || '').trim().toLowerCase() === name.toLowerCase();
+    });
+    if (nameTaken) return res.status(409).json({ ok: false, error: 'Ese nombre ya lo usa otra persona. Elige otro.' });
+  } else if (isNewProfile) {
+    return res.status(400).json({ ok: false, error: 'Escribe tu nombre.' });
+  }
   const p = profiles[phone] || { phone, createdAt: Date.now(), isDemo: false };
   /* v3.8: la insignia de verificación nace en false; solo el endpoint
      de verificación la pone en true (criterios reales, nada manual). */
   if (p.verified === undefined) p.verified = false;
-  p.name = name;
+  if (hasName) p.name = name;
   /* v3.8: la biografía solo se toca si el cliente la manda. Antes se
      ponía a '' en cada actualización parcial (por ejemplo al cambiar
      solo la nota o el video de perfil), y eso borraba el perfil
@@ -3637,12 +3650,26 @@ app.get('/api/lives/:id/gifts', (req, res) => {
 app.post('/api/groups', (req, res) => {
   const phone = authPhone(req);
   if (!phone) return res.status(401).json({ ok: false, error: 'Sesión inválida.' });
-  const name = String((req.body && req.body.name) || '').trim();
+  /* Web 1.11: la app manda el grupo dentro de { group: {...} } (igual
+     que el PUT de edición) y con la id que ya creó en local. Antes el
+     endpoint leía req.body.name —siempre vacío— y respondía 400 «El
+     grupo necesita un nombre», así que ningún grupo llegaba al
+     servidor, los grupos solo existían en el teléfono del creador y
+     los enlaces de invitación nunca resolvían. Se acepta el objeto y
+     su id; si esa id ya existe se devuelve el grupo (reintento seguro,
+     sin duplicados). El creador y los miembros siempre son el teléfono
+     autenticado, nunca lo que mande el cliente. */
+  const body = (req.body && req.body.group) || req.body || {};
+  const name = String(body.name || '').trim();
   if (name.length < 3) return res.status(400).json({ ok: false, error: 'El grupo necesita un nombre.' });
-  const g = { id: uid('grp'), name: name.slice(0, 80), desc: String((req.body && req.body.desc) || '').slice(0, 300), creator: phone, members: [phone], admins: [], cover: String((req.body && req.body.cover) || ''), coverType: (req.body && req.body.coverType) === 'video' ? 'video' : 'image', accent: GROUP_ACCENTS.includes(req.body && req.body.accent) ? req.body.accent : 'rojo', headerGradient: GROUP_GRADIENTS.includes(req.body && req.body.headerGradient) ? req.body.headerGradient : 'none', rules: String((req.body && req.body.rules) || '').slice(0, 500), approval: !!(req.body && req.body.approval), joinRequests: [], pinnedPosts: [], createdAt: Date.now(),
+  if (body.id) {
+    const existing = groups.find(function (x) { return x.id === String(body.id); });
+    if (existing) return res.json({ ok: true, group: existing });
+  }
+  const g = { id: body.id ? String(body.id) : uid('grp'), name: name.slice(0, 80), desc: String(body.desc || '').slice(0, 300), creator: phone, members: [phone], admins: [], cover: String(body.cover || ''), coverType: body.coverType === 'video' ? 'video' : 'image', accent: GROUP_ACCENTS.includes(body.accent) ? body.accent : 'rojo', headerGradient: GROUP_GRADIENTS.includes(body.headerGradient) ? body.headerGradient : 'none', rules: String(body.rules || '').slice(0, 500), approval: !!body.approval, joinRequests: [], pinnedPosts: [], createdAt: Date.now(),
     /* v3.8: grupo secreto — no aparece en búsquedas ni en descubrimiento
        para quien no es miembro; solo se entra por invitación. */
-    secret: !!(req.body && req.body.secret), invites: [] };
+    secret: !!body.secret, invites: [] };
   groups.push(g);
   saveJson('groups.json', groups);
   return res.json({ ok: true, group: g });
