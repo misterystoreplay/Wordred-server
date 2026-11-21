@@ -8,7 +8,7 @@ var C = window.WordRedCore;
    última versión del servidor (GET /api/app/latest). Tiene que ser
    igual que versionCode/versionName del AndroidManifest.xml. */
 var APP_VERSION_CODE = 79;
-var APP_VERSION_NAME = 'Web 1.11'; /* Web 1.11: contenido de Android 1.5.64. */
+var APP_VERSION_NAME = 'Web 1.12'; /* Web 1.12: contenido de Android 1.5.64. */
 var LS_KEY = 'wordred_state_v1';
 var state = loadState();
 ensure1526State(); /* 1.5.26: rellenar los campos nuevos en estados guardados de la 1.5.25. */
@@ -235,6 +235,11 @@ var ICONS = {
   plus: '<path d="M12 5v14M5 12h14"/>',
   chevup: '<path d="m18 15-6-6-6 6"/>',
   chevdown: '<path d="m6 9 6 6 6-6"/>',
+  /* Web 1.12: flechas para desplegar las opciones de la publicación y
+     archivar (estilo feather, como el resto). */
+  chevright: '<polyline points="9 18 15 12 9 6"/>',
+  chevleft: '<polyline points="15 18 9 12 15 6"/>',
+  archive: '<rect x="3" y="3" width="18" height="5" rx="1"/><path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
   expand: '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>',
   compress: '<path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>',
   play: '<polygon points="6 3 20 12 6 21 6 3" fill="currentColor" stroke="none"/>',
@@ -3482,6 +3487,7 @@ var FAQ = [
   { q: '¿Qué hay de nuevo en la Web 1.9?', a: 'Los Eventos salieron del perfil: ya no hay sección de Eventos ni botón «Crear un evento» ahí; la moneda, Compartir y Editar quedan igual. Y el modo Lectura ya funciona de verdad: en una publicación larga, tocar «Lectura» agranda el texto y esconde los botones para leer tranquilo, y tocarlo otra vez lo apaga.' }, /* Web 1.9: Eventos fuera del perfil y modo lectura arreglado (su CSS apuntaba a clases que ya no existen). */
   { q: '¿Qué hay de nuevo en la Web 1.10?', a: 'El chat ya funciona sin fallos: mandar mensajes, notas de voz, emojis, llamadas y videollamadas. Antes, chatear con alguien cuyo perfil no estaba guardado en el teléfono fallaba con «Esa persona no existe» aunque existiera, y un mensaje que el servidor rechazaba quedaba como «Enviado» sin llegar nunca: ahora el perfil se trae del servidor al abrir el chat, y si un mensaje no se envía avisa y se puede reintentar tocándolo. También se arregló que un nombre ya usado por otra persona dejaba entrar a la app sin perfil en el servidor (y nadie podía escribirle): ahora avisa y pide otro nombre. Las llamadas ahora usan también un servidor TURN para conectar el audio y el video en redes móviles, y si la conexión de medios falla, avisan y cuelgan en vez de quedarse mudas. Además, al entrar a los Shorts, todos los videos del inicio se paran, y las pastillas del perfil (Guardados, Archivados, Me gusta, Mi QR…) ya no se enciman: van en varias filas con su espacio.' }, /* Web 1.10: chat sin fallos (perfil al abrir el chat, envío con aviso y reintento, TURN + aviso de fallo de medios), videos del Inicio parados al entrar a los Shorts, pastillas del perfil sin encimarse. */
   { q: '¿Qué hay de nuevo en la Web 1.11?', a: 'Pulido completo: el «?» de Ajustes abre las preguntas, «Salas de audio» abre las salas y «Unirme al grupo» entra al grupo; los grupos ya llegan al servidor. El estado en línea y No molestar se guardan. Traducir ya no muestra el aviso de cuota en inglés como traducción. En el Inicio solo salen «Más reacciones» y «Descargar»; «Copiar enlace», «Quién reaccionó» y «Archivar» solo salen en el perfil.' }, /* Web 1.11: pulido completo (preguntas, salas de audio, unirse al grupo, grupos al servidor, estado en línea, No molestar, traducir, fila de opciones de la publicación). */
+  { q: '¿Qué hay de nuevo en la Web 1.12?', a: 'Las opciones de cada publicación ahora llevan icono con su letrita, como los iconos de la barra de abajo, y van en rojo cuando están activas. En el inicio se ven «Más reacciones» y «Descargar» con una flecha › que despliega «Copiar enlace», «Quién reaccionó» y «Archivar» en el mismo lugar; en tu perfil salen las cinco directas, sin flecha. Las reacciones también llevan su icono arriba y su nombre debajo, y en los comentarios las reacciones y las opciones (Eliminar, Editar, Fijar) llevan el mismo diseño.' }, /* Web 1.12: fila de opciones con flecha desplegable y diseño de iconos como la barra de abajo en opciones y reacciones. */
 
 ];
 function renderFaq() {
@@ -7321,6 +7327,51 @@ function ownMediaHtml(post, shared) {
   if (!post.media || (sharedSrc && post.media === sharedSrc)) return '';
   return mediaHtml(post.media, post.mediaType, post.id, post.videoEdits, post.videoThumb || '');
 }
+/* Web 1.12: la fila de opciones con el diseño de la barra de abajo
+   (icono arriba, letrita debajo, rojo #E60026 al estar activa). En el
+   Inicio se ven «Más reacciones» y «Descargar» con una flecha › que
+   despliega «Copiar enlace», «Quién reaccionó» y «Archivar» en el
+   mismo lugar, sin animación; en el perfil salen las cinco directas,
+   sin flecha. El estado desplegado vive por publicación en
+   postOptsOpen1562 y sobrevive a repintar el muro. */
+var postOptsOpen1562 = {};
+function postOptBtn1562(icon, label, onclick, active, cls, style) {
+  return '<button class="postOpt1562' + (active ? ' on' : '') + (cls ? ' ' + cls : '') + '" type="button"' + (style ? ' style="' + style + '"' : '') + ' onclick="' + onclick + '">' + ic(icon, 20) + '<span>' + label + '</span></button>';
+}
+function postOptsHtml1562(post, inProfile) {
+  var open = !!postOptsOpen1562[post.id];
+  var mine = post.author === state.me;
+  var long = !!(post.text && post.text.length > 280);
+  var reading = !!readingPosts1550[post.id];
+  var h = '<div class="postOpts1550">';
+  h += postOptBtn1562('smile', 'Más reacciones', "window.__wrToggleReactions('" + post.id + "')", false, 'postOptReactions1562', '');
+  if (inProfile) {
+    h += postOptBtn1562('link', 'Copiar enlace', "window.__wrCopyPostLink1550('" + post.id + "')", false, '', '');
+    h += postOptBtn1562('users', 'Quién reaccionó', "window.__wrWhoReacted1550('" + post.id + "')", false, '', '');
+  } else {
+    h += postOptBtn1562('link', 'Copiar enlace', "window.__wrCopyPostLink1550('" + post.id + "')", false, 'postOptsExtra1562', open ? '' : 'display:none');
+    h += postOptBtn1562('users', 'Quién reaccionó', "window.__wrWhoReacted1550('" + post.id + "')", false, 'postOptsExtra1562', open ? '' : 'display:none');
+  }
+  if (long) h += postOptBtn1562('book', 'Lectura', "window.__wrToggleReading1550('" + post.id + "')", reading, '', '');
+  if (mine) {
+    if (inProfile) h += postOptBtn1562('archive', 'Archivar', "window.__wrArchivePost1550('" + post.id + "')", false, '', '');
+    else h += postOptBtn1562('archive', 'Archivar', "window.__wrArchivePost1550('" + post.id + "')", false, 'postOptsExtra1562', open ? '' : 'display:none');
+    h += postOptBtn1562('download', 'Descargar', "window.__wrDownloadPost1550('" + post.id + "')", false, '', '');
+  }
+  if (!inProfile) h += postOptBtn1562(open ? 'chevleft' : 'chevright', open ? 'Menos' : 'Más', "window.__wrTogglePostOpts1562('" + post.id + "', this)", open, 'postOptArrow1562', '');
+  return h + '</div>';
+}
+window.__wrTogglePostOpts1562 = function (postId, btn) {
+  postOptsOpen1562[postId] = !postOptsOpen1562[postId];
+  var open = postOptsOpen1562[postId];
+  var card = btn && btn.closest ? btn.closest('article.post') : null;
+  if (!card) card = document.querySelector('article.post[data-post="' + postId + '"]');
+  if (!card) return;
+  var extras = card.querySelectorAll('.postOptsExtra1562');
+  for (var i = 0; i < extras.length; i++) extras[i].style.display = open ? '' : 'none';
+  var arrow = card.querySelector('.postOptArrow1562');
+  if (arrow) { arrow.classList.toggle('on', open); arrow.innerHTML = ic(open ? 'chevleft' : 'chevright', 20) + '<span>' + (open ? 'Menos' : 'Más') + '</span>'; }
+};
 /* Web 1.11: postCardHtml(post, inProfile) — la fila de opciones lleva
    «Más reacciones» y «Descargar» en todas partes; «Copiar enlace»,
    «Quién reaccionó» y «Archivar» SOLO aparecen en el PERFIL
@@ -7425,20 +7476,12 @@ function postCardHtml(post, inProfile) {
     '</div>' +
     '<div class="reactions" id="rx-' + post.id + '" style="display:none">' +
     C.REACTIONS.map(function (r) {
-      return '<button class="' + (myReaction === r ? 'on' : '') + '" onclick="window.__wrReact(\'' + post.id + '\',\'' + r + '\')">' + C.REACTION_EMOJI[r] + ' ' + r + '</button>';
+      /* Web 1.12: cada reacción con su icono arriba y su nombre debajo,
+         como los iconos de la barra de abajo; la elegida va en rojo. */
+      return '<button class="rxBtn1562' + (myReaction === r ? ' on' : '') + '" onclick="window.__wrReact(\'' + post.id + '\',\'' + r + '\')"><span class="rxIc1562">' + C.REACTION_EMOJI[r] + '</span><span class="rxLb1562">' + r + '</span></button>';
     }).join('') +
     '</div>' +
-    /* Web 1.11: la fila de opciones de la publicación (postOpts1550)
-       lleva «Más reacciones» y «Descargar» en todas partes; «Copiar
-       enlace», «Quién reaccionó» y «Archivar» SOLO aparecen en el
-       PERFIL (inProfile), no en el Inicio ni en el resto. «Lectura»
-       sale en publicaciones largas (arreglo de la Web 1.9). */
-    '<div class="postOpts1550" style="text-align:right;margin-top:4px"><button class="tiny" style="color:var(--mut)" onclick="window.__wrToggleReactions(\'' + post.id + '\')">Más reacciones</button>' +
-    (inProfile ? ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrCopyPostLink1550(\'' + post.id + '\')">Copiar enlace</button>' +
-    ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrWhoReacted1550(\'' + post.id + '\')">Quién reaccionó</button>' : '') +
-    ((post.text && post.text.length > 280) ? ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrToggleReading1550(\'' + post.id + '\')">Lectura</button>' : '') +
-    (author === state.me ? (inProfile ? ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrArchivePost1550(\'' + post.id + '\')">Archivar</button>' : '') + ' <button class="tiny" style="color:var(--mut)" onclick="window.__wrDownloadPost1550(\'' + post.id + '\')">Descargar</button>' : '') +
-    '</div>' +
+    postOptsHtml1562(post, inProfile) +
     postViewsHtml1526(post) + /* 1.5.26 (4): vistas reales de tus publicaciones */
     sharesRowHtml1526(post) + /* 1.5.26 (42): quién compartió */
     liveShareButtonHtml(post) +
@@ -8157,6 +8200,10 @@ window.__wrFeaturedShot = function (i) { featuredGameShot1549Go(i); };
 window.__wrToggleReactions = function (postId) {
   var el = $('rx-' + postId);
   if (el) el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+  /* Web 1.12: el botón «Más reacciones» queda en rojo mientras el
+     panel de reacciones está abierto. */
+  var card = document.querySelector('article.post[data-post="' + postId + '"]');
+  if (card) { var b = card.querySelector('.postOptReactions1562'); if (b) b.classList.toggle('on', !!(el && el.style.display === 'flex')); }
 };
 window.__wrLike = function (postId) {
   if (!needVerified('reaccionar')) return;
@@ -8495,15 +8542,20 @@ function commentHtml(post, c, isReply, topId) {
   var cReactRow1550 = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">' + REACT_EMOJIS_1550.map(function (e) {
     var n = cReactCounts1550[e] || 0;
     var mine = c.reactions && c.reactions[state.me] === e;
-    return '<button class="tiny" style="border:1px solid ' + (mine ? 'var(--red2)' : 'var(--line)') + ';border-radius:999px;padding:2px 8px;background:' + (mine ? 'rgba(var(--acc-rgb),.18)' : 'transparent') + '" onclick="window.__wrReactComment1550(\'' + post.id + '\',\'' + c.id + '\',\'' + e + '\')">' + e + (n ? ' ' + n : '') + '</button>';
+    /* Web 1.12: cada reacción del comentario con su icono arriba y su
+       conteo debajo, como los iconos de la barra de abajo; la mía va
+       en rojo. */
+    return '<button class="cmtRx1562' + (mine ? ' on' : '') + '" onclick="window.__wrReactComment1550(\'' + post.id + '\',\'' + c.id + '\',\'' + e + '\')"><span class="rxIc1562">' + e + '</span><span class="rxLb1562">' + (n || '') + '</span></button>';
   }).join('') + '</div>';
   var pinnedMark1550 = (post.pinnedComment === c.id) ? ' · <span style="color:var(--red);font-weight:700">Fijado</span>' : '';
   var html = '<div class="comment' + (isReply ? ' reply' : '') + '">' + avatarHtml(c.author) +
     '<div class="bubble"><b>' + esc(profileName(c.author)) + demoBadge(c.author) + '</b><p>' + cTextHtml1526 + '</p>' + cMediaHtml1526 + commentTranslateHtml1526(post, c) + cReactRow1550 +
     '<div class="meta">' + C.timeAgo(c.createdAt) + ' · ' + C.formatDateTime(c.createdAt) + (c.edited ? ' · editado' : '') + pinnedMark1550 +
-    ((c.author === state.me || post.author === state.me) ? ' · <button onclick="window.__wrDeleteComment(\'' + post.id + '\',\'' + c.id + '\')">Eliminar</button>' : '') +
-    (c.author === state.me ? ' · <button onclick="window.__wrEditComment1550(\'' + post.id + '\',\'' + c.id + '\')">Editar</button>' : '') +
-    ((post.author === state.me && !isReply) ? ' · <button onclick="window.__wrPinComment1550(\'' + post.id + '\',\'' + c.id + '\')">' + (post.pinnedComment === c.id ? 'Quitar fijo' : 'Fijar') + '</button>' : '') + '</div></div>' +
+    /* Web 1.12: las opciones del comentario (Eliminar, Editar, Fijar)
+       con icono y letrita, como los iconos de la barra de abajo. */
+    ((c.author === state.me || post.author === state.me) ? ' · <button class="cmtOpt1562" onclick="window.__wrDeleteComment(\'' + post.id + '\',\'' + c.id + '\')">' + ic('trash', 12) + 'Eliminar</button>' : '') +
+    (c.author === state.me ? ' · <button class="cmtOpt1562" onclick="window.__wrEditComment1550(\'' + post.id + '\',\'' + c.id + '\')">' + ic('edit', 12) + 'Editar</button>' : '') +
+    ((post.author === state.me && !isReply) ? ' · <button class="cmtOpt1562' + (post.pinnedComment === c.id ? ' on' : '') + '" onclick="window.__wrPinComment1550(\'' + post.id + '\',\'' + c.id + '\')">' + ic('pin', 12) + (post.pinnedComment === c.id ? 'Quitar fijo' : 'Fijar') + '</button>' : '') + '</div></div>' +
     '<div class="shortsRail commentRail">' +
     '<button class="like-btn ' + (liked ? 'on' : '') + '" aria-label="Me gusta" onclick="window.__wrLikeComment(\'' + post.id + '\',\'' + c.id + '\')">' + ic('heart', 22) + '<span class="cnt">' + C.commentLikeCount(c) + '</span></button>' +
     '<button aria-label="Responder" onclick="window.__wrReplyTo(\'' + top + '\')">' + ic('message', 22) + '<span class="cnt">' + (c.replies || []).length + '</span></button>' +
@@ -16345,7 +16397,7 @@ function initHomeWidgets1536() {
    simple. Con «Saltar» se cierra y no vuelve a salir solo. */
 var TUTORIAL_STEPS_1533 = [
   { art: 'bienvenida', title: 'Bienvenido a WordRed', text: 'Aquí está tu inicio: las publicaciones de tus amigos y de la cuenta de ejemplo aparecen en un solo lugar.' },
-  { art: 'inicio', title: 'Tu inicio', text: 'Arriba siempre están los reels, luego «¿Qué estás pensando?» y el reloj con el clima a su derecha. Desliza para ver publicaciones, dale Me gusta, comenta y comparte. Entre las publicaciones verás los Reels grandes y la cartelera de estrenos. Los reels se abren a pantalla completa y se cambian deslizando. Llegan más dramas cada 2 semanas: salen mezclados entre los Shorts y en el visor puedes seguir una serie para que te avise de capítulos nuevos. En tu perfil está «Guardados», con lo que guardes para luego. Las barras se ocultan solas al bajar y vuelven al subir; Mercado está en el centro de la barra de abajo.' }, /* Web 1.2: el buscador del Inicio se quitó. */ /* Web 1.5: reels a pantalla completa, buscar y seguir dramas, Guardados. */ /* Web 1.7: ya no hay sección Dramas en el Inicio (se quitó en la 1.6): los dramas salen entre los Shorts y se sigue desde el visor. */
+  { art: 'inicio', title: 'Tu inicio', text: 'Arriba siempre están los reels, luego «¿Qué estás pensando?» y el reloj con el clima a su derecha. Desliza para ver publicaciones, dale Me gusta, comenta y comparte. Debajo de cada publicación, las opciones llevan icono con su letrita, como la barra de abajo: en el inicio se ven «Más reacciones» y «Descargar» con una flecha › que despliega las demás; en tu perfil salen las cinco directas. Entre las publicaciones verás los Reels grandes y la cartelera de estrenos. Los reels se abren a pantalla completa y se cambian deslizando. Llegan más dramas cada 2 semanas: salen mezclados entre los Shorts y en el visor puedes seguir una serie para que te avise de capítulos nuevos. En tu perfil está «Guardados», con lo que guardes para luego. Las barras se ocultan solas al bajar y vuelven al subir; Mercado está en el centro de la barra de abajo.' }, /* Web 1.2: el buscador del Inicio se quitó. */ /* Web 1.5: reels a pantalla completa, buscar y seguir dramas, Guardados. */ /* Web 1.7: ya no hay sección Dramas en el Inicio (se quitó en la 1.6): los dramas salen entre los Shorts y se sigue desde el visor. */ /* Web 1.12: las opciones de la publicación con icono y flecha desplegable. */
   { art: 'publicar', title: 'Publica algo', text: 'Toca «Publicar» y comparte una foto, un video o lo que piensas. La vista previa sale al instante y la subida sigue en segundo plano: si la conexión se corta, continúa donde se quedó y nada se publica roto. También puedes hacer una encuesta, grabar una nota de voz, compartir una canción del catálogo o ponerle un filtro a tu foto antes de publicar.' }, /* Web 1.5: encuestas, notas de voz, canciones y filtros. */
   { art: 'shorts', title: 'Shorts e historias', text: 'Mira videos cortos en Shorts y crea historias que duran 24 horas. Arriba en el inicio están los reels: toca tu foto con el + para publicar uno. Las historias se crean desde tu perfil y se ven en Shorts: pueden llevar música, una encuesta o una foto con las dos cámaras. Entre los Shorts aparecen tarjetas de dramas: al llegar a una se reproduce sola en su primer capítulo, sin que aparezca el tutorial. Al entrar a los Shorts, los videos del inicio se paran solos.' }, /* Web 1.5: historias con música, encuestas y doble cámara. */ /* Web 1.7: los dramas entre los Shorts se reproducen solos al llegar, sin el tutorial (antes había que tocar la tarjeta). */ /* Web 1.10: al entrar a los Shorts, los videos del inicio se paran. */
   { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. En Amigos verás «Gente que quizá conozcas», con personas reales que quizá conozcas. Los grupos tienen sus propios administradores y reglas, y ahora también eventos y llamadas de voz o video en grupo; los grupos que creas ya llegan al servidor y los enlaces para invitar ya funcionan. En los chats puedes mandar notas de voz, buscar mensajes, fijar un chat y borrar un mensaje para todos. También puedes ponerle emojis a lo que escribes y reaccionar a un mensaje con un emoji; la barra para escribir es grande y está arriba de los botones. Los mensajes, las notas de voz, los emojis, las llamadas y las videollamadas ya funcionan sin fallos: si un mensaje no se envía, avisa y se puede reintentar tocándolo.' }, /* Web 1.5: sugerencias, eventos en grupos, llamadas grupales. */ /* Web 1.8: emojis en el chat y barra grande arriba. */ /* Web 1.10: chat sin fallos (mensajes, voz, emojis, llamadas y videollamadas) y reintento al tocar un mensaje no enviado. */ /* Web 1.11: los grupos ya llegan al servidor y los enlaces de invitación ya funcionan. */

@@ -528,8 +528,26 @@ nav#bottomNav .bn-side button:active,nav#bottomNav .bn-side button.bnPress1547{t
    (en los Shorts, en las publicaciones y en los comentarios). */
 #shortsLike.on svg path,.actions button.like-btn.on svg path,.commentRail button.like-btn.on svg path{fill:currentColor}
 .reactions{display:flex;gap:6px;padding:8px 2px 0;flex-wrap:wrap}
-.reactions button{background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:13px}
-.reactions button.on{border-color:var(--like);background:rgba(var(--like-rgb),.2)}
+/* Web 1.12: opciones y reacciones con el diseño de la barra de abajo
+   (icono arriba, letrita debajo, rojo #E60026 al estar activo). */
+.postOpts1550{display:flex;justify-content:flex-end;gap:2px;margin-top:4px;flex-wrap:wrap}
+.postOpt1562{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:52px;padding:5px 2px;background:none;border:0;border-radius:12px;font-size:9px;font-weight:700;color:var(--dim);cursor:pointer}
+.postOpt1562 .ic{display:flex;line-height:0}
+.postOpt1562 .ic svg{width:20px;height:20px;display:block}
+.postOpt1562.on{color:#E60026}
+.reactions button{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:52px;background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:12px;padding:6px 8px}
+.reactions button .rxIc1562{font-size:20px;line-height:1}
+.reactions button .rxLb1562{font-size:9px;font-weight:700;color:var(--dim)}
+.reactions button.on{border-color:#E60026;background:rgba(230,0,38,.15)}
+.reactions button.on .rxLb1562{color:#E60026}
+.cmtRx1562{display:inline-flex;flex-direction:column;align-items:center;gap:1px;min-width:34px;border:1px solid var(--line);border-radius:10px;padding:3px 8px;background:transparent;cursor:pointer}
+.cmtRx1562 .rxIc1562{font-size:15px;line-height:1}
+.cmtRx1562 .rxLb1562{font-size:9px;font-weight:700;color:var(--dim);line-height:1.2}
+.cmtRx1562.on{border-color:#E60026;background:rgba(230,0,38,.15)}
+.cmtRx1562.on .rxLb1562{color:#E60026}
+.cmtOpt1562{display:inline-flex;align-items:center;gap:2px;background:none;border:0;padding:0;color:var(--mut);font:inherit;cursor:pointer}
+.cmtOpt1562 .ic{display:inline-flex;line-height:0}
+.cmtOpt1562.on{color:#E60026}
 .comments{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}
 .comment{display:flex;gap:8px;margin-bottom:10px}
 .comment .bubble{flex:1;background:rgba(255,255,255,.07);border-radius:14px;padding:8px 11px}
@@ -2138,7 +2156,7 @@ nav#bottomNav button.bn-main.on{background:linear-gradient(135deg,rgba(var(--acc
     </section>
     <section class="setSec1560" id="setSecAcerca1560">
     <h3 class="sectitle">Acerca de</h3>
-    <p class="muted">WordRed Web 1.11 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
+    <p class="muted">WordRed Web 1.12 · contenido de Android 1.5.64.<br>Creada y diseñada por Mistery Store Play.</p>
     </section>
   </div>
 </div>

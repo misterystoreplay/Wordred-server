@@ -793,6 +793,48 @@ Web 1.6?», FAQ 32) y el tutorial no cambia.
    aparecen entre las publicaciones con separación y la fila de
    Reels fija, y el tráiler y la noticia se abren al tocarlos.
 
+## Qué cambió en la Web 1.12 (todo marcado «Web 1.12»)
+
+Pedido por Christian («Sí, hazlo así»): las opciones de las
+publicaciones, que la 1.11 dejó solo con «Más reacciones» y
+«Descargar» en el Inicio, quedan mejor acomodadas y con el diseño de
+los iconos de la barra de abajo en toda la web. La FAQ crece con su
+entrada de versión («¿Qué hay de nuevo en la Web 1.12?», FAQ 38) y
+el tutorial ya dice que las opciones llevan icono con su letrita y
+una flecha que despliega las demás.
+
+**1) Fila de opciones con flecha desplegable.** En el Inicio la fila
+(`postOpts1550`, `postOptsHtml1562`) muestra «Más reacciones»,
+«Descargar» y una flecha ›; al tocarla se despliegan en el mismo
+lugar «Copiar enlace», «Quién reaccionó» y «Archivar», y la flecha
+pasa a ‹ con la letrita «Menos»; al tocarla otra vez se colapsan, sin
+animación. El estado desplegado vive por publicación en
+`postOptsOpen1562` y sobrevive a repintar el muro. En el perfil las
+cinco opciones se muestran directas, sin flecha, como antes. Las
+tres opciones desplegadas funcionan de verdad: son las mismas
+funciones de siempre (`__wrCopyPostLink1550`,
+`__wrWhoReacted1550`, `__wrArchivePost1550`), solo que ahora también
+se alcanzan desde el Inicio (W85).
+
+**2) Diseño de iconos como la barra de abajo.** Las opciones de la
+publicación, el panel de reacciones de la publicación, las reacciones
+de los comentarios y las opciones de los comentarios (Eliminar,
+Editar, Fijar) usan el mismo diseño que los iconos de la barra
+inferior: icono arriba, letrita debajo, gris cuando no está activo y
+rojo #E60026 cuando sí. Los iconos salen del sistema existente
+`ic(name,size)` / `ICONS`; se añaden tres de línea simples, estilo
+feather: `chevright`, `chevleft` y `archive`. «Más reacciones» queda
+en rojo mientras su panel está abierto, y «Lectura» en rojo mientras
+el modo lectura está activo en esa publicación. La barra de abajo no
+se toca. Sin animales y sin animaciones nuevas (W85).
+
+**Límites honestos.** No probado en un teléfono real (solo Electron
+en esta VM); el audio y el video reales de una llamada entre dos
+teléfonos solo se confirman con dos teléfonos. YouTube revisa a veces
+la IP de esta VM («Sign in to confirm you are not a bot»): los
+checks de dramas que reproducen video de YouTube (W12/W21/W47) pueden
+fallar por eso en la VM; en el teléfono no pasa.
+
 ## Qué cambió en la Web 1.11 (todo marcado «Web 1.11»)
 
 Pulido completo de arriba a abajo, pedido por Christian («que nada
