@@ -1,4 +1,4 @@
-# WordRed Web 1.6 — NOTAS
+# WordRed Web 1.7 — NOTAS
 
 Versión web de WordRed: se abre con un enlace en el navegador, sin
 descargar ni instalar nada. Las actualizaciones llegan solas al abrir
@@ -792,6 +792,99 @@ Web 1.6?», FAQ 32) y el tutorial no cambia.
    respeta los huecos, en el Inicio real las tres secciones
    aparecen entre las publicaciones con separación y la fila de
    Reels fija, y el tráiler y la noticia se abren al tocarlos.
+
+## Qué cambió en la Web 1.7 (todo marcado «Web 1.7»)
+
+Dos cambios, pedidos por el usuario: los dramas que salen
+mezclados entre los Shorts ya se reproducen solos al llegar, como
+los Shorts, y NO aparece el tutorial (la guía de gestos); y en el
+Inicio ya no hay texto debajo de los Reels de arriba. La FAQ
+crece con su entrada de versión («¿Qué hay de nuevo en la
+Web 1.7?», FAQ 33) y el tutorial se actualiza en el sitio (el
+paso de Shorts decía que había que tocar la tarjeta; el paso del
+Inicio todavía hablaba de la sección Dramas, quitada en la 1.6).
+
+**Cómo funciona (mecanismo).** Al llegar a una tarjeta de drama,
+`renderShortItem()` llama a `kdMaybeAutoOpenDrama1562()`, que
+espera 700 ms y auto-abre el visor con
+`__wrOpenDrama1562(id)` (capítulo 1). El visor ya reproduce solo,
+así que no se tocó el reproductor: el cambio es solo el
+auto-apertura. El botón «Ver drama» y tocar la portada siguen
+abriendo el drama de inmediato a mano, y el texto del pie ahora
+dice «Se reproduce solo al llegar» en vez de «Toca la portada
+para ver el drama».
+
+**Sin tutorial en el auto-apertura (corrección del usuario).**
+Normalmente el visor enseña la guía de gestos al entrar al
+capítulo 1 (`kdLoadCurrent1549`: guía solo en el capítulo 0, se
+quita sola a los 4 s), pero en el auto-apertura NO aparece:
+`kdMaybeAutoOpenDrama1562` levanta la bandera
+`kdSuppressGuide1562` justo antes de abrir el visor, y
+`kdLoadCurrent1549` no enseña la guía si la bandera está puesta.
+La bandera se consume en esa misma apertura (y también se limpia
+si el capítulo se abre con el reproductor nativo), así que una
+apertura manual posterior del capítulo 1 sí vuelve a enseñar la
+guía como siempre. Las funciones de la guía (`kdShowGuide1549` /
+`kdHideGuide1549`) no se tocan ni se borran.
+
+**Sin texto debajo de los Reels de arriba (adición del usuario).**
+En el Inicio, la fila de Reels ya no lleva texto debajo de cada
+tile: ni «Agregar reel» bajo la primera (la foto propia con el
+`+` rojo) ni el nombre de quien lo publicó bajo los demás
+(`renderStories()`: los `<div class="homeReelName1549">` se
+quitaron del HTML y su regla CSS de `index.html` también; la
+clase ya no aparece en ningún lado). Los tiles quedan igual:
+rectángulo 140×190, misma foto, mismo `+` rojo en el primero
+(que sigue en su sitio, a 154 px de arriba) y mismo toque (el
+primero abre el publicador de reels, los demás abren el reel a
+pantalla completa). La fila de Reels del feed (`.reelTile`) ya
+no tenía texto debajo y no se toca. Al quitar el nombre, cada
+tile mide ahora 190 px de alto (antes 213 px: 190 del
+rectángulo + el renglón del nombre).
+
+**Sin bucles (las tres guardas).** (1) Al cerrar el visor
+(`hideOverlay('kdramaOverlay1549')`, por la X, por Escape o por
+cualquier otro cierre) se marca la tarjeta como descartada
+(`kdAutoOpenDismissed1562`) y no se vuelve a auto-abrir en esa
+tarjeta: el usuario la cerró a propósito. (2) Si el usuario pasa
+rápido de largo, el temporizador de 700 ms se cancela al cambiar
+de Short (`renderShortItem` lo cancela al cambiar el `id`, y el
+propio `kdMaybeAutoOpenDrama1562` vuelve a comprobar que la
+tarjeta actual siga siendo la misma antes de abrir). (3) Solo se
+auto-abre una vez por llegada (`kdAutoOpenDone1562`); un
+re-render de la misma tarjeta no vuelve a abrirlo. Al cambiar de
+Short todo se resetea: volver a una tarjeta es una llegada nueva
+y vuelve a poder auto-abrirse. Al cerrar los Shorts se cancela el
+temporizador pendiente (que no se abra el visor con los Shorts ya
+cerrados). Si el visor ya está abierto (por ejemplo, se abrió
+desde otro lado), no se auto-abre encima.
+
+**Autoplay con sonido (límite honesto).** En la web el video es
+un iframe de YouTube con `autoplay=1` y el visor pide
+`unMute` + `playVideo` al estar listo, como siempre. En un
+navegador real, la reproducción con sonido tras un gesto del
+usuario (abrir Shorts, deslizar) está permitida por la política
+de autoplay; en Electron (pruebas) la política está desactivada
+(`--autoplay-policy no-user-gesture-required`) y el video suena
+con el tiempo avanzando (comprobado en el DOM, W47). Si un
+navegador bloquea el sonido, el visor se abre igual sin la guía y
+el error del vigilante (10 s) avisa si el video no
+arranca; no se finge reproducción.
+
+**Lo que no cambia.** Los Shorts se reproducen solos como antes;
+el visor, sus capítulos, «Seguir» y Guardados siguen iguales; el
+intercalado aleatorio (hueco 4–9, serie aleatoria sin repetir la
+anterior, al menos un drama con muro corto) no se toca; el
+servidor sigue en 5.0.
+
+Comprobado en el DOM (W47/W48): al llegar a una tarjeta de drama
+sin tocar nada, el visor se abre solo sin que aparezca la guía y
+el video de YouTube sonando (tiempo avanzando); al cerrar el visor
+se queda cerrado en esa tarjeta; al pasar rápido de largo no se
+abre el visor; y un Short normal con video sigue sonando solo.
+En la fila de Reels de arriba no queda ningún texto debajo de los
+tiles (W41/W48, a 390 y 360 px): los tiles miden 190 px, el `+`
+rojo sigue en el primero y tocar un reel lo abre.
 
 ## Qué se conservó y por qué (sí funciona en la web)
 

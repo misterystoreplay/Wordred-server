@@ -8,7 +8,7 @@ var C = window.WordRedCore;
    última versión del servidor (GET /api/app/latest). Tiene que ser
    igual que versionCode/versionName del AndroidManifest.xml. */
 var APP_VERSION_CODE = 79;
-var APP_VERSION_NAME = 'Web 1.6'; /* Web 1.6: contenido de Android 1.5.64. */
+var APP_VERSION_NAME = 'Web 1.7'; /* Web 1.7: contenido de Android 1.5.64. */
 var LS_KEY = 'wordred_state_v1';
 var state = loadState();
 ensure1526State(); /* 1.5.26: rellenar los campos nuevos en estados guardados de la 1.5.25. */
@@ -1213,10 +1213,10 @@ function hideOverlay(id) {
   if (id === 'qrScanOverlay') stopQrScanTracks();
   /* v2.1: al cerrar la vista web interna se para el juego o la demo. */
   if (id === 'webViewOverlay') { var fr = $('webViewFrame'); if (fr) fr.src = 'about:blank'; }
-  if (id === 'shortsOverlay') pauseShortsVideos();
+  if (id === 'shortsOverlay') { pauseShortsVideos(); /* Web 1.7: al cerrar los Shorts se cancela el auto-apertura pendiente de un drama (que no se abra el visor con los Shorts ya cerrados). */ if (typeof kdAutoOpenTimer1562 !== 'undefined' && kdAutoOpenTimer1562) { clearTimeout(kdAutoOpenTimer1562); kdAutoOpenTimer1562 = null; } }
   /* 1.5.54: al cerrar el visor de dramas se limpia el capítulo y se
      esconde la guía de gestos si estaba visible. */
-  if (id === 'kdramaOverlay1549') { kdStopNovel1549(); var kg = $('kdGuide1549'); if (kg && !kg.classList.contains('hidden')) kdDismissGuide1549(); }
+  if (id === 'kdramaOverlay1549') { kdStopNovel1549(); var kg = $('kdGuide1549'); if (kg && !kg.classList.contains('hidden')) kdDismissGuide1549(); /* Web 1.7: si se cierra el visor estando en la tarjeta de ese drama entre los Shorts, no volver a abrirlo solo en esa tarjeta (queda cerrado hasta pasar a otro Short y volver). */ if (typeof currentShort === 'function') { try { var _cs1562 = currentShort(); if (_cs1562 && _cs1562.kind === 'drama') kdAutoOpenDismissed1562 = true; } catch (e) {} } }
   /* v1.5.12: al cerrar el visor del chat se para el video que se veía. */
   if (id === 'chatMediaOverlay') {
     var cv = $('chatMediaBody') ? $('chatMediaBody').querySelector('video') : null;
@@ -3465,6 +3465,7 @@ var FAQ = [
   { q: '¿Qué hay de nuevo en la Web 1.4?', a: 'En los dramas, el botón «Saltar anuncio» de YouTube ya se puede presionar: antes la barra de abajo del visor lo tapaba. Ahora el video termina arriba de la barra y la esquina donde sale el botón queda libre. Los anuncios los pone YouTube y no se pueden quitar.' }, /* Web 1.4: el botón de saltar anuncios ya se puede presionar. */
   { q: '¿Qué hay de nuevo en la Web 1.5?', a: 'Mucho: notificaciones push reales (con la pestaña cerrada), Guardados para publicaciones y dramas, diseño ancho en computadora, compartir por WhatsApp, seguir dramas con aviso de capítulos nuevos, buscar y filtrar dramas, reels a pantalla completa con deslizamiento, notas de voz en chats y en publicaciones, instalar la Web como app, audio en segundo plano, subidas que no mueren al cerrar la pestaña, transmisiones en vivo, traducción de publicaciones y comentarios, encuestas en publicaciones e historias, fotos en comentarios, insignia verificada (solo la otorga el dueño), sugerencias de amigos, reacciones con emoji en publicaciones y comentarios, videollamadas y llamadas de voz en grupo, vistas de tus publicaciones, fijar publicaciones y comentarios, recordatorios de cumpleaños, menciones con @, archivar publicaciones e historias, fondos de perfil, historias con música, descargar tus publicaciones, bloquear y reportar, mensajes que se autodestruyen, subtítulos automáticos, estado en línea, compartir pantalla en llamadas, filtros de foto antes de publicar, texto grande y modo lectura, eventos en grupos con recordatorios, silenciar sin bloquear, QR de tu perfil, historial de Me gusta, respuestas en comentarios, notas de perfil, retomar videos donde los dejaste, buscar y fijar chats, ahorro de datos, cambiar tu nombre, stickers propios, compartir canciones, ver quién reaccionó, foto con doble cámara, editar comentarios, borrar mensajes para todos, copiar enlace de una publicación, modo No molestar, programar historias, grupos privados, reacciones rápidas en historias, negocio en tu perfil, estadísticas de tus historias, escuchar y ver juntos en grupo, y exportar tus datos. Los avisos push y las subidas en segundo plano dependen de lo que permita tu navegador; la traducción usa un servicio gratuito y puede fallar a veces; lo guardado vive en este navegador.' }, /* Web 1.5: 70 novedades. */
   { q: '¿Qué hay de nuevo en la Web 1.6?', a: 'Ya no hay sección de Dramas en el Inicio: los dramas salen mezclados al azar entre los Shorts, y al tocar uno se abre el drama como siempre. Además, en la fila de arriba los Reels ya no se ven más largos que el primer tile: todas las tarjetas miden lo mismo. En Ajustes, cerrar sesión y cambiar de cuenta son botones de solo símbolo junto al «?», y las secciones están ordenadas de la forma más intuitiva.' }, /* Web 1.6: sin sección Dramas (dramas al azar entre los Shorts); fila de arriba simétrica; logout y cambiar de cuenta como símbolos; Ajustes rediseñado. */
+  { q: '¿Qué hay de nuevo en la Web 1.7?', a: 'Los dramas entre los Shorts ya se reproducen solos al llegar, como los Shorts: no hay que tocar la portada ni el botón, y no aparece el tutorial (la guía de gestos). Si cierras el drama, se queda cerrado en esa tarjeta hasta que pases a otro Short y vuelvas. Además, en la fila de Reels de arriba ya no hay texto debajo de las fotos (ni «Agregar reel» ni el nombre de quien lo publicó). Todo lo demás sigue igual.' }, /* Web 1.7: los dramas entre los Shorts se reproducen solos al llegar, sin que aparezca el tutorial; y sin texto debajo de los Reels de arriba. */
 
 ];
 function renderFaq() {
@@ -3666,7 +3667,7 @@ function renderStories() {
   var myMedia = me.photo
     ? '<img src="' + me.photo + '" alt="Tu perfil">'
     : '<div class="homeReelPh1549">' + esc((me.name || '?').trim().charAt(0).toUpperCase() || '?') + '</div>';
-  var html = '<div class="homeReel1549 homeReelMe1549" onclick="window.__wrOpenReelCreate()"><div class="homeReelRect1560">' + myMedia + '</div><div class="homeReelAdd1549">+</div><div class="homeReelName1549">Agregar reel</div></div>';
+  var html = '<div class="homeReel1549 homeReelMe1549" onclick="window.__wrOpenReelCreate()"><div class="homeReelRect1560">' + myMedia + '</div><div class="homeReelAdd1549">+</div></div>'; /* Web 1.7: ya no hay texto debajo de los Reels de arriba (ni «Agregar reel» ni el nombre de quien lo publicó); el tile (foto + + rojo) sigue igual y se toca igual. */
   /* 1.5.55: arriba solo salen los reels verticales. Sin dato aún, el
      reel se muestra hasta medirlo (luego la fila se repinta sola). */
   var items = C.shortsFeed(state, state.me).filter(function (it) { return it.kind === 'post' && reelIsVertical1555(it.post); }).slice(0, 10);
@@ -3688,8 +3689,7 @@ function renderStories() {
       ? '<img src="' + thumb1544 + '" alt="Reel">'
       : '<span class="homeReelPh1549">' + ic('video', 24) + '</span>';
     var attr = thumb1544 ? '' : ' data-reel-video="' + esc(video.src) + '"';
-    var authorName = ((state.profiles[post.author] || {}).name || 'Reel').slice(0, 12);
-    html += '<div class="homeReel1549" data-reel-post="' + post.id + '"' + attr + ' onclick="window.__wrOpenReel(\'' + post.id + '\')"><div class="homeReelRect1560">' + media + '</div><div class="homeReelName1549">' + esc(authorName) + '</div></div>';
+    html += '<div class="homeReel1549" data-reel-post="' + post.id + '"' + attr + ' onclick="window.__wrOpenReel(\'' + post.id + '\')"><div class="homeReelRect1560">' + media + '</div></div>'; /* Web 1.7: sin el nombre debajo del tile (el autor se ve al abrir el reel). */
   });
   row.innerHTML = html;
   requestReelCovers();
@@ -3800,20 +3800,67 @@ window.__wrOpenDuet = function (postId) { openDuet1526(postId); };
 window.__wrOpenChallenges = function () { openChallenges1526(); };
 window.__wrOpenSavedShorts = function () { openSavedShorts1526(); };
 window.__wrOpenStoryViewers = function (storyId) { openStoryViewers1526(storyId); };
+/* Web 1.7: al llegar a una tarjeta de drama entre los Shorts, el
+   drama se reproduce SOLO, como los Shorts (sin tocar nada), y el
+   visor muestra la guía de gestos del capítulo 1 (kdLoadCurrent1549
+   la enseña siempre al entrar al capítulo 0). El mecanismo es
+   auto-abrir el visor con __wrOpenDrama1562, que ya reproduce y
+   enseña la guía; no se toca el reproductor. */
+var kdAutoOpenTimer1562 = null;     /* temporizador del auto-apertura */
+var kdAutoOpenItem1562 = null;      /* id del Short actual (reset al cambiar) */
+var kdAutoOpenDone1562 = false;     /* ya se auto-abrió en esta llegada */
+var kdAutoOpenDismissed1562 = false; /* se cerró el visor en esta tarjeta */
+var kdSuppressGuide1562 = false;    /* Web 1.7: no enseñar la guía en el auto-apertura (pedido: que no aparezca el tutorial); solo vale para esa apertura. */
+function kdMaybeAutoOpenDrama1562(s) {
+  var it = currentShort();
+  if (!it || it.kind !== 'drama') return;
+  /* Una llegada nueva resetea las banderas (el cierre manual solo
+     vale para la tarjeta en la que se cerró); el temporizador
+     pendiente de la tarjeta anterior ya se canceló en
+     renderShortItem al cambiar de Short. */
+  if (kdAutoOpenItem1562 !== it.id) { kdAutoOpenItem1562 = it.id; kdAutoOpenDone1562 = false; kdAutoOpenDismissed1562 = false; }
+  if (kdAutoOpenTimer1562) { clearTimeout(kdAutoOpenTimer1562); kdAutoOpenTimer1562 = null; }
+  if (kdAutoOpenDone1562 || kdAutoOpenDismissed1562) return;
+  var ov = $('kdramaOverlay1549');
+  if (ov && ov.classList.contains('on')) return;
+  /* 700 ms: si se pasa rápido de largo, se va antes de que
+     se abra el visor; si se queda, el drama arranca solo. */
+  kdAutoOpenTimer1562 = setTimeout(function () {
+    kdAutoOpenTimer1562 = null;
+    var now = currentShort();
+    if (!now || now.kind !== 'drama' || now.id !== it.id) return; /* ya se fue a otro Short */
+    if (kdAutoOpenDone1562 || kdAutoOpenDismissed1562) return;
+    var ov2 = $('kdramaOverlay1549');
+    if (ov2 && ov2.classList.contains('on')) return;
+    var so = $('shortsOverlay');
+    if (!so || !so.classList.contains('on')) return; /* Shorts ya cerrados */
+    kdAutoOpenDone1562 = true;
+    var s2 = kdSeriesById1562(now.seriesId) || now.series;
+    if (s2) { kdSuppressGuide1562 = true; /* Web 1.7: en el auto-apertura el drama se reproduce solo SIN la guía de gestos (no aparece el tutorial). */ window.__wrOpenDrama1562(s2.id); }
+  }, 700);
+}
 function renderShortItem() {
   var it = currentShort();
   var body = $('shortsBody');
   var info = $('shortsInfo');
   if (!it) { body.innerHTML = '<div class="empty"><p>Ya no hay más Shorts.</p></div>'; info.innerHTML = ''; return; }
+  /* Web 1.7: al cambiar de Short se resetea el auto-apertura del
+     drama (una llegada nueva vuelve a poder auto-abrirse; el cierre
+     manual solo vale para la tarjeta en la que se cerró) y se cancela
+     el temporizador pendiente de la tarjeta anterior. */
+  if (kdAutoOpenItem1562 !== it.id) { kdAutoOpenItem1562 = it.id; kdAutoOpenDone1562 = false; kdAutoOpenDismissed1562 = false; if (kdAutoOpenTimer1562) { clearTimeout(kdAutoOpenTimer1562); kdAutoOpenTimer1562 = null; } }
   /* 1.5.62: en una tarjeta de drama los botones de acción se ocultan;
      en cualquier otro Short vuelven a verse. */
   if (it.kind !== 'drama') ['shortsLike', 'shortsComment', 'shortsShare'].forEach(function (id) { var b = $(id); if (b) b.style.display = ''; });
   if (it.kind === 'drama') {
     /* 1.5.62: tarjeta de drama entre los Shorts: se ve como un Short
        (misma tarjeta vertical, portada 1080×1920, título y etiqueta de
-       su aplicación), pero al tocarla abre el drama en su primer
-       capítulo, con la guía de gestos. No tiene Me gusta, comentarios
-       ni compartir: esos botones se ocultan en esta tarjeta. */
+       su aplicación). Web 1.7: al llegar a la tarjeta el drama se
+       reproduce SOLO (kdMaybeAutoOpenDrama1562 abre el visor sin que
+       aparezca el tutorial, sin tocar nada); el botón «Ver drama»
+       sigue para abrirlo de inmediato a mano, y tocar la portada
+       también. No tiene Me gusta, comentarios ni compartir: esos
+       botones se ocultan en esta tarjeta. */
     var s1562 = kdSeriesById1562(it.seriesId) || it.series;
     if (!s1562) { body.innerHTML = '<div class="empty"><p>Ya no hay más Shorts.</p></div>'; info.innerHTML = ''; return; }
     var tag1562 = kdAppTag1561(s1562);
@@ -3826,8 +3873,9 @@ function renderShortItem() {
     $('shortsLike').classList.remove('on');
     ['shortsLike', 'shortsComment', 'shortsShare'].forEach(function (id) { var b = $(id); if (b) b.style.display = 'none'; });
     info.innerHTML = '<div class="shortsAuthor"><b>' + esc(s1562.name) + '</b></div>' +
-      '<div class="tiny" style="color:#ddd">' + esc(kdSeriesLabel1549(s1562)) + ' · ' + tag1562 + ' · Toca la portada para ver el drama</div>' +
+      '<div class="tiny" style="color:#ddd">' + esc(kdSeriesLabel1549(s1562)) + ' · ' + tag1562 + ' · Se reproduce solo al llegar</div>' +
       '<button class="btn small" onclick="window.__wrOpenDrama1562(\'' + esc(s1562.id) + '\')">Ver drama</button>';
+    kdMaybeAutoOpenDrama1562(s1562);
   } else if (it.kind === 'story') {
     /* it es el envoltorio de shortsFeed: la historia está en it.story. */
     var s = it.story;
@@ -5242,7 +5290,7 @@ function kdOpen1549(seriesIdx, epIdx) {
      de la página con su tarjeta «Disponible en [App]». */
   var ch = kdCurrentChapter1549();
   if (ch && ch.videoId && window.AndroidBridge && AndroidBridge.openDramaPlayer) {
-    try { AndroidBridge.openDramaPlayer(JSON.stringify(kdActiveCatalog1549()), kdSeriesIdx1549, kdEpIdx1549); return; } catch (e) {}
+    try { AndroidBridge.openDramaPlayer(JSON.stringify(kdActiveCatalog1549()), kdSeriesIdx1549, kdEpIdx1549); kdSuppressGuide1562 = false; /* Web 1.7: con el reproductor nativo no corre el visor de la página; la supresión de la guía no se queda pendiente para la siguiente apertura. */ return; } catch (e) {}
   }
   showOverlay('kdramaOverlay1549');
   kdLoadCurrent1549();
@@ -5403,9 +5451,13 @@ function kdLoadCurrent1549() {
   }
   /* 1.5.49 (corrección pedida): la guía de gestos se muestra SOLO
      en el primer capítulo, siempre que se entra en él, y se quita sola
-     en unos segundos. En los demás capítulos nunca aparece. */
+     en unos segundos. En los demás capítulos nunca aparece. Web 1.7:
+     en el auto-apertura entre los Shorts NO se muestra (pedido: que
+     no aparezca el tutorial): kdSuppressGuide1562 solo vale para esa
+     apertura y se consume aquí. */
   kdHideGuide1549();
-  if (kdEpIdx1549 === 0) kdShowGuide1549();
+  if (kdEpIdx1549 === 0 && !kdSuppressGuide1562) kdShowGuide1549();
+  kdSuppressGuide1562 = false;
 }
 /* ---- 1.5.60: subtítulos de los dramas originales (CC) ----
    Cada capítulo con video trae `subtitles: {es, en, pt}` con las URLs
@@ -16038,9 +16090,9 @@ function initHomeWidgets1536() {
    simple. Con «Saltar» se cierra y no vuelve a salir solo. */
 var TUTORIAL_STEPS_1533 = [
   { art: 'bienvenida', title: 'Bienvenido a WordRed', text: 'Aquí está tu inicio: las publicaciones de tus amigos y de la cuenta de ejemplo aparecen en un solo lugar.' },
-  { art: 'inicio', title: 'Tu inicio', text: 'Arriba siempre están los reels, luego «¿Qué estás pensando?» y el reloj con el clima a su derecha. Desliza para ver publicaciones, dale Me gusta, comenta y comparte. Entre las publicaciones verás los Reels grandes y la cartelera de estrenos. Los reels se abren a pantalla completa y se cambian deslizando. La etiqueta de Dramas nombra sus aplicaciones y llegan más dramas cada 2 semanas: en Dramas puedes buscar por nombre, filtrar por aplicación y seguir una serie para que te avise de capítulos nuevos. En tu perfil está «Guardados», con lo que guardes para luego. Las barras se ocultan solas al bajar y vuelven al subir; Mercado está en el centro de la barra de abajo.' }, /* Web 1.2: el buscador del Inicio se quitó. */ /* Web 1.5: reels a pantalla completa, buscar y seguir dramas, Guardados. */
+  { art: 'inicio', title: 'Tu inicio', text: 'Arriba siempre están los reels, luego «¿Qué estás pensando?» y el reloj con el clima a su derecha. Desliza para ver publicaciones, dale Me gusta, comenta y comparte. Entre las publicaciones verás los Reels grandes y la cartelera de estrenos. Los reels se abren a pantalla completa y se cambian deslizando. Llegan más dramas cada 2 semanas: salen mezclados entre los Shorts y en el visor puedes seguir una serie para que te avise de capítulos nuevos. En tu perfil está «Guardados», con lo que guardes para luego. Las barras se ocultan solas al bajar y vuelven al subir; Mercado está en el centro de la barra de abajo.' }, /* Web 1.2: el buscador del Inicio se quitó. */ /* Web 1.5: reels a pantalla completa, buscar y seguir dramas, Guardados. */ /* Web 1.7: ya no hay sección Dramas en el Inicio (se quitó en la 1.6): los dramas salen entre los Shorts y se sigue desde el visor. */
   { art: 'publicar', title: 'Publica algo', text: 'Toca «Publicar» y comparte una foto, un video o lo que piensas. La vista previa sale al instante y la subida sigue en segundo plano: si la conexión se corta, continúa donde se quedó y nada se publica roto. También puedes hacer una encuesta, grabar una nota de voz, compartir una canción del catálogo o ponerle un filtro a tu foto antes de publicar.' }, /* Web 1.5: encuestas, notas de voz, canciones y filtros. */
-  { art: 'shorts', title: 'Shorts e historias', text: 'Mira videos cortos en Shorts y crea historias que duran 24 horas. Arriba en el inicio están los reels: toca tu foto con el + para publicar uno. Las historias se crean desde tu perfil y se ven en Shorts: pueden llevar música, una encuesta o una foto con las dos cámaras. Entre los Shorts aparecen tarjetas de dramas: al tocarlas se abre el drama en su primer capítulo.' }, /* Web 1.5: historias con música, encuestas y doble cámara. */
+  { art: 'shorts', title: 'Shorts e historias', text: 'Mira videos cortos en Shorts y crea historias que duran 24 horas. Arriba en el inicio están los reels: toca tu foto con el + para publicar uno. Las historias se crean desde tu perfil y se ven en Shorts: pueden llevar música, una encuesta o una foto con las dos cámaras. Entre los Shorts aparecen tarjetas de dramas: al llegar a una se reproduce sola en su primer capítulo, sin que aparezca el tutorial.' }, /* Web 1.5: historias con música, encuestas y doble cámara. */ /* Web 1.7: los dramas entre los Shorts se reproducen solos al llegar, sin el tutorial (antes había que tocar la tarjeta). */
   { art: 'amigos', title: 'Amigos y grupos', text: 'Agrega amigos, crea grupos y chatea con quien quieras. En Amigos verás «Gente que quizá conozcas», con personas reales que quizá conozcas. Los grupos tienen sus propios administradores y reglas, y ahora también eventos y llamadas de voz o video en grupo. En los chats puedes mandar notas de voz, buscar mensajes, fijar un chat y borrar un mensaje para todos.' }, /* Web 1.5: sugerencias, eventos en grupos, llamadas grupales. */
   { art: 'perfil', title: 'Tu perfil', text: 'En tu perfil está tu foto, tu biografía y tus publicaciones, con los 4 botones en una sola fila y «Tu tiempo hoy» antes de la tienda de juegos. Los eventos están en tu perfil, donde estaba el navegador, abajo de «¿Qué estás pensando?». También están «Guardados», «Archivados», «Me gusta» y el «Archivo de historias», tu código QR para compartir tu perfil, tu nota y tu negocio si lo agregas. Toca el engrane para ir a Ajustes: ahí están las notificaciones push, el modo No molestar, el texto grande, el ahorro de datos y exportar tus datos.' } /* Web 1.2: los Eventos están en el perfil. */ /* Web 1.3: los Eventos van abajo de «¿Qué estás pensando?». */ /* Web 1.5: Guardados, Archivados, QR, nota, negocio, Ajustes nuevos. */
 ];
@@ -19229,6 +19281,12 @@ window.__wordredTest = {
   /* Web 1.6: dramas mezclados al azar entre los Shorts (la sección
      Dramas del Inicio ya no existe). */
   kdInterleaveDramas1562: kdInterleaveDramas1562,
+  /* Web 1.7: auto-apertura del drama al llegar a su tarjeta entre los
+     Shorts (W47): estado del auto-apertura y si el video de YouTube
+     del visor está sonando. */
+  kdMaybeAutoOpenDrama1562: kdMaybeAutoOpenDrama1562,
+  kdAutoOpenState1562: function () { return { item: kdAutoOpenItem1562, done: kdAutoOpenDone1562, dismissed: kdAutoOpenDismissed1562, timer: !!kdAutoOpenTimer1562 }; },
+  kdYtPlaying1558: function () { return kdYtPlaying1558; },
   /* Web 1.6: posiciones al azar de las secciones del feed (W46). */
   feedSectionPositions1562: feedSectionPositions1562,
   kdActiveCatalog1549: kdActiveCatalog1549, /* Web 1.6: gancho de pruebas (W12/W45 esperan el catálogo). */
